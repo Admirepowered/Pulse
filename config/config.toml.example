@@ -1,0 +1,55 @@
+[local]
+type = "mixed"
+bind = "127.0.0.1"
+port = 1080
+
+[main]
+endpoint = "manual-vless"
+include = ["subscription.example.toml"]
+
+[regions.cn]
+cidrs = ["1.0.1.0/24", "223.5.5.0/24"]
+
+[rules.direct-cn]
+action = "direct"
+domain-suffixes = ["qq.com", "bilibili.com"]
+
+[rules.proxy-foreign]
+action = "proxy"
+endpoint = "subscription.example[0]"
+domains = ["google.com", "*.openai.com"]
+
+[rules.resolve-cn]
+action = "direct"
+region = "cn"
+resolve = true
+
+[endpoints.manual-vless]
+name = "Manual VLESS"
+type = "vless"
+server = "example.com"
+port = 443
+uuid = "00000000-0000-0000-0000-000000000000"
+udp = true
+tls = true
+skip-cert-verify = false
+flow = ""
+client-fingerprint = "ios"
+servername = "example.com"
+network = "ws"
+
+[endpoints.manual-vless.ws-opts]
+path = "/ws"
+headers = { Host = "example.com" }
+
+[endpoints.manual-trojan]
+name = "Manual Trojan"
+type = "trojan"
+server = "trojan.example.com"
+port = 443
+udp = false
+tls = true
+skip-cert-verify = false
+password = "your-password"
+servername = "trojan.example.com"
+network = "tcp"

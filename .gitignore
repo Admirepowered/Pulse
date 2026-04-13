@@ -1,0 +1,38 @@
+# Build outputs
+/bin/
+/obj/
+/build-windows/
+/CMakeCache.txt
+/CMakeFiles/
+/cmake_install.cmake
+/build.ninja
+/rules.ninja
+/.ninja_deps
+/.ninja_log
+config/config.toml
+/config/*.toml
+!/config/*.toml.example
+# Local third-party build outputs
+/third_party/build/
+/third_party/prefix/
+/third_party/tmp_*/
+
+# Downloaded archives
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.xz
+
+# OS/editor junk
+.DS_Store
+Thumbs.db
+*.tmp
+*.log
+
+# Local env / IDE
+.env
+.env.*
+.vscode/
+.idea/

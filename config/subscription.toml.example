@@ -1,0 +1,72 @@
+[endpoints.0]
+name = "Imported Shadowsocks 0"
+type = "ss"
+server = "sg.example.com"
+port = 8388
+udp = false
+skip-cert-verify = false
+method = "aes-256-gcm"
+password = "ss-password"
+plugin = ""
+
+[endpoints.1]
+name = "Imported VMess 1"
+type = "vmess"
+server = "jp.example.com"
+port = 443
+uuid = "11111111-1111-1111-1111-111111111111"
+alter-id = 0
+security = "auto"
+udp = true
+tls = true
+skip-cert-verify = false
+servername = "jp.example.com"
+network = "ws"
+
+[endpoints.1.ws-opts]
+path = "/vmess"
+headers = { Host = "jp.example.com" }
+
+[endpoints.2]
+name = "Imported VLESS 2"
+type = "vless"
+server = "jp.example.com"
+port = 443
+uuid = "11111111-1111-1111-1111-111111111111"
+udp = true
+tls = true
+skip-cert-verify = false
+flow = ""
+client-fingerprint = "chrome"
+servername = "jp.example.com"
+network = "ws"
+
+[endpoints.2.ws-opts]
+path = "/pq/jp1"
+headers = { Host = "jp.example.com" }
+
+[endpoints.3]
+name = "Imported Hysteria2 3"
+type = "hysteria2"
+server = "us.example.com"
+port = 443
+udp = true
+skip-cert-verify = true
+sni = "www.apple.com"
+password = "22222222-2222-2222-2222-222222222222"
+
+[endpoints.4]
+name = "Imported Trojan 4"
+type = "trojan"
+server = "hk.example.com"
+port = 443
+udp = false
+skip-cert-verify = false
+password = "trojan-password"
+tls = true
+servername = "hk.example.com"
+network = "ws"
+
+[endpoints.4.ws-opts]
+path = "/ws"
+headers = { Host = "hk.example.com" }

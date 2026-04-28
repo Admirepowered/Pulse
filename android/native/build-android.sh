@@ -93,6 +93,7 @@ for ABI in "${ABIS[@]}"; do
             export LD="$TOOLCHAIN/bin/ld.lld"
             export CFLAGS="-fPIC -DANDROID"
             export CXXFLAGS="-fPIC -DANDROID"
+            make clean 2>/dev/null || true
             ./Configure "$OPENSSL_TARGET" \
                 -D__ANDROID_API__=$API \
                 --prefix="$INSTALL_DIR" \

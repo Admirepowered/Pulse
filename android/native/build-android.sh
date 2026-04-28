@@ -119,6 +119,7 @@ for ABI in "${ABIS[@]}"; do
         fi
         (
             cd "$NGHTTP3_SRC"
+            make clean 2>/dev/null || true
             autoreconf -fi 2>/dev/null || true
             ./configure \
                 --build=x86_64-linux-gnu \

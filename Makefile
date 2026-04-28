@@ -5,6 +5,7 @@ SRC_DIR ?= src
 SOURCES = \
 	$(SRC_DIR)/app/main.c \
 	$(SRC_DIR)/core/pulse.c \
+	$(SRC_DIR)/core/mmdb.c \
 	$(SRC_DIR)/core/socket_io.c \
 	$(SRC_DIR)/inbounds/server.c \
 	$(SRC_DIR)/manager/config.c \

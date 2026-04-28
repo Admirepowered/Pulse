@@ -111,6 +111,7 @@ static int run_proxy_command(const char* config_path) {
     result = 0;
 
 cleanup:
+    cleanup_config(config);
     free(config);
     return result;
 }

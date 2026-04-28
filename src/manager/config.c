@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "core/proxy.h"
+#include "core/mmdb.h"
 
 static void safe_copy(char* dest, size_t dest_size, const char* src);
 
@@ -1030,6 +1031,12 @@ static int parse_config_entry(ParseContext* context, const ParseSection* section
             }
             return 0;
         }
+        if (strcmp(key, "country-db") == 0 || strcmp(key, "country_db") == 0 ||
+            strcmp(key, "country-db-path") == 0 || strcmp(key, "country_db_path") == 0) {
+            unquote_inplace(value);
+            safe_copy(context->config->country_db_path, sizeof(context->config->country_db_path), value);
+            return 0;
+        }
     }
 
     if (section->type == SECTION_RULE && rule != NULL) {
@@ -1073,6 +1080,11 @@ static int parse_config_entry(ParseContext* context, const ParseSection* section
         if (strcmp(key, "region") == 0) {
             unquote_inplace(value);
             safe_copy(rule->region, sizeof(rule->region), value);
+            return 0;
+        }
+        if (strcmp(key, "region-db") == 0 || strcmp(key, "region_db") == 0) {
+            unquote_inplace(value);
+            safe_copy(rule->region_db, sizeof(rule->region_db), value);
             return 0;
         }
         if (strcmp(key, "resolve") == 0) {
@@ -1510,8 +1522,13 @@ static int validate_rules(const Config* config) {
             return -1;
         }
 
-        if (rule->region[0] != '\0' && find_region((Config*)config, rule->region) == NULL) {
+        if (rule->region[0] != '\0' && rule->region_db[0] == '\0' &&
+            find_region((Config*)config, rule->region) == NULL) {
             fprintf(stderr, "Rule \"%s\" references unknown region \"%s\".\n", rule->name, rule->region);
+            return -1;
+        }
+        if (rule->region_db[0] != '\0' && config->country_db_path[0] == '\0') {
+            fprintf(stderr, "Rule \"%s\" uses region-db but no country-db is configured in [main].\n", rule->name);
             return -1;
         }
 
@@ -1621,6 +1638,12 @@ static int load_config_file(const char* filename, const char* alias, int is_root
     return 0;
 }
 
+void cleanup_config(Config* config) {
+    if (!config) return;
+    mmdb_close((mmdb*)config->country_db_handle);
+    config->country_db_handle = NULL;
+}
+
 const EndpointConfig* get_active_endpoint(const Config* config) {
     if (config->active_endpoint[0] == '\0') {
         return config->endpoint_count == 1 ? &config->endpoints[0] : NULL;
@@ -1639,6 +1662,15 @@ int load_config(const char* filename, Config* config) {
 
     if (load_config_file(filename, NULL, 1, config, &state) != 0) {
         return -1;
+    }
+
+    if (config->country_db_path[0] != '\0') {
+        mmdb* db = NULL;
+        if (mmdb_open(config->country_db_path, &db) != 0) {
+            fprintf(stderr, "Failed to open country database: %s\n", config->country_db_path);
+            return -1;
+        }
+        config->country_db_handle = db;
     }
 
     if (config->endpoint_count == 0) {
@@ -1836,7 +1868,18 @@ static int destination_collect_ips(const Destination* destination, int families[
     return count;
 }
 
-static int rule_matches_region(const Config* config, const RouteRule* rule, const Destination* destination) {
+static int ip_matches_region_db(const Config* config, const char* region_code,
+                                 int family, const unsigned char* addr) {
+    mmdb* db = (mmdb*)config->country_db_handle;
+    char code[8];
+    if (!db) return 0;
+    if (mmdb_lookup_country_code(db, family, addr, code, sizeof(code)) != 0)
+        return 0;
+    return _stricmp(code, region_code) == 0;
+}
+
+static int rule_matches_region(const Config* config, const RouteRule* rule,
+                                const Destination* destination) {
     int families[16];
     unsigned char addrs[16][16];
     int addr_count = 0;
@@ -1844,13 +1887,9 @@ static int rule_matches_region(const Config* config, const RouteRule* rule, cons
     int j = 0;
     const RegionConfig* region = NULL;
 
-    if (rule->region[0] == '\0') {
+    /* No region or region-db → no IP restriction */
+    if (rule->region[0] == '\0' && rule->region_db[0] == '\0') {
         return 1;
-    }
-
-    region = find_region((Config*)config, rule->region);
-    if (region == NULL) {
-        return 0;
     }
 
     if (destination->type == DEST_ADDR_DOMAIN && !rule->resolve) {
@@ -1859,6 +1898,21 @@ static int rule_matches_region(const Config* config, const RouteRule* rule, cons
 
     addr_count = destination_collect_ips(destination, families, addrs, 16);
     if (addr_count <= 0) {
+        return 0;
+    }
+
+    /* region-db: mmdb-based country code lookup */
+    if (rule->region_db[0] != '\0') {
+        for (i = 0; i < addr_count; ++i) {
+            if (ip_matches_region_db(config, rule->region_db, families[i], addrs[i]))
+                return 1;
+        }
+        return 0;
+    }
+
+    /* static CIDR-based region matching */
+    region = find_region((Config*)config, rule->region);
+    if (region == NULL) {
         return 0;
     }
 

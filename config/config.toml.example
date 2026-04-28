@@ -6,6 +6,7 @@ port = 1080
 [main]
 endpoint = "manual-vless"
 include = ["subscription.example.toml"]
+# country-db = "config/Country.mmdb"
 
 [regions.cn]
 cidrs = ["1.0.1.0/24", "223.5.5.0/24"]
@@ -19,10 +20,16 @@ action = "proxy"
 endpoint = "subscription.example[0]"
 domains = ["google.com", "*.openai.com"]
 
-[rules.resolve-cn]
+[rules.resolve-cn-cidr]
 action = "direct"
 region = "cn"
 resolve = true
+
+# Example: mmdb-based geo routing (requires country-db in [main])
+# [rules.resolve-cn-db]
+# action = "direct"
+# region-db = "cn"
+# resolve = true
 
 [endpoints.manual-vless]
 name = "Manual VLESS"

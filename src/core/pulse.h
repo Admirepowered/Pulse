@@ -169,6 +169,7 @@ typedef struct {
     char domain_keywords[MAX_RULE_MATCHES][CONFIG_VALUE_LEN];
     int domain_keyword_count;
     char region[REGION_NAME_LEN];
+    char region_db[REGION_NAME_LEN];
     bool resolve;
 } RouteRule;
 
@@ -177,6 +178,8 @@ typedef struct {
     char local_bind_addr[64];
     int local_port;
     char active_endpoint[ENDPOINT_NAME_LEN];
+    char country_db_path[CONFIG_PATH_LEN];
+    void* country_db_handle;
     EndpointConfig endpoints[MAX_ENDPOINTS];
     int endpoint_count;
     RouteRule rules[MAX_RULES];
@@ -219,6 +222,7 @@ typedef struct {
 } ProxySession;
 
 int load_config(const char* filename, Config* config);
+void cleanup_config(Config* config);
 const EndpointConfig* get_active_endpoint(const Config* config);
 const EndpointConfig* find_endpoint_by_name(const Config* config, const char* key);
 int resolve_route(const Config* config, const Destination* destination, RouteDecision* decision);

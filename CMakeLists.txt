@@ -27,6 +27,7 @@ endif()
 add_executable(vless_proxy
     src/app/main.c
     src/core/pulse.c
+    src/core/mmdb.c
     src/core/socket_io.c
     src/inbounds/server.c
     src/manager/config.c

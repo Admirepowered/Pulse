@@ -79,7 +79,9 @@ jobs:
           ./gradlew assembleRelease
 
       - name: Sign Release
-        if: ${{ secrets.SIGNING_KEY != '' }}
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+        if: ${{ env.SIGNING_KEY != '' }}
         continue-on-error: true
         uses: kevin-david/zipalign-sign-android-release@v2
         with:

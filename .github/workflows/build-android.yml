@@ -29,8 +29,12 @@ jobs:
       - name: Setup NDK
         run: |
           NDK_VERSION="27.0.12077973"
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> $GITHUB_ENV
+          NDK_DIR="$ANDROID_HOME/ndk/$NDK_VERSION"
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK_VERSION"
+          echo "ANDROID_NDK_HOME=$NDK_DIR" >> $GITHUB_ENV
+          echo "ANDROID_NDK_ROOT=$NDK_DIR" >> $GITHUB_ENV
+          # Verify toolchain
+          ls -la "$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang"
 
       - name: Sync third-party sources
         run: |
@@ -55,22 +59,32 @@ jobs:
           ./android/native/collect-binaries.sh
           ls -lhR android/app/src/main/jniLibs/
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          build-root-directory: android
+
+      - name: Configure Android SDK path
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+          echo "ndk.dir=$ANDROID_NDK_HOME" >> android/local.properties
+
       - name: Build APK
         working-directory: android
         run: |
-          # Generate Gradle wrapper if not present
+          # Generate wrapper if not present
           if [ ! -f "gradlew" ]; then
-            gradle wrapper
+            gradle wrapper --gradle-version 8.11.1
           fi
           chmod +x gradlew
-          ./gradlew assembleRelease
+          ./gradlew assembleDebug
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: pulse-android-apk
           path: |
-            android/app/build/outputs/apk/release/*.apk
+            android/app/build/outputs/apk/debug/*.apk
           retention-days: 30
 
       - name: Upload native binaries artifact

@@ -84,14 +84,22 @@ for ABI in "${ABIS[@]}"; do
         (
             cd "$OPENSSL_SRC"
             export ANDROID_NDK_HOME
+            export ANDROID_NDK_ROOT="$ANDROID_NDK_HOME"
             export PATH="$TOOLCHAIN/bin:$PATH"
+            export CC="$TOOLCHAIN/bin/${TRIPLE}${API}-clang"
+            export CXX="$TOOLCHAIN/bin/${TRIPLE}${API}-clang++"
+            export AR="$TOOLCHAIN/bin/llvm-ar"
+            export RANLIB="$TOOLCHAIN/bin/llvm-ranlib"
+            export LD="$TOOLCHAIN/bin/ld.lld"
+            export CFLAGS="-fPIC -DANDROID"
+            export CXXFLAGS="-fPIC -DANDROID"
             ./Configure "$OPENSSL_TARGET" \
                 -D__ANDROID_API__=$API \
                 --prefix="$INSTALL_DIR" \
                 --openssldir="$INSTALL_DIR/ssl" \
-                no-tests no-shared no-dynamic-engine \
+                no-tests no-shared no-dso \
                 no-autoload-config no-engine \
-                -static 2>&1 | tail -5
+                CC="$CC" CXX="$CXX" AR="$AR" RANLIB="$RANLIB"
             make -j"$(nproc)" build_sw 2>&1 | tail -5
             make install_sw 2>&1 | tail -3
         )
@@ -112,11 +120,12 @@ for ABI in "${ABIS[@]}"; do
             cd "$NGHTTP3_SRC"
             autoreconf -fi 2>/dev/null || true
             ./configure \
+                --build=x86_64-linux-gnu \
                 --host="$HOST" \
                 CC="$CC" \
                 AR="$AR" \
                 RANLIB="$RANLIB" \
-                CFLAGS="$CFLAGS" \
+                CFLAGS="-fPIC -DANDROID -D__ANDROID_API__=$API" \
                 --prefix="$INSTALL_DIR" \
                 --enable-lib-only \
                 --disable-shared \

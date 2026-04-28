@@ -151,8 +151,7 @@ for ABI in "${ABIS[@]}"; do
         -L"$INSTALL_DIR/lib" \
         -lssl -lcrypto -lnghttp3 \
         -static \
-        -o "$INSTALL_DIR/bin/vless_proxy" \
-        -lpthread
+        -o "$INSTALL_DIR/bin/vless_proxy"
 
     echo "  pulse_proxy for $ABI: $INSTALL_DIR/bin/vless_proxy"
     echo "=== $ABI done ==="

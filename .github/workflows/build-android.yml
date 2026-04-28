@@ -72,19 +72,30 @@ jobs:
       - name: Build APK
         working-directory: android
         run: |
-          # Generate wrapper if not present
           if [ ! -f "gradlew" ]; then
             gradle wrapper --gradle-version 8.11.1
           fi
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleRelease
+
+      - name: Sign Release
+        if: ${{ secrets.SIGNING_KEY != '' }}
+        continue-on-error: true
+        uses: kevin-david/zipalign-sign-android-release@v2
+        with:
+          releaseDirectory: android/app/build/outputs/apk/release
+          signingKeyBase64: ${{ secrets.SIGNING_KEY }}
+          alias: ${{ secrets.ALIAS }}
+          keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
+          zipAlign: true
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: pulse-android-apk
           path: |
-            android/app/build/outputs/apk/debug/*.apk
+            android/app/build/outputs/apk/release/*.apk
           retention-days: 30
 
       - name: Upload native binaries artifact

@@ -90,6 +90,7 @@ typedef struct {
     char uuid[37];
     int alter_id;
     char security[32];
+    bool authenticated_length;
     bool tls;
     char servername[CONFIG_VALUE_LEN];
     char network[16];

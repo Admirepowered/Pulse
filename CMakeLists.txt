@@ -33,6 +33,7 @@ add_executable(vless_proxy
     src/manager/subscription.c
     src/outbounds/stream.c
     src/outbounds/protocol_helpers.c
+    src/outbounds/anytls.c
     src/outbounds/shadowsocks.c
     src/outbounds/stubs.c
     src/outbounds/trojan.c

@@ -406,12 +406,14 @@ static int canonicalize_path(const char* path, char* out, size_t out_size) {
         return -1;
     }
 #else
-    char* resolved = realpath(path, out);
+    char* resolved = realpath(path, NULL);
     if (resolved == NULL) {
         safe_copy(out, out_size, path);
         normalize_slashes(out);
         return -1;
     }
+    safe_copy(out, out_size, resolved);
+    free(resolved);
 #endif
     normalize_slashes(out);
     return 0;
@@ -571,6 +573,7 @@ static void set_endpoint_defaults(EndpointConfig* endpoint) {
     strcpy(endpoint->trojan.network, "tcp");
     strcpy(endpoint->trojan.ws.path, "/");
     strcpy(endpoint->vmess.security, "auto");
+    endpoint->vmess.authenticated_length = false;
     endpoint->vmess.tls = true;
     strcpy(endpoint->vmess.network, "ws");
     strcpy(endpoint->vmess.ws.path, "/");
@@ -1246,6 +1249,14 @@ static int parse_config_entry(ParseContext* context, const ParseSection* section
         if (strcmp(key, "security") == 0 || strcmp(key, "cipher") == 0) {
             unquote_inplace(value);
             safe_copy(endpoint->vmess.security, sizeof(endpoint->vmess.security), value);
+            return 0;
+        }
+        if (strcmp(key, "authenticated-length") == 0 || strcmp(key, "authenticated_length") == 0) {
+            if (parse_bool_value(value, &bool_value) != 0) {
+                fprintf(stderr, "Invalid endpoint.authenticated-length at %s:%d\n", context->canonical_path, line_no);
+                return -1;
+            }
+            endpoint->vmess.authenticated_length = bool_value != 0;
             return 0;
         }
         if (strcmp(key, "congestion-control") == 0 || strcmp(key, "congestion_control") == 0) {

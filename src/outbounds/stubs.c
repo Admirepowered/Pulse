@@ -24,8 +24,3 @@ int proxy_tuic_client(SOCKET client_socket, const EndpointConfig* endpoint, cons
     (void)endpoint;
     return report_unavailable(client_socket, session, "TUIC");
 }
-
-int proxy_anytls_client(SOCKET client_socket, const EndpointConfig* endpoint, const ProxySession* session) {
-    (void)endpoint;
-    return report_unavailable(client_socket, session, "AnyTLS");
-}

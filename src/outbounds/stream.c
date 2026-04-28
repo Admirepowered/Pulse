@@ -229,6 +229,57 @@ static int get_http_header_value(const char* response, const char* name, char* o
     return 0;
 }
 
+static int try_load_verify_locations(SSL_CTX* ctx, const char* cert_file, const char* cert_dir) {
+    if (SSL_CTX_load_verify_locations(ctx, cert_file, cert_dir) == 1) {
+        return 1;
+    }
+
+    ERR_clear_error();
+    return 0;
+}
+
+static int load_system_verify_locations(SSL_CTX* ctx) {
+    static const char* common_cert_files[] = {
+        "/etc/ssl/certs/ca-certificates.crt",
+        "/etc/pki/tls/certs/ca-bundle.crt",
+        "/etc/ssl/ca-bundle.pem",
+        "/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem",
+        "/etc/ssl/cert.pem"
+    };
+    static const char* common_cert_dirs[] = {
+        "/etc/ssl/certs",
+        "/etc/pki/tls/certs",
+        "/etc/pki/ca-trust/extracted/pem"
+    };
+    const char* env_cert_file = getenv("SSL_CERT_FILE");
+    const char* env_cert_dir = getenv("SSL_CERT_DIR");
+    int loaded = 0;
+    size_t i = 0;
+
+    if ((env_cert_file != NULL && env_cert_file[0] != '\0') ||
+        (env_cert_dir != NULL && env_cert_dir[0] != '\0')) {
+        loaded |= try_load_verify_locations(ctx,
+            env_cert_file != NULL && env_cert_file[0] != '\0' ? env_cert_file : NULL,
+            env_cert_dir != NULL && env_cert_dir[0] != '\0' ? env_cert_dir : NULL);
+    }
+
+    if (SSL_CTX_set_default_verify_paths(ctx) == 1) {
+        loaded = 1;
+    } else {
+        ERR_clear_error();
+    }
+
+    for (i = 0; i < sizeof(common_cert_files) / sizeof(common_cert_files[0]); ++i) {
+        loaded |= try_load_verify_locations(ctx, common_cert_files[i], NULL);
+    }
+
+    for (i = 0; i < sizeof(common_cert_dirs) / sizeof(common_cert_dirs[0]); ++i) {
+        loaded |= try_load_verify_locations(ctx, NULL, common_cert_dirs[i]);
+    }
+
+    return loaded ? 0 : -1;
+}
+
 SOCKET connect_tcp_socket(const char* host, int port) {
     struct addrinfo hints;
     struct addrinfo* result = NULL;
@@ -283,7 +334,8 @@ int remote_stream_enable_tls(RemoteStream* stream, const char* tls_host, int ski
         SSL_CTX_set_verify(stream->ssl_ctx, SSL_VERIFY_NONE, NULL);
     } else {
         SSL_CTX_set_verify(stream->ssl_ctx, SSL_VERIFY_PEER, NULL);
-        if (SSL_CTX_set_default_verify_paths(stream->ssl_ctx) != 1) {
+        if (load_system_verify_locations(stream->ssl_ctx) != 0) {
+            fprintf(stderr, "Failed to load TLS CA certificate store.\n");
             return -1;
         }
     }

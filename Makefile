@@ -11,6 +11,7 @@ SOURCES = \
 	$(SRC_DIR)/manager/subscription.c \
 	$(SRC_DIR)/outbounds/stream.c \
 	$(SRC_DIR)/outbounds/protocol_helpers.c \
+	$(SRC_DIR)/outbounds/anytls.c \
 	$(SRC_DIR)/outbounds/shadowsocks.c \
 	$(SRC_DIR)/outbounds/stubs.c \
 	$(SRC_DIR)/outbounds/trojan.c \
@@ -21,10 +22,79 @@ SOURCES = \
 OBJECTS = $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(SOURCES))
 
 ifeq ($(OS),Windows_NT)
-SHELL = pwsh
+SHELL = powershell.exe
 .SHELLFLAGS = -NoProfile -Command
+ifeq ($(origin CC),undefined)
 
-MSYS2_ROOT ?= $(if $(wildcard D:/msys64/mingw64/bin/gcc.exe),D:/msys64,$(if $(wildcard C:/msys64/mingw64/bin/gcc.exe),C:/msys64,D:/msys64))
+    GCC_IN_PATH := $(shell where gcc 2>nul || which gcc 2>/dev/null)
+    
+    ifneq ($(GCC_IN_PATH),)
+        GCC_FULL_PATH := $(firstword $(GCC_IN_PATH))
+        
+
+        MSYS2_ROOT := $(shell echo "$(GCC_FULL_PATH)" | sed -E 's|/mingw64/bin/gcc\.exe$$||; s|/ucrt64/bin/gcc\.exe$$||; s|/clang64/bin/gcc\.exe$$||; s|/mingw32/bin/gcc\.exe$$||')
+        
+
+        ifeq ($(MSYS2_ROOT),)
+            MSYS2_ROOT := $(patsubst %/mingw64/bin/gcc.exe,%,$(GCC_FULL_PATH))
+            MSYS2_ROOT := $(patsubst %/ucrt64/bin/gcc.exe,%,$(MSYS2_ROOT))
+            MSYS2_ROOT := $(patsubst %/clang64/bin/gcc.exe,%,$(MSYS2_ROOT))
+            MSYS2_ROOT := $(patsubst %/mingw32/bin/gcc.exe,%,$(MSYS2_ROOT))
+        endif
+        
+        ifneq ($(findstring mingw64,$(GCC_FULL_PATH)),)
+            MINGW_SUBDIR := mingw64
+        else ifneq ($(findstring ucrt64,$(GCC_FULL_PATH)),)
+            MINGW_SUBDIR := ucrt64
+        else ifneq ($(findstring clang64,$(GCC_FULL_PATH)),)
+            MINGW_SUBDIR := clang64
+        else
+            MINGW_SUBDIR := mingw64  # 默认
+        endif
+    endif
+endif
+
+ifeq ($(MSYS2_ROOT),)
+
+    COMMON_PATHS := C:/msys64 D:/msys64 E:/msys64 F:/msys64
+    COMMON_SUBDIRS := mingw64 ucrt64 clang64 mingw32
+
+    FOUND_GCC := $(firstword $(foreach path,$(COMMON_PATHS), \
+                               $(foreach subdir,$(COMMON_SUBDIRS), \
+                                   $(wildcard $(path)/$(subdir)/bin/gcc.exe))))
+    
+    ifneq ($(FOUND_GCC),)
+        MSYS2_ROOT := $(patsubst %/mingw64/bin/gcc.exe,%,$(FOUND_GCC))
+        MSYS2_ROOT := $(patsubst %/ucrt64/bin/gcc.exe,%,$(MSYS2_ROOT))
+        MSYS2_ROOT := $(patsubst %/clang64/bin/gcc.exe,%,$(MSYS2_ROOT))
+        MSYS2_ROOT := $(patsubst %/mingw32/bin/gcc.exe,%,$(MSYS2_ROOT))
+
+        ifneq ($(findstring mingw64,$(FOUND_GCC)),)
+            MINGW_SUBDIR := mingw64
+        else ifneq ($(findstring ucrt64,$(FOUND_GCC)),)
+            MINGW_SUBDIR := ucrt64
+        else ifneq ($(findstring clang64,$(FOUND_GCC)),)
+            MINGW_SUBDIR := clang64
+        else
+            MINGW_SUBDIR := mingw64
+        endif
+    endif
+endif
+
+ifneq ($(MSYS2_ROOT),)
+    CC := $(MSYS2_ROOT)/$(MINGW_SUBDIR)/bin/gcc.exe
+    CXX := $(MSYS2_ROOT)/$(MINGW_SUBDIR)/bin/g++.exe
+    AR := $(MSYS2_ROOT)/$(MINGW_SUBDIR)/bin/ar.exe
+    export PATH := $(MSYS2_ROOT)/$(MINGW_SUBDIR)/bin:$(PATH)
+else
+    $(error Cannot find MinGW gcc. Please install MSYS2 or MinGW-w64 and ensure gcc is in PATH)
+endif
+
+# 调试信息（可选，用于验证）
+$(info Found GCC at: $(CC))
+$(info MSYS2_ROOT: $(MSYS2_ROOT))
+$(info MINGW_SUBDIR: $(MINGW_SUBDIR))
+
 MINGW_PREFIX ?= $(MSYS2_ROOT)/mingw64
 MINGW_BIN ?= $(MINGW_PREFIX)/bin
 TOOLCHAIN_NAME := $(notdir $(MINGW_PREFIX))
@@ -91,11 +161,17 @@ EXECUTABLE = $(BIN_DIR)/vless_proxy
 LINUX_PREFIX_PC = $(LINUX_PREFIX)/lib/pkgconfig
 PULSE_AUTO_BOOTSTRAP_LINUX ?= 1
 LINUX_HAVE_HYSTERIA2 = $(shell [ -f "$(LINUX_PREFIX_PC)/libnghttp3.pc" ] && [ -f "$(LINUX_PREFIX)/include/openssl/quic.h" ] && echo 1 || echo 0)
+LINUX_HAVE_PKG_CONFIG = $(shell command -v "$(PKG_CONFIG)" >/dev/null 2>&1 && echo 1 || echo 0)
 LINUX_RPATH_FLAG = -Wl,-rpath,'$$ORIGIN/lib'
 
 ifeq ($(LINUX_HAVE_HYSTERIA2),1)
+ifeq ($(LINUX_HAVE_PKG_CONFIG),1)
 DEPS_CFLAGS = $(shell PKG_CONFIG_PATH="$(LINUX_PREFIX_PC):$(PKG_CONFIG_PATH)" $(PKG_CONFIG) --cflags openssl libnghttp3)
 DEPS_LIBS = $(shell PKG_CONFIG_PATH="$(LINUX_PREFIX_PC):$(PKG_CONFIG_PATH)" $(PKG_CONFIG) --libs openssl libnghttp3)
+else
+DEPS_CFLAGS = -I$(LINUX_PREFIX)/include
+DEPS_LIBS = -L$(LINUX_PREFIX)/lib -lssl -lcrypto -lnghttp3 -ldl
+endif
 CFLAGS = -Wall -Wextra -O2 -I$(SRC_DIR) -I$(SRC_DIR)/core -DPULSE_HAVE_HYSTERIA2=1 $(DEPS_CFLAGS)
 LDFLAGS = -lpthread $(DEPS_LIBS) $(LINUX_RPATH_FLAG)
 POST_LINK = mkdir -p $(BIN_DIR)/lib && \
@@ -103,8 +179,13 @@ POST_LINK = mkdir -p $(BIN_DIR)/lib && \
 	cp -L $(LINUX_PREFIX)/lib/libssl.so* $(BIN_DIR)/lib/ && \
 	cp -L $(LINUX_PREFIX)/lib/libnghttp3.so* $(BIN_DIR)/lib/
 else
+ifeq ($(LINUX_HAVE_PKG_CONFIG),1)
 DEPS_CFLAGS = $(shell $(PKG_CONFIG) --cflags openssl)
 DEPS_LIBS = $(shell $(PKG_CONFIG) --libs openssl)
+else
+DEPS_CFLAGS =
+DEPS_LIBS = -lssl -lcrypto -ldl
+endif
 CFLAGS = -Wall -Wextra -O2 -I$(SRC_DIR) -I$(SRC_DIR)/core $(DEPS_CFLAGS)
 LDFLAGS = -lpthread $(DEPS_LIBS)
 POST_LINK = :

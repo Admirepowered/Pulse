@@ -9,6 +9,7 @@ static const char* resolve_default_config_path(void) {
     static const char* candidates[] = {
         "config/config.toml",
         "../config/config.toml",
+        "../../config/config.toml",
     };
     FILE* fp = NULL;
     size_t i = 0;

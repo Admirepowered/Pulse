@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">Pulse Proxy</string>
+    <string name="start_vpn">Start VPN</string>
+    <string name="stop_vpn">Stop VPN</string>
+    <string name="vpn_running">VPN Running</string>
+    <string name="vpn_stopped">VPN Stopped</string>
+    <string name="config_editor">Config Editor</string>
+    <string name="logs">Logs</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="vpn_notification_channel">Pulse VPN</string>
+    <string name="vpn_notification_title">Pulse Proxy</string>
+    <string name="vpn_notification_text">VPN is running</string>
+    <string name="vpn_connecting">Connecting…</string>
+</resources>

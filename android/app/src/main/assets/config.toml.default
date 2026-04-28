@@ -1,0 +1,34 @@
+[local]
+type = "socks5"
+bind = "127.0.0.1"
+port = 1080
+
+[main]
+endpoint = "default-endpoint"
+country-db = "Country.mmdb"
+
+[regions.cn]
+cidrs = ["1.0.1.0/24", "1.0.8.0/24", "1.0.32.0/24", "1.1.1.0/24"]
+
+[rules.cn-traffic]
+action = "direct"
+region-db = "cn"
+resolve = true
+
+[endpoints.default-endpoint]
+name = "Configure Me"
+type = "vless"
+server = "example.com"
+port = 443
+uuid = "00000000-0000-0000-0000-000000000000"
+udp = true
+tls = true
+skip-cert-verify = false
+flow = ""
+client-fingerprint = "ios"
+servername = "example.com"
+network = "ws"
+
+[endpoints.default-endpoint.ws-opts]
+path = "/"
+headers = { Host = "example.com" }

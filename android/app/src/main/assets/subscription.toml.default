@@ -1,0 +1,3 @@
+# Subscription endpoints can be added here.
+# Use the "sub" command to generate from a subscription URL:
+#   ./vless_proxy sub <url> --proxy <host:port>

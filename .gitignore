@@ -31,8 +31,22 @@ Thumbs.db
 *.tmp
 *.log
 
+# Android
+/android/.gradle/
+/android/build/
+/android/app/build/
+/android/app/src/main/assets/Country.mmdb
+/android/app/src/main/jniLibs/
+/android/native/build/
+/android/local.properties
+*.apk
+*.aab
+*.keystore
+*.jks
+
 # Local env / IDE
 .env
 .env.*
 .vscode/
 .idea/
+.venv

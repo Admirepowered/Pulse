@@ -28,7 +28,7 @@ jobs:
 
       - name: Setup NDK
         run: |
-          NDK_VERSION="27.0.12077973"
+          NDK_VERSION="23.2.8568313"
           NDK_DIR="$ANDROID_HOME/ndk/$NDK_VERSION"
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK_VERSION"
           echo "ANDROID_NDK_HOME=$NDK_DIR" >> $GITHUB_ENV

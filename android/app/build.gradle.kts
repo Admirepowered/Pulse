@@ -46,6 +46,20 @@ android {
             assets.srcDirs("src/main/assets")
         }
     }
+
+    packaging {
+        jniLibs {
+            keepDebugSymbols += "**/*.so"
+            keepDebugSymbols += "**/vless_proxy"
+        }
+    }
+}
+
+// Disable stripReleaseDebugSymbols to avoid WSL1 memory issues
+tasks.configureEach {
+    if (name.contains("strip") && name.contains("Debug")) {
+        enabled = false
+    }
 }
 
 dependencies {

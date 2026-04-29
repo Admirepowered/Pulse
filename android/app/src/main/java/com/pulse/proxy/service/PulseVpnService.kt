@@ -10,6 +10,8 @@ import com.pulse.proxy.config.MmdbManager
 import com.pulse.proxy.tun.ConnectionTracker
 import com.pulse.proxy.tun.TcpForwarder
 import com.pulse.proxy.util.LogBuffer
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 
 class PulseVpnService : VpnService() {
 

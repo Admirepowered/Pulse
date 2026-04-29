@@ -20,9 +20,9 @@ declare -A TRIPLETS=(
     ["x86_64"]="x86_64-linux-android"
 )
 declare -A OPENSSL_TARGETS=(
-    ["arm64-v8a"]="android-arm64"
-    ["armeabi-v7a"]="android-arm"
-    ["x86_64"]="android-x86_64"
+    ["arm64-v8a"]="linux-aarch64"
+    ["armeabi-v7a"]="linux-armv4"
+    ["x86_64"]="linux-x86_64"
 )
 declare -A HOSTS=(
     ["arm64-v8a"]="aarch64-linux-android"
@@ -91,18 +91,19 @@ for ABI in "${ABIS[@]}"; do
             export AR="$TOOLCHAIN/bin/llvm-ar"
             export RANLIB="$TOOLCHAIN/bin/llvm-ranlib"
             export LD="$TOOLCHAIN/bin/ld.lld"
-            export CFLAGS="-fPIC -DANDROID"
-            export CXXFLAGS="-fPIC -DANDROID"
+            export CFLAGS="-fPIC -DANDROID -D__ANDROID_API__=$API"
+            export CXXFLAGS="-fPIC -DANDROID -D__ANDROID_API__=$API"
             make clean 2>/dev/null || true
             ./Configure "$OPENSSL_TARGET" \
-                -D__ANDROID_API__=$API \
                 --prefix="$INSTALL_DIR" \
                 --openssldir="$INSTALL_DIR/ssl" \
                 no-tests no-shared no-dso \
                 no-autoload-config no-engine \
-                CC="$CC" CXX="$CXX" AR="$AR" RANLIB="$RANLIB"
+                CC="$CC" AR="$AR" RANLIB="$RANLIB"
             make -j"$(nproc)" build_sw 2>&1 | tail -5
             make install_sw 2>&1 | tail -3
+            # Ensure static libs are installed (OpenSSL install_sw sometimes skips them)
+            cp -f libssl.a libcrypto.a "$INSTALL_DIR/lib/" 2>/dev/null || true
         )
         echo "  OpenSSL for $ABI done."
     else
@@ -119,21 +120,40 @@ for ABI in "${ABIS[@]}"; do
         fi
         (
             cd "$NGHTTP3_SRC"
-            make clean 2>/dev/null || true
-            autoreconf -fi 2>/dev/null || true
-            ./configure \
-                --build=x86_64-linux-gnu \
-                --host="$HOST" \
-                CC="$CC" \
-                AR="$AR" \
-                RANLIB="$RANLIB" \
-                CFLAGS="-fPIC -DANDROID -D__ANDROID_API__=$API" \
-                --prefix="$INSTALL_DIR" \
-                --enable-lib-only \
-                --disable-shared \
-                --disable-examples 2>&1 | tail -3
-            make -j"$(nproc)" 2>&1 | tail -5
-            make install 2>&1 | tail -3
+            rm -rf build-ng3
+            mkdir -p build-ng3
+            cd build-ng3
+            # Manual build — avoids autoconf configure script issues
+            NG3_CFLAGS="-fPIC -DANDROID -D__ANDROID_API__=$API -I../lib/includes -I../lib -I../lib/sfparse -I."
+            # Copy config.h template
+            cat > config.h << 'NG3CONFIG'
+#define HAVE_ARPA_INET_H 1
+#define HAVE_STDDEF_H 1
+#define HAVE_STDINT_H 1
+#define HAVE_STDLIB_H 1
+#define HAVE_STRING_H 1
+#define HAVE_UNISTD_H 1
+#define PACKAGE_NAME "nghttp3"
+#define PACKAGE_VERSION "1.15.0"
+#define HAVE_DECL_HTONL 1
+#define HAVE_DECL_NTOHL 1
+NG3CONFIG
+            # Generate version.h from template
+            sed 's/@PACKAGE_VERSION@/1.15.0/; s/@PACKAGE_VERSION_NUM@/0x010f00/' \
+                ../lib/includes/nghttp3/version.h.in \
+                > ../lib/includes/nghttp3/version.h
+            # Compile all nghttp3 lib sources
+            LIB_SRC=../lib
+            echo '  Compiling nghttp3 sources...'
+            for src in "$LIB_SRC"/*.c "$LIB_SRC"/sfparse/sfparse.c; do
+                "$CC" -std=c99 $NG3_CFLAGS -c "$src" 2>&1 || exit 1
+            done
+            "$AR" rcs libnghttp3.a *.o
+            cp libnghttp3.a "$INSTALL_DIR/lib/"
+            mkdir -p "$INSTALL_DIR/include/nghttp3"
+            cp "$LIB_SRC/includes/nghttp3/"*.h "$INSTALL_DIR/include/nghttp3/"
+            cp "$LIB_SRC/includes/nghttp3/version.h" "$INSTALL_DIR/include/nghttp3/" 2>/dev/null || true
+            cp "$LIB_SRC/"*.h "$INSTALL_DIR/include/" 2>/dev/null || true
         )
         echo "  nghttp3 for $ABI done."
     else

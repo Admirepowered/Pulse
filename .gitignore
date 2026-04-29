@@ -15,6 +15,7 @@ config/config.toml
 # Local third-party build outputs
 /third_party/build/
 /third_party/prefix/
+/third_party/src/
 /third_party/tmp_*/
 
 # Downloaded archives

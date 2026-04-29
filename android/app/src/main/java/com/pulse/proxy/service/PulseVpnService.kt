@@ -61,8 +61,8 @@ class PulseVpnService : VpnService() {
         proxyManager = ProxyProcessManager(this, logBuffer)
         val configPath = configManager.getConfigPath()
 
-        // Give MMDB a moment, then start proxy
-        Thread {
+        // Start MMDB download and proxy
+        kotlinx.coroutines.GlobalScope.launch {
             try {
                 mmdbManager.ensureMmdbAvailable()
             } catch (_: Exception) {}

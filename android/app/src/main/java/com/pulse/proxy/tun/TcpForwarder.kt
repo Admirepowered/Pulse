@@ -57,7 +57,7 @@ class TcpForwarder(
         val fis = FileInputStream(tunFd.fileDescriptor)
         val buffer = ByteArray(65535)
 
-        while (isActive && isRunning) {
+        while (scope.isActive && isRunning) {
             val length = try {
                 fis.read(buffer)
             } catch (_: Exception) {
@@ -166,7 +166,7 @@ class TcpForwarder(
         val fos = FileOutputStream(tunFd.fileDescriptor)
         val buffer = ByteArray(8192)
 
-        while (isActive && isRunning) {
+        while (scope.isActive && isRunning) {
             var wrote = false
             for (conn in tracker.allConnections()) {
                 if (conn.state != ConnectionTracker.State.CONNECTED) continue

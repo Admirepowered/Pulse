@@ -2,7 +2,9 @@ package com.pulse.proxy.tun
 
 import java.util.concurrent.ConcurrentHashMap
 
-class ConnectionTracker {
+class ConnectionTracker(
+    private val maxConnections: Int = 512
+) {
     enum class State { ESTABLISHING, CONNECTED, CLOSING, CLOSED }
 
     data class TcpConnection(
@@ -11,14 +13,15 @@ class ConnectionTracker {
         val srcPort: Int,
         val dstIp: Int,
         val dstPort: Int,
-        val socks5Client: Socks5Client,
+        var socks5Client: Socks5Client,
         var state: State = State.ESTABLISHING,
         val createdAt: Long = System.currentTimeMillis(),
         var lastActivityAt: Long = System.currentTimeMillis(),
         var clientSeq: Long = 0,      // next expected seq from client
         var remoteSeq: Long = 0,      // seq we use for packets to client
         var txBytes: Long = 0L,
-        var rxBytes: Long = 0L
+        var rxBytes: Long = 0L,
+        var pendingPayload: ByteArray = ByteArray(0)
     )
 
     private val connections = ConcurrentHashMap<String, TcpConnection>()
@@ -49,6 +52,8 @@ class ConnectionTracker {
     }
 
     fun activeConnections(): Int = connections.size
+
+    fun canCreateConnection(): Boolean = connections.size < maxConnections
 
     fun allConnections(): Collection<TcpConnection> = connections.values
 

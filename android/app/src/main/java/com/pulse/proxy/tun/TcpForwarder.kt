@@ -15,6 +15,8 @@ import java.net.InetSocketAddress
 import java.net.Socket
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Semaphore
 
 class TcpForwarder(
     private val tunFd: ParcelFileDescriptor,
@@ -37,6 +39,9 @@ class TcpForwarder(
 
     private var remoteBaseSeq = 1000000L  // starting sequence number for our SYN-ACKs
     private val dnsUpstreams = listOf("223.5.5.5", "1.1.1.1", "8.8.8.8")
+    private val dnsCache = ConcurrentHashMap<Int, String>()
+    private val dnsCacheUpdatedAt = ConcurrentHashMap<Int, Long>()
+    private val udpDirectPermits = Semaphore(64)
 
     fun start() {
         if (isRunning) return
@@ -48,6 +53,7 @@ class TcpForwarder(
             while (isActive) {
                 delay(60_000L)
                 tracker.cleanupIdle()
+                cleanupDnsCache()
             }
         }
     }
@@ -58,6 +64,8 @@ class TcpForwarder(
         writeJob?.cancel()
         cleanupJob?.cancel()
         tracker.clear()
+        dnsCache.clear()
+        dnsCacheUpdatedAt.clear()
     }
 
     private suspend fun readLoop() {
@@ -76,6 +84,8 @@ class TcpForwarder(
             if (udp != null) {
                 if (udp.destPort == 53) {
                     scope.launch { handleDnsQuery(udp) }
+                } else {
+                    scope.launch { handleUdpDirect(udp) }
                 }
                 continue
             }
@@ -107,26 +117,26 @@ class TcpForwarder(
     }
 
     private fun handleSyn(key: String, tcp: IpPacket.TcpHeader) {
+        if (tracker.get(key) == null && !tracker.canCreateConnection()) {
+            sendRst(tcp)
+            return
+        }
+        val dstHost = dnsCache[tcp.destIp]
         val conn = tracker.getOrCreate(
             key,
             tcp.sourceIp, tcp.sourcePort, tcp.destIp, tcp.destPort
         ) {
-            Socks5Client(tcp.destIp, tcp.destPort, protectSocket = protectSocket)
+            Socks5Client(tcp.destIp, tcp.destPort, dstHost = dstHost, protectSocket = protectSocket)
         }
 
         conn.clientSeq = (tcp.sequenceNumber + 1) and 0xFFFFFFFFL
-
-        val ok = conn.socks5Client.connect()
-        if (!ok) {
-            sendRst(tcp)
-            tracker.remove(key)
-            return
-        }
 
         // Generate our sequence number
         conn.remoteSeq = remoteBaseSeq
         remoteBaseSeq = (remoteBaseSeq + 1000) and 0x7FFFFFFFL
 
+        // Complete the local TCP handshake first. The upstream SOCKS connection is
+        // opened when the first payload arrives, so we can sniff HTTP Host/TLS SNI.
         conn.state = ConnectionTracker.State.CONNECTED
         sendSynAck(conn, tcp)
     }
@@ -145,18 +155,203 @@ class TcpForwarder(
         conn.clientSeq = (expected + tcp.payloadLength) and 0xFFFFFFFFL
 
         if (tcp.payloadLength > 0) {
-            val sent = conn.socks5Client.send(buffer, tcp.payloadStart, tcp.payloadLength)
+            val payload = buffer.copyOfRange(tcp.payloadStart, tcp.payloadStart + tcp.payloadLength)
+            if (!conn.socks5Client.isConnected()) {
+                conn.pendingPayload = appendPayload(conn.pendingPayload, payload)
+                val sniffedHost = sniffHost(conn.pendingPayload)
+                val dstHost = sniffedHost ?: dnsCache[tcp.destIp]
+                if (dstHost == null && shouldWaitForHost(conn.pendingPayload, tcp.destPort)) {
+                    sendAck(conn, tcp, conn.clientSeq)
+                    return
+                }
+                if (dstHost == null && shouldRequireHost()) {
+                    sendRst(tcp)
+                    tracker.remove(key)
+                    return
+                }
+                conn.socks5Client.close()
+                conn.socks5Client = Socks5Client(
+                    tcp.destIp,
+                    tcp.destPort,
+                    dstHost = dstHost,
+                    protectSocket = protectSocket
+                )
+                val ok = conn.socks5Client.connect()
+                if (!ok) {
+                    sendRst(tcp)
+                    tracker.remove(key)
+                    return
+                }
+                if (conn.pendingPayload.isNotEmpty()) {
+                    val sentPending = conn.socks5Client.send(conn.pendingPayload, 0, conn.pendingPayload.size)
+                    if (!sentPending) {
+                        sendRst(tcp)
+                        tracker.remove(key)
+                        return
+                    }
+                    conn.txBytes += conn.pendingPayload.size
+                    totalTx += conn.pendingPayload.size
+                    conn.pendingPayload = ByteArray(0)
+                    sendAck(conn, tcp, conn.clientSeq)
+                    return
+                }
+            }
+            val sent = conn.socks5Client.send(payload, 0, payload.size)
             if (!sent) {
                 sendRst(tcp)
                 tracker.remove(key)
                 return
             }
-            conn.txBytes += tcp.payloadLength
-            totalTx += tcp.payloadLength
+            conn.txBytes += payload.size
+            totalTx += payload.size
         }
 
         // Send ACK acknowledging the data
         sendAck(conn, tcp, conn.clientSeq)
+    }
+
+    private fun appendPayload(existing: ByteArray, chunk: ByteArray, maxSize: Int = 16 * 1024): ByteArray {
+        if (existing.isEmpty()) return if (chunk.size <= maxSize) chunk else chunk.copyOf(maxSize)
+        val newSize = (existing.size + chunk.size).coerceAtMost(maxSize)
+        val out = ByteArray(newSize)
+        System.arraycopy(existing, 0, out, 0, existing.size.coerceAtMost(newSize))
+        val copyLen = (newSize - existing.size).coerceAtLeast(0)
+        if (copyLen > 0) {
+            System.arraycopy(chunk, 0, out, existing.size, copyLen)
+        }
+        return out
+    }
+
+    private fun shouldWaitForHost(payload: ByteArray, dstPort: Int): Boolean {
+        if (payload.size >= 16 * 1024) return false
+        if (dstPort == 80 || dstPort == 8080 || dstPort == 8081) {
+            return looksLikePartialHttp(payload)
+        }
+        if (dstPort == 443 || dstPort == 8443) {
+            return looksLikePartialTls(payload)
+        }
+        return payload.size < 4096
+    }
+
+    private fun shouldRequireHost(): Boolean {
+        return true
+    }
+
+    private fun looksLikePartialHttp(payload: ByteArray): Boolean {
+        val text = try {
+            String(payload.copyOf(payload.size.coerceAtMost(4096)), Charsets.ISO_8859_1)
+        } catch (_: Exception) {
+            return false
+        }
+        val methods = listOf("GET ", "POST ", "HEAD ", "PUT ", "DELETE ", "CONNECT ", "OPTIONS ", "PATCH ")
+        return methods.any { text.startsWith(it) } && !text.contains("\r\n\r\n")
+    }
+
+    private fun looksLikePartialTls(payload: ByteArray): Boolean {
+        if (payload.size < 5) return true
+        if ((payload[0].toInt() and 0xFF) != 0x16) return false
+        val recordLen = readU16(payload, 3)
+        if (recordLen <= 0) return false
+        return payload.size < 5 + recordLen
+    }
+
+    private fun sniffHost(payload: ByteArray): String? {
+        return sniffHttpHost(payload) ?: sniffTlsSni(payload)
+    }
+
+    private fun sniffHttpHost(payload: ByteArray): String? {
+        val prefix = if (payload.size > 2048) payload.copyOf(2048) else payload
+        val text = try {
+            String(prefix, Charsets.ISO_8859_1)
+        } catch (_: Exception) {
+            return null
+        }
+        val firstLineEnd = text.indexOf("\r\n").takeIf { it >= 0 } ?: return null
+        val methodLine = text.substring(0, firstLineEnd)
+        val looksHttp = methodLine.startsWith("GET ") ||
+            methodLine.startsWith("POST ") ||
+            methodLine.startsWith("HEAD ") ||
+            methodLine.startsWith("PUT ") ||
+            methodLine.startsWith("DELETE ") ||
+            methodLine.startsWith("CONNECT ") ||
+            methodLine.startsWith("OPTIONS ")
+        if (!looksHttp) return null
+
+        for (line in text.substring(firstLineEnd + 2).split("\r\n")) {
+            if (line.isEmpty()) break
+            val colon = line.indexOf(':')
+            if (colon <= 0) continue
+            if (line.substring(0, colon).equals("host", ignoreCase = true)) {
+                return normalizeHost(line.substring(colon + 1).trim())
+            }
+        }
+        return null
+    }
+
+    private fun sniffTlsSni(payload: ByteArray): String? {
+        if (payload.size < 5) return null
+        if ((payload[0].toInt() and 0xFF) != 0x16) return null
+        val recordLen = readU16(payload, 3)
+        if (recordLen <= 0 || payload.size < 5 + recordLen) return null
+        var offset = 5
+        if ((payload[offset].toInt() and 0xFF) != 0x01) return null
+        val handshakeLen = readU24(payload, offset + 1)
+        offset += 4
+        if (handshakeLen <= 0 || offset + handshakeLen > payload.size) return null
+
+        offset += 2 + 32
+        if (offset >= payload.size) return null
+        val sessionIdLen = payload[offset].toInt() and 0xFF
+        offset += 1 + sessionIdLen
+        if (offset + 2 > payload.size) return null
+        val cipherLen = readU16(payload, offset)
+        offset += 2 + cipherLen
+        if (offset >= payload.size) return null
+        val compressionLen = payload[offset].toInt() and 0xFF
+        offset += 1 + compressionLen
+        if (offset + 2 > payload.size) return null
+
+        val extensionsLen = readU16(payload, offset)
+        offset += 2
+        val extensionsEnd = offset + extensionsLen
+        if (extensionsEnd > payload.size) return null
+
+        while (offset + 4 <= extensionsEnd) {
+            val type = readU16(payload, offset)
+            val len = readU16(payload, offset + 2)
+            offset += 4
+            if (offset + len > extensionsEnd) return null
+            if (type == 0) {
+                if (offset + 2 > extensionsEnd) return null
+                var sniOffset = offset + 2
+                val sniEnd = offset + len
+                while (sniOffset + 3 <= sniEnd) {
+                    val nameType = payload[sniOffset].toInt() and 0xFF
+                    val nameLen = readU16(payload, sniOffset + 1)
+                    sniOffset += 3
+                    if (sniOffset + nameLen > sniEnd) return null
+                    if (nameType == 0) {
+                        return normalizeHost(String(payload, sniOffset, nameLen, Charsets.US_ASCII))
+                    }
+                    sniOffset += nameLen
+                }
+            }
+            offset += len
+        }
+        return null
+    }
+
+    private fun normalizeHost(host: String): String? {
+        val trimmed = host.trim().trimEnd('.')
+        if (trimmed.isBlank()) return null
+        val withoutPort = if (trimmed.startsWith("[")) {
+            return null
+        } else {
+            trimmed.substringBefore(':')
+        }
+        if (withoutPort.length > 255 || withoutPort.any { it.code <= 32 }) return null
+        if (withoutPort.all { it.isDigit() || it == '.' }) return null
+        return withoutPort.lowercase()
     }
 
     private fun handleFin(key: String, tcp: IpPacket.TcpHeader) {
@@ -366,6 +561,7 @@ class TcpForwarder(
     }
 
     private fun handleDnsQuery(query: IpPacket.UdpPacket) {
+        val queryName = parseDnsQuestionName(query.payload)
         for (upstream in dnsUpstreams) {
             val response = try {
                 DatagramSocket().use { socket ->
@@ -387,6 +583,9 @@ class TcpForwarder(
             }
 
             if (response != null && response.isNotEmpty()) {
+                if (queryName != null) {
+                    cacheDnsAnswers(response, queryName)
+                }
                 writePacket(
                     buildUdpPacket(
                         srcIp = query.destIp,
@@ -397,6 +596,131 @@ class TcpForwarder(
                     )
                 )
                 return
+            }
+        }
+    }
+
+    private fun handleUdpDirect(packet: IpPacket.UdpPacket) {
+        if (!udpDirectPermits.tryAcquire()) return
+        val response = try {
+            DatagramSocket().use { socket ->
+                protectDatagramSocket(socket)
+                socket.soTimeout = 1200
+                val request = DatagramPacket(
+                    packet.payload,
+                    packet.payload.size,
+                    InetSocketAddress(IpPacket.ipToStr(packet.destIp), packet.destPort)
+                )
+                socket.send(request)
+                val buffer = ByteArray(65507)
+                val reply = DatagramPacket(buffer, buffer.size)
+                socket.receive(reply)
+                buffer.copyOf(reply.length)
+            }
+        } catch (_: Exception) {
+            null
+        } finally {
+            udpDirectPermits.release()
+        }
+
+        if (response != null && response.isNotEmpty()) {
+            writePacket(
+                buildUdpPacket(
+                    srcIp = packet.destIp,
+                    dstIp = packet.sourceIp,
+                    srcPort = packet.destPort,
+                    dstPort = packet.sourcePort,
+                    payload = response
+                )
+            )
+        }
+    }
+
+    private fun parseDnsQuestionName(payload: ByteArray): String? {
+        if (payload.size < 12) return null
+        val parts = mutableListOf<String>()
+        var offset = 12
+        while (offset < payload.size) {
+            val len = payload[offset].toInt() and 0xFF
+            if (len == 0) {
+                return parts.joinToString(".").takeIf { it.isNotBlank() }
+            }
+            if ((len and 0xC0) != 0 || len > 63) return null
+            offset += 1
+            if (offset + len > payload.size) return null
+            parts += String(payload, offset, len, Charsets.US_ASCII).lowercase()
+            offset += len
+        }
+        return null
+    }
+
+    private fun cacheDnsAnswers(response: ByteArray, domain: String) {
+        if (response.size < 12) return
+        val qdCount = readU16(response, 4)
+        val anCount = readU16(response, 6)
+        var offset = 12
+
+        repeat(qdCount) {
+            offset = skipDnsName(response, offset)
+            if (offset < 0 || offset + 4 > response.size) return
+            offset += 4
+        }
+
+        repeat(anCount) {
+            offset = skipDnsName(response, offset)
+            if (offset < 0 || offset + 10 > response.size) return
+            val type = readU16(response, offset)
+            val klass = readU16(response, offset + 2)
+            val rdLength = readU16(response, offset + 8)
+            val rdataOffset = offset + 10
+            if (rdataOffset + rdLength > response.size) return
+
+            if (type == 1 && klass == 1 && rdLength == 4) {
+                val ip = ((response[rdataOffset].toInt() and 0xFF) shl 24) or
+                    ((response[rdataOffset + 1].toInt() and 0xFF) shl 16) or
+                    ((response[rdataOffset + 2].toInt() and 0xFF) shl 8) or
+                    (response[rdataOffset + 3].toInt() and 0xFF)
+                dnsCache[ip] = domain
+                dnsCacheUpdatedAt[ip] = System.currentTimeMillis()
+            }
+            offset = rdataOffset + rdLength
+        }
+    }
+
+    private fun skipDnsName(packet: ByteArray, start: Int): Int {
+        var offset = start
+        var jumps = 0
+        while (offset < packet.size && jumps < 32) {
+            val len = packet[offset].toInt() and 0xFF
+            if (len == 0) return offset + 1
+            if ((len and 0xC0) == 0xC0) {
+                return if (offset + 1 < packet.size) offset + 2 else -1
+            }
+            if ((len and 0xC0) != 0 || len > 63) return -1
+            offset += 1 + len
+            jumps += 1
+        }
+        return -1
+    }
+
+    private fun readU16(buffer: ByteArray, offset: Int): Int {
+        if (offset + 1 >= buffer.size) return 0
+        return ((buffer[offset].toInt() and 0xFF) shl 8) or (buffer[offset + 1].toInt() and 0xFF)
+    }
+
+    private fun readU24(buffer: ByteArray, offset: Int): Int {
+        if (offset + 2 >= buffer.size) return 0
+        return ((buffer[offset].toInt() and 0xFF) shl 16) or
+            ((buffer[offset + 1].toInt() and 0xFF) shl 8) or
+            (buffer[offset + 2].toInt() and 0xFF)
+    }
+
+    private fun cleanupDnsCache() {
+        val cutoff = System.currentTimeMillis() - 10 * 60_000L
+        for ((ip, updatedAt) in dnsCacheUpdatedAt) {
+            if (updatedAt < cutoff) {
+                dnsCache.remove(ip)
+                dnsCacheUpdatedAt.remove(ip)
             }
         }
     }

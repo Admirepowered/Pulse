@@ -6,6 +6,8 @@ data class VpnStatus(
     val txBytes: Long = 0L,
     val rxBytes: Long = 0L,
     val activeConnections: Int = 0,
+    val memoryUsedBytes: Long = 0L,
+    val memoryMaxBytes: Long = 0L,
     val proxyRunning: Boolean = false
 )
 

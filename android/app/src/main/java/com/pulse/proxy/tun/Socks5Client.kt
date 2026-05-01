@@ -8,6 +8,7 @@ import java.net.Socket
 class Socks5Client(
     private val dstIp: Int,
     private val dstPort: Int,
+    private val dstHost: String? = null,
     private val proxyHost: String = "127.0.0.1",
     private val proxyPort: Int = 1080,
     private val protectSocket: (Socket) -> Boolean = { true }
@@ -38,18 +39,38 @@ class Socks5Client(
                 sock.close(); return false
             }
 
-            // SOCKS5 CONNECT to destination
-            val connectReq = ByteArray(10)
-            connectReq[0] = 0x05  // version
-            connectReq[1] = 0x01  // CONNECT
-            connectReq[2] = 0x00  // reserved
-            connectReq[3] = 0x01  // IPv4 address type
-            connectReq[4] = ((dstIp shr 24) and 0xFF).toByte()
-            connectReq[5] = ((dstIp shr 16) and 0xFF).toByte()
-            connectReq[6] = ((dstIp shr 8) and 0xFF).toByte()
-            connectReq[7] = (dstIp and 0xFF).toByte()
-            connectReq[8] = ((dstPort shr 8) and 0xFF).toByte()
-            connectReq[9] = (dstPort and 0xFF).toByte()
+            // SOCKS5 CONNECT to destination. Prefer a domain when DNS cache has one,
+            // so Hysteria2 receives the original host instead of an already-resolved IP.
+            val hostBytes = dstHost
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() && it.length <= 255 }
+                ?.toByteArray(Charsets.US_ASCII)
+            val connectReq = if (hostBytes != null) {
+                ByteArray(4 + 1 + hostBytes.size + 2).also { req ->
+                    req[0] = 0x05  // version
+                    req[1] = 0x01  // CONNECT
+                    req[2] = 0x00  // reserved
+                    req[3] = 0x03  // domain name address type
+                    req[4] = hostBytes.size.toByte()
+                    System.arraycopy(hostBytes, 0, req, 5, hostBytes.size)
+                    val portOff = 5 + hostBytes.size
+                    req[portOff] = ((dstPort shr 8) and 0xFF).toByte()
+                    req[portOff + 1] = (dstPort and 0xFF).toByte()
+                }
+            } else {
+                ByteArray(10).also { req ->
+                    req[0] = 0x05  // version
+                    req[1] = 0x01  // CONNECT
+                    req[2] = 0x00  // reserved
+                    req[3] = 0x01  // IPv4 address type
+                    req[4] = ((dstIp shr 24) and 0xFF).toByte()
+                    req[5] = ((dstIp shr 16) and 0xFF).toByte()
+                    req[6] = ((dstIp shr 8) and 0xFF).toByte()
+                    req[7] = (dstIp and 0xFF).toByte()
+                    req[8] = ((dstPort shr 8) and 0xFF).toByte()
+                    req[9] = (dstPort and 0xFF).toByte()
+                }
+            }
             out.write(connectReq)
             out.flush()
 

@@ -201,6 +201,222 @@ static void hy2_wait_for_timeout(const struct timeval* tv) {
 #endif
 }
 
+#if defined(__ANDROID__)
+static int hy2_dns_encode_name(const char* host, uint8_t* out, size_t out_size, size_t* out_len) {
+    const char* label = host;
+    size_t offset = 0;
+
+    while (*label != '\0') {
+        const char* dot = strchr(label, '.');
+        size_t len = dot != NULL ? (size_t)(dot - label) : strlen(label);
+        if (len == 0 || len > 63 || offset + 1 + len >= out_size) {
+            return -1;
+        }
+        out[offset++] = (uint8_t)len;
+        memcpy(out + offset, label, len);
+        offset += len;
+        if (dot == NULL) {
+            break;
+        }
+        label = dot + 1;
+    }
+
+    if (offset >= out_size) {
+        return -1;
+    }
+    out[offset++] = 0;
+    *out_len = offset;
+    return 0;
+}
+
+static int hy2_dns_skip_name(const uint8_t* packet, size_t packet_len, size_t* offset) {
+    size_t pos = *offset;
+
+    while (pos < packet_len) {
+        uint8_t len = packet[pos++];
+        if (len == 0) {
+            *offset = pos;
+            return 0;
+        }
+        if ((len & 0xC0) == 0xC0) {
+            if (pos >= packet_len) {
+                return -1;
+            }
+            *offset = pos + 1;
+            return 0;
+        }
+        if ((len & 0xC0) != 0 || pos + len > packet_len) {
+            return -1;
+        }
+        pos += len;
+    }
+
+    return -1;
+}
+
+static int hy2_android_dns_query_a(const char* host, int port, struct sockaddr_storage* out, int max_out) {
+    static const char* servers[] = { "223.5.5.5", "1.1.1.1", "8.8.8.8" };
+    uint8_t query[512];
+    uint8_t response[1500];
+    size_t name_len = 0;
+    int found = 0;
+    size_t i = 0;
+    struct in_addr literal;
+
+    if (inet_pton(AF_INET, host, &literal) == 1) {
+        struct sockaddr_in* addr = (struct sockaddr_in*)&out[0];
+        memset(addr, 0, sizeof(*addr));
+        addr->sin_family = AF_INET;
+        addr->sin_port = htons((uint16_t)port);
+        addr->sin_addr = literal;
+        return 1;
+    }
+
+    memset(query, 0, sizeof(query));
+    query[0] = 0x50;
+    query[1] = 0x51;
+    query[2] = 0x01;
+    query[5] = 0x01;
+
+    if (hy2_dns_encode_name(host, query + 12, sizeof(query) - 16, &name_len) != 0) {
+        return 0;
+    }
+
+    query[12 + name_len + 1] = 0x01;
+    query[12 + name_len + 3] = 0x01;
+
+    for (i = 0; i < sizeof(servers) / sizeof(servers[0]) && found < max_out; ++i) {
+        int dns_sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+        struct sockaddr_in dns_addr;
+        struct timeval timeout;
+        ssize_t received = 0;
+        size_t offset = 12;
+        int qdcount = 0;
+        int ancount = 0;
+        int answer = 0;
+
+        if (dns_sock == -1) {
+            continue;
+        }
+
+        timeout.tv_sec = 2;
+        timeout.tv_usec = 0;
+        setsockopt(dns_sock, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+        setsockopt(dns_sock, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+
+        memset(&dns_addr, 0, sizeof(dns_addr));
+        dns_addr.sin_family = AF_INET;
+        dns_addr.sin_port = htons(53);
+        inet_pton(AF_INET, servers[i], &dns_addr.sin_addr);
+
+        if (sendto(dns_sock, query, 12 + name_len + 4, 0, (struct sockaddr*)&dns_addr, sizeof(dns_addr)) < 0) {
+            BIO_closesocket(dns_sock);
+            continue;
+        }
+
+        received = recvfrom(dns_sock, response, sizeof(response), 0, NULL, NULL);
+        BIO_closesocket(dns_sock);
+        if (received < 12 || response[0] != query[0] || response[1] != query[1]) {
+            continue;
+        }
+
+        qdcount = ((int)response[4] << 8) | response[5];
+        ancount = ((int)response[6] << 8) | response[7];
+        for (answer = 0; answer < qdcount; ++answer) {
+            if (hy2_dns_skip_name(response, (size_t)received, &offset) != 0 || offset + 4 > (size_t)received) {
+                offset = (size_t)received;
+                break;
+            }
+            offset += 4;
+        }
+
+        for (answer = 0; answer < ancount && offset + 12 <= (size_t)received && found < max_out; ++answer) {
+            int type = 0;
+            int data_len = 0;
+            if (hy2_dns_skip_name(response, (size_t)received, &offset) != 0 || offset + 10 > (size_t)received) {
+                break;
+            }
+            type = ((int)response[offset] << 8) | response[offset + 1];
+            data_len = ((int)response[offset + 8] << 8) | response[offset + 9];
+            offset += 10;
+            if (offset + (size_t)data_len > (size_t)received) {
+                break;
+            }
+            if (type == 1 && data_len == 4) {
+                struct sockaddr_in* addr = (struct sockaddr_in*)&out[found++];
+                memset(addr, 0, sizeof(*addr));
+                addr->sin_family = AF_INET;
+                addr->sin_port = htons((uint16_t)port);
+                memcpy(&addr->sin_addr, response + offset, 4);
+            }
+            offset += (size_t)data_len;
+        }
+
+        if (found > 0) {
+            break;
+        }
+    }
+
+    return found;
+}
+
+static int hy2_android_try_udp_address(
+    const struct sockaddr* addr,
+    socklen_t addr_len,
+    BIO** out_bio,
+    BIO_ADDR** out_peer_addr
+) {
+    int sock = socket(addr->sa_family, SOCK_DGRAM, IPPROTO_UDP);
+    BIO* bio = NULL;
+
+    if (sock == -1) {
+        return -1;
+    }
+    if (connect(sock, addr, addr_len) != 0) {
+        BIO_closesocket(sock);
+        return -1;
+    }
+    if (!BIO_socket_nbio(sock, 1)) {
+        BIO_closesocket(sock);
+        return -1;
+    }
+
+    *out_peer_addr = BIO_ADDR_new();
+    if (*out_peer_addr == NULL ||
+        (addr->sa_family == AF_INET && !BIO_ADDR_rawmake(
+            *out_peer_addr,
+            AF_INET,
+            &((const struct sockaddr_in*)addr)->sin_addr,
+            sizeof(struct in_addr),
+            ntohs(((const struct sockaddr_in*)addr)->sin_port))) ||
+        (addr->sa_family == AF_INET6 && !BIO_ADDR_rawmake(
+            *out_peer_addr,
+            AF_INET6,
+            &((const struct sockaddr_in6*)addr)->sin6_addr,
+            sizeof(struct in6_addr),
+            ntohs(((const struct sockaddr_in6*)addr)->sin6_port)))) {
+        if (*out_peer_addr != NULL) {
+            BIO_ADDR_free(*out_peer_addr);
+            *out_peer_addr = NULL;
+        }
+        BIO_closesocket(sock);
+        return -1;
+    }
+
+    bio = BIO_new(BIO_s_datagram());
+    if (bio == NULL) {
+        BIO_ADDR_free(*out_peer_addr);
+        *out_peer_addr = NULL;
+        BIO_closesocket(sock);
+        return -1;
+    }
+
+    BIO_set_fd(bio, sock, BIO_CLOSE);
+    *out_bio = bio;
+    return 0;
+}
+#endif
+
 static int create_socket_bio(const char* host, int port, BIO** out_bio, BIO_ADDR** out_peer_addr) {
     char port_string[16];
     int sock = -1;
@@ -222,8 +438,24 @@ static int create_socket_bio(const char* host, int port, BIO** out_bio, BIO_ADDR
 
     gai_result = getaddrinfo(host, port_string, &hints, &res);
     if (gai_result != 0 || res == NULL) {
+        struct sockaddr_storage fallback_addrs[4];
+        int fallback_count = hy2_android_dns_query_a(host, port, fallback_addrs, 4);
+        int fallback_index = 0;
+
+        for (fallback_index = 0; fallback_index < fallback_count; ++fallback_index) {
+            struct sockaddr* fallback = (struct sockaddr*)&fallback_addrs[fallback_index];
+            socklen_t fallback_len = fallback->sa_family == AF_INET ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6);
+            if (hy2_android_try_udp_address(fallback, fallback_len, out_bio, out_peer_addr) == 0) {
+                fprintf(stderr, "Hysteria2 UDP connected via Android DNS fallback for %s:%s\n", host, port_string);
+                return 0;
+            }
+        }
+
         fprintf(stderr, "Hysteria2 UDP getaddrinfo failed for %s:%s, family=%d, code=%d, errno=%d\n",
             host, port_string, AF_UNSPEC, gai_result, WSAGetLastError());
+        if (fallback_count > 0) {
+            fprintf(stderr, "Hysteria2 UDP Android DNS fallback resolved %s:%s but connect failed.\n", host, port_string);
+        }
         return -1;
     }
 
@@ -1354,7 +1586,8 @@ static int hy2_open_tcp_stream(Hy2AuthSession* session, const Destination* desti
     }
 
     if (status != 0) {
-        fprintf(stderr, "Hysteria2 upstream rejected the request: %s\n", msg);
+        fprintf(stderr, "Hysteria2 upstream rejected TCP request for %s: status=%u message=%s\n",
+            address, (unsigned int)status, msg[0] != '\0' ? msg : "(empty)");
         return -1;
     }
 

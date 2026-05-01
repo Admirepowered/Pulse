@@ -41,12 +41,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun startStatusPolling() {
         viewModelScope.launch {
             while (true) {
-                val (running, tx, rx) = PulseVpnService.stats()
-                _vpnStatus.value = VpnStatus(
-                    running = running,
-                    txBytes = tx,
-                    rxBytes = rx
-                )
+                _vpnStatus.value = PulseVpnService.stats()
                 _logEntries.value = PulseVpnService.logBuffer.entries.value
                 delay(1000L)
             }

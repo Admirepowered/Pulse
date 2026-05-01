@@ -9,6 +9,7 @@ import android.os.ParcelFileDescriptor
 import com.pulse.proxy.MainActivity
 import com.pulse.proxy.config.ConfigManager
 import com.pulse.proxy.config.MmdbManager
+import com.pulse.proxy.data.VpnStatus
 import com.pulse.proxy.tun.ConnectionTracker
 import com.pulse.proxy.tun.TcpForwarder
 import com.pulse.proxy.util.LogBuffer
@@ -30,9 +31,33 @@ class PulseVpnService : VpnService() {
             private set
         @Volatile var rxBytes = 0L
             private set
+        @Volatile var activeConnections = 0
+            private set
+        @Volatile var startedAt = 0L
+            private set
+        @Volatile var proxyRunning = false
+            private set
         val logBuffer = LogBuffer()
 
-        fun stats(): Triple<Boolean, Long, Long> = Triple(isRunning, txBytes, rxBytes)
+        fun stats(): VpnStatus {
+            val runtime = Runtime.getRuntime()
+            val used = runtime.totalMemory() - runtime.freeMemory()
+            val uptime = if (isRunning && startedAt > 0L) {
+                (System.currentTimeMillis() - startedAt) / 1000L
+            } else {
+                0L
+            }
+            return VpnStatus(
+                running = isRunning,
+                uptimeSeconds = uptime,
+                txBytes = txBytes,
+                rxBytes = rxBytes,
+                activeConnections = activeConnections,
+                memoryUsedBytes = used,
+                memoryMaxBytes = runtime.maxMemory(),
+                proxyRunning = proxyRunning
+            )
+        }
     }
 
     override fun onCreate() {
@@ -126,6 +151,7 @@ class PulseVpnService : VpnService() {
         forwarder?.start()
 
         isRunning = true
+        startedAt = System.currentTimeMillis()
         logBuffer.append("VPN started, local proxy at 127.0.0.1:1080")
 
         // Start stats monitoring
@@ -134,12 +160,16 @@ class PulseVpnService : VpnService() {
                 Thread.sleep(1000)
                 txBytes = tracker?.allConnections()?.sumOf { it.txBytes } ?: 0
                 rxBytes = tracker?.allConnections()?.sumOf { it.rxBytes } ?: 0
+                activeConnections = tracker?.activeConnections() ?: 0
+                proxyRunning = proxyManager?.isRunning == true
             }
         }.start()
     }
 
     private fun stopVpn() {
         isRunning = false
+        activeConnections = 0
+        proxyRunning = false
         forwarder?.stop()
         forwarder = null
         tracker?.clear()
@@ -150,6 +180,7 @@ class PulseVpnService : VpnService() {
         proxyManager = null
         notificationManager?.cancelNotification()
         stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
         logBuffer.append("VPN stopped")
     }
 

@@ -1181,7 +1181,7 @@ static int parse_config_entry(ParseContext* context, const ParseSection* section
         }
         if (strcmp(key, "flow") == 0) {
             unquote_inplace(value);
-            safe_copy(endpoint->vless.flow, sizeof(endpoint->vless.flow), value);
+            endpoint->vless.flow[0] = '\0';
             return 0;
         }
         if (strcmp(key, "client-fingerprint") == 0 || strcmp(key, "client_fingerprint") == 0) {

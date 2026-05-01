@@ -154,11 +154,16 @@ class ConfigManager(private val context: Context) {
     fun setSelectedSubscription(id: String) {
         val endpoints = listEndpoints(id)
         val currentEndpoint = selectedEndpointKey()
-        writeSelection(id, endpoints.firstOrNull { it.key == currentEndpoint }?.key ?: endpoints.firstOrNull()?.key.orEmpty())
+        writeSelection(
+            id,
+            endpoints.firstOrNull { it.reference == currentEndpoint }?.reference
+                ?: endpoints.firstOrNull { it.key == currentEndpoint }?.reference
+                ?: endpoints.firstOrNull()?.reference.orEmpty()
+        )
     }
 
-    fun setSelectedEndpoint(key: String) {
-        writeSelection(selectedSubscriptionId(), key)
+    fun setSelectedEndpoint(reference: String) {
+        writeSelection(selectedSubscriptionId(), reference)
     }
 
     fun listEndpoints(subscriptionId: String = selectedSubscriptionId()): List<EndpointItem> {
@@ -166,7 +171,7 @@ class ConfigManager(private val context: Context) {
         val profile = listSubscriptions().firstOrNull { it.id == subscriptionId } ?: return emptyList()
         val file = File(configDir, profile.fileName)
         if (!file.exists()) return emptyList()
-        return parseEndpoints(file.readText())
+        return parseEndpoints(file.readText(), profile.fileName)
     }
 
     suspend fun updateSubscription(url: String): String = withContext(Dispatchers.IO) {
@@ -200,7 +205,10 @@ class ConfigManager(private val context: Context) {
         val profiles = listSubscriptions()
         val selectedProfile = profiles.firstOrNull { it.id == selectedSubscriptionId() } ?: profiles.firstOrNull()
         val endpoints = selectedProfile?.let { listEndpoints(it.id) }.orEmpty()
-        val endpointKey = selectedEndpointKey().ifBlank { endpoints.firstOrNull()?.key.orEmpty() }
+        val savedEndpoint = selectedEndpointKey()
+        val endpointKey = endpoints.firstOrNull { it.reference == savedEndpoint }?.reference
+            ?: endpoints.firstOrNull { it.key == savedEndpoint }?.reference
+            ?: endpoints.firstOrNull()?.reference.orEmpty()
 
         if (selectedProfile != null && selectedSubscriptionId() != selectedProfile.id) {
             writeSelection(selectedProfile.id, endpointKey)
@@ -224,7 +232,7 @@ class ConfigManager(private val context: Context) {
             builder.appendLine("country-db = \"${escapeToml(countryDbFile.absolutePath)}\"")
         }
         builder.appendLine()
-        builder.append(renderRulesToml(readVisualRules(), includeRegionRules = countryDbAvailable).trim())
+        builder.append(renderRulesToml(normalizeRuleEndpoints(readVisualRules(), endpoints), includeRegionRules = countryDbAvailable).trim())
         builder.appendLine()
 
         runtimeConfigFile.writeText(builder.toString())
@@ -308,7 +316,7 @@ class ConfigManager(private val context: Context) {
         val file = File(configDir, fileName)
         val output = if (content.contains("[endpoints.")) {
             file.writeText(content)
-            "Saved subscription: config/$fileName\nImported endpoints: ${parseEndpoints(content).size}"
+            "Saved subscription: config/$fileName\nImported endpoints: ${parseEndpoints(content, fileName).size}"
         } else {
             val tempFile = File(configDir, "import-${UUID.randomUUID()}.txt")
             tempFile.writeText(content)
@@ -318,7 +326,7 @@ class ConfigManager(private val context: Context) {
         }
 
         if (!file.exists()) return output.ifBlank { "Profile import failed" }
-        val endpoints = parseEndpoints(file.readText())
+        val endpoints = parseEndpoints(file.readText(), fileName)
         val profiles = listSubscriptions().toMutableList()
         val profile = SubscriptionProfile(
             id = UUID.randomUUID().toString(),
@@ -329,7 +337,7 @@ class ConfigManager(private val context: Context) {
         )
         profiles += profile
         writeSubscriptions(profiles)
-        writeSelection(profile.id, endpoints.firstOrNull()?.key.orEmpty())
+        writeSelection(profile.id, endpoints.firstOrNull()?.reference.orEmpty())
         return output.ifBlank { "Profile imported: $profileName" }
     }
 
@@ -428,8 +436,9 @@ class ConfigManager(private val context: Context) {
         )
     }
 
-    private fun parseEndpoints(content: String): List<EndpointItem> {
+    private fun parseEndpoints(content: String, fileName: String): List<EndpointItem> {
         val sections = Regex("""(?m)^\[endpoints\.([^\].]+)]\s*$""").findAll(content).toList()
+        val alias = profileAlias(fileName)
         return sections.mapIndexed { index, match ->
             val key = match.groupValues[1]
             val start = match.range.last + 1
@@ -437,10 +446,27 @@ class ConfigManager(private val context: Context) {
             val body = content.substring(start, end)
             EndpointItem(
                 key = key,
+                reference = "$alias[$index]",
                 name = readTomlString(body, "name"),
                 server = readTomlString(body, "server"),
                 type = readTomlString(body, "type")
             )
+        }
+    }
+
+    private fun profileAlias(fileName: String): String =
+        fileName.substringAfterLast('/').substringAfterLast('\\').substringBeforeLast('.')
+
+    private fun normalizeRuleEndpoints(rules: List<VisualRule>, endpoints: List<EndpointItem>): List<VisualRule> {
+        if (endpoints.isEmpty()) return rules
+        return rules.map { rule ->
+            if (rule.action != RuleActionOption.Proxy || rule.endpoint.isBlank()) {
+                rule
+            } else {
+                val reference = endpoints.firstOrNull { it.reference == rule.endpoint }?.reference
+                    ?: endpoints.firstOrNull { it.key == rule.endpoint }?.reference
+                if (reference == null || reference == rule.endpoint) rule else rule.copy(endpoint = reference)
+            }
         }
     }
 

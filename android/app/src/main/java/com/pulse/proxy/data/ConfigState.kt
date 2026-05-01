@@ -10,6 +10,7 @@ data class SubscriptionProfile(
 
 data class EndpointItem(
     val key: String,
+    val reference: String,
     val name: String,
     val server: String,
     val type: String

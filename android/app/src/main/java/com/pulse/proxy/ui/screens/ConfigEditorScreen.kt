@@ -146,11 +146,11 @@ fun ConfigEditorScreen(
             if (state.endpoints.isEmpty()) {
                 item { EmptyCard("No servers found in the selected profile.") }
             } else {
-                itemsIndexed(state.endpoints, key = { index, endpoint -> "${endpoint.key}-$index" }) { _, endpoint ->
+                itemsIndexed(state.endpoints, key = { _, endpoint -> endpoint.reference }) { _, endpoint ->
                     EndpointRow(
                         endpoint = endpoint,
-                        selected = endpoint.key == state.selectedEndpointKey,
-                        onClick = { viewModel.selectEndpoint(endpoint.key) }
+                        selected = endpoint.reference == state.selectedEndpointKey,
+                        onClick = { viewModel.selectEndpoint(endpoint.reference) }
                     )
                 }
             }
@@ -394,9 +394,11 @@ private fun RuleDialog(
                     OptionButtons(
                         label = "Server",
                         values = endpoints,
-                        selected = endpoints.firstOrNull { it.key == endpoint } ?: endpoints.first(),
+                        selected = endpoints.firstOrNull { it.reference == endpoint }
+                            ?: endpoints.firstOrNull { it.key == endpoint }
+                            ?: endpoints.first(),
                         text = { it.title },
-                        onSelect = { endpoint = it.key }
+                        onSelect = { endpoint = it.reference }
                     )
                 }
                 if (condition == RuleConditionOption.Region) {

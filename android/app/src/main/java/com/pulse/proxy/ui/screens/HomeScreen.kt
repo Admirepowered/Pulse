@@ -46,7 +46,8 @@ fun HomeScreen(
     val status by viewModel.vpnStatus.collectAsState()
     val configState by viewModel.configUiState.collectAsState()
     val selectedSubscription = configState.selectedSubscription
-    val selectedEndpoint = configState.endpoints.firstOrNull { it.key == configState.selectedEndpointKey }
+    val selectedEndpoint = configState.endpoints.firstOrNull { it.reference == configState.selectedEndpointKey }
+        ?: configState.endpoints.firstOrNull { it.key == configState.selectedEndpointKey }
 
     Scaffold { padding ->
         Column(

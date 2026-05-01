@@ -70,8 +70,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val selectedSubscriptionId = configManager.selectedSubscriptionId()
             .ifBlank { subscriptions.firstOrNull()?.id.orEmpty() }
         val endpoints = configManager.listEndpoints(selectedSubscriptionId)
-        val selectedEndpointKey = configManager.selectedEndpointKey()
-            .ifBlank { endpoints.firstOrNull()?.key.orEmpty() }
+        val savedEndpoint = configManager.selectedEndpointKey()
+        val selectedEndpointKey = endpoints.firstOrNull { it.reference == savedEndpoint }?.reference
+            ?: endpoints.firstOrNull { it.key == savedEndpoint }?.reference
+            ?: endpoints.firstOrNull()?.reference.orEmpty()
 
         _configUiState.value = _configUiState.value.copy(
             subscriptions = subscriptions,
@@ -110,8 +112,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         refreshConfigurationState("Config selected")
     }
 
-    fun selectEndpoint(key: String) {
-        configManager.setSelectedEndpoint(key)
+    fun selectEndpoint(reference: String) {
+        configManager.setSelectedEndpoint(reference)
         refreshConfigurationState("Server selected")
     }
 

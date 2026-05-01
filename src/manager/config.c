@@ -1758,16 +1758,12 @@ static int rule_matches_domain(const RouteRule* rule, const char* domain) {
         }
     }
 
-    if (!has_matchers) {
-        return 1;
-    }
-
-    if (domain == NULL || domain[0] == '\0') {
-        return 0;
-    }
-
     for (i = 0; i < rule->domain_suffix_count; ++i) {
         if (rule->domain_suffixes[i][0] == '\0') {
+            continue;
+        }
+        has_matchers = 1;
+        if (domain == NULL || domain[0] == '\0') {
             continue;
         }
         if (domain_equals_or_subdomain(domain, rule->domain_suffixes[i])) {
@@ -1779,12 +1775,16 @@ static int rule_matches_domain(const RouteRule* rule, const char* domain) {
         if (rule->domain_keywords[i][0] == '\0') {
             continue;
         }
+        has_matchers = 1;
+        if (domain == NULL || domain[0] == '\0') {
+            continue;
+        }
         if (string_contains_ci(domain, rule->domain_keywords[i])) {
             return 1;
         }
     }
 
-    return 0;
+    return !has_matchers;
 }
 
 static int cidr_matches_ip(const RegionCidr* cidr, int family, const unsigned char* addr) {

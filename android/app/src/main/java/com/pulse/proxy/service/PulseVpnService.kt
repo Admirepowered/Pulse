@@ -92,8 +92,7 @@ class PulseVpnService : VpnService() {
             .setMtu(1500)
             .addAddress("10.0.0.2", 24)
             .addRoute("0.0.0.0", 0)
-            .addDnsServer("8.8.8.8")
-            .addDnsServer("1.1.1.1")
+            .addDnsServer("10.0.0.1")
             .setBlocking(true)
             .setSession("Pulse Proxy")
 
@@ -118,7 +117,12 @@ class PulseVpnService : VpnService() {
         }
 
         tracker = ConnectionTracker()
-        forwarder = TcpForwarder(tunFd!!, tracker!!)
+        forwarder = TcpForwarder(
+            tunFd = tunFd!!,
+            tracker = tracker!!,
+            protectDatagramSocket = { socket -> protect(socket) },
+            protectSocket = { socket -> protect(socket) }
+        )
         forwarder?.start()
 
         isRunning = true

@@ -9,7 +9,8 @@ class Socks5Client(
     private val dstIp: Int,
     private val dstPort: Int,
     private val proxyHost: String = "127.0.0.1",
-    private val proxyPort: Int = 1080
+    private val proxyPort: Int = 1080,
+    private val protectSocket: (Socket) -> Boolean = { true }
 ) {
     private var socket: Socket? = null
     private var input: InputStream? = null
@@ -22,6 +23,7 @@ class Socks5Client(
     fun connect(timeoutMs: Int = 5000): Boolean {
         return try {
             val sock = Socket()
+            protectSocket(sock)
             sock.soTimeout = timeoutMs
             sock.connect(InetSocketAddress(proxyHost, proxyPort), timeoutMs)
 
@@ -32,7 +34,7 @@ class Socks5Client(
             out.write(byteArrayOf(0x05, 0x01, 0x00))
             out.flush()
             val reply = ByteArray(2)
-            if (inp.read(reply) != 2 || reply[0] != 0x05.toByte() || reply[1] != 0x00.toByte()) {
+            if (!readExact(inp, reply) || reply[0] != 0x05.toByte() || reply[1] != 0x00.toByte()) {
                 sock.close(); return false
             }
 
@@ -52,7 +54,7 @@ class Socks5Client(
             out.flush()
 
             val connectReply = ByteArray(10)
-            if (inp.read(connectReply) != 10 || connectReply[0] != 0x05.toByte()) {
+            if (!readExact(inp, connectReply) || connectReply[0] != 0x05.toByte()) {
                 sock.close(); return false
             }
             if (connectReply[1] != 0x00.toByte()) {
@@ -70,6 +72,16 @@ class Socks5Client(
             state = State.CLOSED
             false
         }
+    }
+
+    private fun readExact(input: InputStream, buffer: ByteArray): Boolean {
+        var offset = 0
+        while (offset < buffer.size) {
+            val read = input.read(buffer, offset, buffer.size - offset)
+            if (read <= 0) return false
+            offset += read
+        }
+        return true
     }
 
     fun send(data: ByteArray, offset: Int, length: Int): Boolean {

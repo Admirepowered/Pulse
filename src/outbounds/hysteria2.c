@@ -6,6 +6,9 @@
 
 #include <stdlib.h>
 #include <string.h>
+#if defined(__ANDROID__)
+#include <errno.h>
+#endif
 #include <openssl/bio.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
@@ -199,13 +202,103 @@ static void hy2_wait_for_timeout(const struct timeval* tv) {
 }
 
 static int create_socket_bio(const char* host, int port, BIO** out_bio, BIO_ADDR** out_peer_addr) {
-    BIO_ADDRINFO* res = NULL;
-    const BIO_ADDRINFO* ai = NULL;
     char port_string[16];
     int sock = -1;
     BIO* bio = NULL;
 
     snprintf(port_string, sizeof(port_string), "%d", port);
+
+#if defined(__ANDROID__)
+    struct addrinfo hints;
+    struct addrinfo* res = NULL;
+    struct addrinfo* ai = NULL;
+    int gai_result = 0;
+    int last_error = 0;
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_DGRAM;
+    hints.ai_protocol = IPPROTO_UDP;
+
+    gai_result = getaddrinfo(host, port_string, &hints, &res);
+    if (gai_result != 0 || res == NULL) {
+        fprintf(stderr, "Hysteria2 UDP getaddrinfo failed for %s:%s, family=%d, code=%d, errno=%d\n",
+            host, port_string, AF_UNSPEC, gai_result, WSAGetLastError());
+        return -1;
+    }
+
+    for (ai = res; ai != NULL; ai = ai->ai_next) {
+        sock = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+        if (sock == -1) {
+            last_error = WSAGetLastError();
+            fprintf(stderr, "Hysteria2 UDP socket() failed for %s:%s, family=%d, errno=%d\n",
+                host, port_string, ai->ai_family, last_error);
+            continue;
+        }
+
+        if (connect(sock, ai->ai_addr, (socklen_t)ai->ai_addrlen) != 0) {
+            last_error = WSAGetLastError();
+            fprintf(stderr, "Hysteria2 UDP connect() failed for %s:%s, family=%d, errno=%d\n",
+                host, port_string, ai->ai_family, last_error);
+            BIO_closesocket(sock);
+            sock = -1;
+            continue;
+        }
+
+        if (!BIO_socket_nbio(sock, 1)) {
+            last_error = WSAGetLastError();
+            fprintf(stderr, "Hysteria2 UDP nonblocking setup failed for %s:%s, errno=%d\n",
+                host, port_string, last_error);
+            BIO_closesocket(sock);
+            sock = -1;
+            continue;
+        }
+
+        *out_peer_addr = BIO_ADDR_new();
+        if (*out_peer_addr == NULL ||
+            (ai->ai_family == AF_INET && !BIO_ADDR_rawmake(
+                *out_peer_addr,
+                AF_INET,
+                &((struct sockaddr_in*)ai->ai_addr)->sin_addr,
+                sizeof(struct in_addr),
+                ntohs(((struct sockaddr_in*)ai->ai_addr)->sin_port))) ||
+            (ai->ai_family == AF_INET6 && !BIO_ADDR_rawmake(
+                *out_peer_addr,
+                AF_INET6,
+                &((struct sockaddr_in6*)ai->ai_addr)->sin6_addr,
+                sizeof(struct in6_addr),
+                ntohs(((struct sockaddr_in6*)ai->ai_addr)->sin6_port)))) {
+            fprintf(stderr, "Hysteria2 UDP peer address build failed for %s:%s\n", host, port_string);
+            if (*out_peer_addr != NULL) {
+                BIO_ADDR_free(*out_peer_addr);
+                *out_peer_addr = NULL;
+            }
+            BIO_closesocket(sock);
+            sock = -1;
+            continue;
+        }
+
+        bio = BIO_new(BIO_s_datagram());
+        if (bio == NULL) {
+            hy2_print_ssl_errors("Hysteria2 failed to create datagram BIO.");
+            BIO_ADDR_free(*out_peer_addr);
+            *out_peer_addr = NULL;
+            BIO_closesocket(sock);
+            sock = -1;
+            continue;
+        }
+
+        BIO_set_fd(bio, sock, BIO_CLOSE);
+        *out_bio = bio;
+        freeaddrinfo(res);
+        return 0;
+    }
+
+    freeaddrinfo(res);
+    return -1;
+#else
+    BIO_ADDRINFO* res = NULL;
+    const BIO_ADDRINFO* ai = NULL;
 
     if (!BIO_lookup_ex(host, port_string, BIO_LOOKUP_CLIENT, AF_UNSPEC, SOCK_DGRAM, IPPROTO_UDP, &res)) {
         return -1;
@@ -253,6 +346,7 @@ static int create_socket_bio(const char* host, int port, BIO** out_bio, BIO_ADDR
 
     BIO_ADDRINFO_free(res);
     return -1;
+#endif
 }
 
 static int quic_wait_for_activity(SSL* ssl) {

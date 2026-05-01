@@ -9,12 +9,18 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.net.DatagramPacket
+import java.net.DatagramSocket
+import java.net.InetSocketAddress
+import java.net.Socket
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 class TcpForwarder(
     private val tunFd: ParcelFileDescriptor,
-    private val tracker: ConnectionTracker
+    private val tracker: ConnectionTracker,
+    private val protectDatagramSocket: (DatagramSocket) -> Boolean = { true },
+    private val protectSocket: (Socket) -> Boolean = { true }
 ) {
     private val scope = CoroutineScope(Dispatchers.IO + Job())
     private var readJob: Job? = null
@@ -30,6 +36,7 @@ class TcpForwarder(
         private set
 
     private var remoteBaseSeq = 1000000L  // starting sequence number for our SYN-ACKs
+    private val dnsUpstreams = listOf("223.5.5.5", "1.1.1.1", "8.8.8.8")
 
     fun start() {
         if (isRunning) return
@@ -65,6 +72,14 @@ class TcpForwarder(
             }
             if (length <= 0) { delay(1); continue }
 
+            val udp = IpPacket.parseUdp(buffer, length)
+            if (udp != null) {
+                if (udp.destPort == 53) {
+                    scope.launch { handleDnsQuery(udp) }
+                }
+                continue
+            }
+
             val tcp = IpPacket.parse(buffer, length) ?: continue
             val key = IpPacket.connectionKey(tcp)
 
@@ -96,7 +111,7 @@ class TcpForwarder(
             key,
             tcp.sourceIp, tcp.sourcePort, tcp.destIp, tcp.destPort
         ) {
-            Socks5Client(tcp.destIp, tcp.destPort)
+            Socks5Client(tcp.destIp, tcp.destPort, protectSocket = protectSocket)
         }
 
         conn.clientSeq = (tcp.sequenceNumber + 1) and 0xFFFFFFFFL
@@ -213,6 +228,7 @@ class TcpForwarder(
             payload = null
         )
         writePacket(packet)
+        conn.remoteSeq = (conn.remoteSeq + 1) and 0xFFFFFFFFL
     }
 
     private fun sendAck(conn: ConnectionTracker.TcpConnection, req: IpPacket.TcpHeader, ackSeq: Long) {
@@ -286,10 +302,6 @@ class TcpForwarder(
         val buffer = ByteArray(packetLen)
         val buf = ByteBuffer.wrap(buffer).order(ByteOrder.BIG_ENDIAN)
 
-        // TUN header
-        buf.putShort(0)                    // flags
-        buf.putShort(IpPacket.PROTO_IPV4)  // protocol = IPv4
-
         // IPv4 header
         val ipHdrOff = IpPacket.TUN_HEADER_SIZE
         buffer[ipHdrOff] = (0x45).toByte()       // version=4, IHL=5
@@ -353,6 +365,99 @@ class TcpForwarder(
         return buffer
     }
 
+    private fun handleDnsQuery(query: IpPacket.UdpPacket) {
+        for (upstream in dnsUpstreams) {
+            val response = try {
+                DatagramSocket().use { socket ->
+                    protectDatagramSocket(socket)
+                    socket.soTimeout = 2500
+                    val request = DatagramPacket(
+                        query.payload,
+                        query.payload.size,
+                        InetSocketAddress(upstream, 53)
+                    )
+                    socket.send(request)
+                    val buffer = ByteArray(1500)
+                    val packet = DatagramPacket(buffer, buffer.size)
+                    socket.receive(packet)
+                    buffer.copyOf(packet.length)
+                }
+            } catch (_: Exception) {
+                null
+            }
+
+            if (response != null && response.isNotEmpty()) {
+                writePacket(
+                    buildUdpPacket(
+                        srcIp = query.destIp,
+                        dstIp = query.sourceIp,
+                        srcPort = query.destPort,
+                        dstPort = query.sourcePort,
+                        payload = response
+                    )
+                )
+                return
+            }
+        }
+    }
+
+    private fun buildUdpPacket(
+        srcIp: Int,
+        dstIp: Int,
+        srcPort: Int,
+        dstPort: Int,
+        payload: ByteArray
+    ): ByteArray {
+        val ipHdrLen = 20
+        val udpHdrLen = 8
+        val totalIpLen = ipHdrLen + udpHdrLen + payload.size
+        val packetLen = IpPacket.TUN_HEADER_SIZE + totalIpLen
+        val buffer = ByteArray(packetLen)
+        val buf = ByteBuffer.wrap(buffer).order(ByteOrder.BIG_ENDIAN)
+
+        val ipHdrOff = IpPacket.TUN_HEADER_SIZE
+        buffer[ipHdrOff] = 0x45.toByte()
+        buffer[ipHdrOff + 1] = 0
+        buffer[ipHdrOff + 2] = ((totalIpLen shr 8) and 0xFF).toByte()
+        buffer[ipHdrOff + 3] = (totalIpLen and 0xFF).toByte()
+        buffer[ipHdrOff + 4] = 0
+        buffer[ipHdrOff + 5] = 0
+        buffer[ipHdrOff + 6] = 0x40.toByte()
+        buffer[ipHdrOff + 7] = 0
+        buffer[ipHdrOff + 8] = 64
+        buffer[ipHdrOff + 9] = IpPacket.IPPROTO_UDP.toByte()
+        buffer[ipHdrOff + 12] = ((srcIp shr 24) and 0xFF).toByte()
+        buffer[ipHdrOff + 13] = ((srcIp shr 16) and 0xFF).toByte()
+        buffer[ipHdrOff + 14] = ((srcIp shr 8) and 0xFF).toByte()
+        buffer[ipHdrOff + 15] = (srcIp and 0xFF).toByte()
+        buffer[ipHdrOff + 16] = ((dstIp shr 24) and 0xFF).toByte()
+        buffer[ipHdrOff + 17] = ((dstIp shr 16) and 0xFF).toByte()
+        buffer[ipHdrOff + 18] = ((dstIp shr 8) and 0xFF).toByte()
+        buffer[ipHdrOff + 19] = (dstIp and 0xFF).toByte()
+
+        val ipSum = ipChecksum(buffer, ipHdrOff, ipHdrLen)
+        buffer[ipHdrOff + 10] = ((ipSum shr 8) and 0xFF).toByte()
+        buffer[ipHdrOff + 11] = (ipSum and 0xFF).toByte()
+
+        val udpHdrOff = ipHdrOff + ipHdrLen
+        val udpLen = udpHdrLen + payload.size
+        buffer[udpHdrOff] = ((srcPort shr 8) and 0xFF).toByte()
+        buffer[udpHdrOff + 1] = (srcPort and 0xFF).toByte()
+        buffer[udpHdrOff + 2] = ((dstPort shr 8) and 0xFF).toByte()
+        buffer[udpHdrOff + 3] = (dstPort and 0xFF).toByte()
+        buffer[udpHdrOff + 4] = ((udpLen shr 8) and 0xFF).toByte()
+        buffer[udpHdrOff + 5] = (udpLen and 0xFF).toByte()
+        buffer[udpHdrOff + 6] = 0
+        buffer[udpHdrOff + 7] = 0
+        System.arraycopy(payload, 0, buffer, udpHdrOff + udpHdrLen, payload.size)
+
+        val udpSum = udpChecksum(buffer, udpHdrOff, udpLen, srcIp, dstIp)
+        buffer[udpHdrOff + 6] = ((udpSum shr 8) and 0xFF).toByte()
+        buffer[udpHdrOff + 7] = (udpSum and 0xFF).toByte()
+
+        return buffer
+    }
+
     private fun ipChecksum(buffer: ByteArray, offset: Int, len: Int): Int {
         var sum = 0
         for (i in 0 until len step 2) {
@@ -391,6 +496,34 @@ class TcpForwarder(
             sum = (sum and 0xFFFF) + (sum shr 16)
         }
         return sum.inv() and 0xFFFF
+    }
+
+    private fun udpChecksum(
+        buffer: ByteArray,
+        udpOff: Int,
+        udpLen: Int,
+        srcIp: Int,
+        dstIp: Int
+    ): Int {
+        var sum = 0
+        sum += ((srcIp shr 16) and 0xFFFF)
+        sum += (srcIp and 0xFFFF)
+        sum += ((dstIp shr 16) and 0xFFFF)
+        sum += (dstIp and 0xFFFF)
+        sum += IpPacket.IPPROTO_UDP
+        sum += udpLen
+
+        for (i in 0 until udpLen step 2) {
+            val w = ((buffer[udpOff + i].toInt() and 0xFF) shl 8) or
+                (if (i + 1 < udpLen) (buffer[udpOff + i + 1].toInt() and 0xFF) else 0)
+            sum += w
+        }
+
+        while (sum shr 16 > 0) {
+            sum = (sum and 0xFFFF) + (sum shr 16)
+        }
+        val checksum = sum.inv() and 0xFFFF
+        return if (checksum == 0) 0xFFFF else checksum
     }
 
     private fun writePacket(packet: ByteArray) {

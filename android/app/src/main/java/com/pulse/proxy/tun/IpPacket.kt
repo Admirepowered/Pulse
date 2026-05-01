@@ -4,10 +4,9 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 object IpPacket {
-    // Android TUN frame: 4-byte header (flags:2 + protocol:2) before IP packet
-    const val TUN_HEADER_SIZE = 4
-    const val PROTO_IPV4 = 0x0800.toShort()
+    const val TUN_HEADER_SIZE = 0
     const val IPPROTO_TCP = 6
+    const val IPPROTO_UDP = 17
 
     // TCP flags
     const val FLAG_FIN = 0x01
@@ -36,17 +35,19 @@ object IpPacket {
         val hasPayload: Boolean get() = payloadLength > 0
     }
 
+    data class UdpPacket(
+        val sourceIp: Int,
+        val destIp: Int,
+        val sourcePort: Int,
+        val destPort: Int,
+        val payload: ByteArray
+    )
+
     fun parse(buffer: ByteArray, length: Int): TcpHeader? {
-        if (length < TUN_HEADER_SIZE + 40) return null  // min: TUN hdr + IP + TCP
-
-        val buf = ByteBuffer.wrap(buffer, 0, length).order(ByteOrder.BIG_ENDIAN)
-
-        val tunFlags = buf.getShort()
-        val protocol = buf.getShort()
-        if (protocol != PROTO_IPV4) return null
+        if (length < 40) return null  // min: IP + TCP
 
         // IPv4 header
-        val ipStart = buf.position()
+        val ipStart = 0
         val versionIhl = (buffer[ipStart].toInt() and 0xFF)
         if ((versionIhl shr 4) != 4) return null     // not IPv4
         val ipHdrLen = (versionIhl and 0x0F) * 4
@@ -111,6 +112,51 @@ object IpPacket {
             windowSize = window,
             payloadStart = payloadStart,
             payloadLength = actualPayloadLen
+        )
+    }
+
+    fun parseUdp(buffer: ByteArray, length: Int): UdpPacket? {
+        if (length < 28) return null
+
+        val ipStart = 0
+        val versionIhl = buffer[ipStart].toInt() and 0xFF
+        if ((versionIhl shr 4) != 4) return null
+        val ipHdrLen = (versionIhl and 0x0F) * 4
+        if (ipHdrLen < 20 || length < TUN_HEADER_SIZE + ipHdrLen + 8) return null
+
+        val ipProtocol = buffer[ipStart + 9].toInt() and 0xFF
+        if (ipProtocol != IPPROTO_UDP) return null
+
+        val totalLen = ((buffer[ipStart + 2].toInt() and 0xFF) shl 8) or
+            (buffer[ipStart + 3].toInt() and 0xFF)
+        val srcIp = ((buffer[ipStart + 12].toInt() and 0xFF) shl 24) or
+            ((buffer[ipStart + 13].toInt() and 0xFF) shl 16) or
+            ((buffer[ipStart + 14].toInt() and 0xFF) shl 8) or
+            (buffer[ipStart + 15].toInt() and 0xFF)
+        val dstIp = ((buffer[ipStart + 16].toInt() and 0xFF) shl 24) or
+            ((buffer[ipStart + 17].toInt() and 0xFF) shl 16) or
+            ((buffer[ipStart + 18].toInt() and 0xFF) shl 8) or
+            (buffer[ipStart + 19].toInt() and 0xFF)
+
+        val udpStart = ipStart + ipHdrLen
+        val srcPort = ((buffer[udpStart].toInt() and 0xFF) shl 8) or
+            (buffer[udpStart + 1].toInt() and 0xFF)
+        val dstPort = ((buffer[udpStart + 2].toInt() and 0xFF) shl 8) or
+            (buffer[udpStart + 3].toInt() and 0xFF)
+        val udpLen = ((buffer[udpStart + 4].toInt() and 0xFF) shl 8) or
+            (buffer[udpStart + 5].toInt() and 0xFF)
+        if (udpLen < 8) return null
+
+        val payloadStart = udpStart + 8
+        val payloadLen = (udpLen - 8).coerceAtMost(TUN_HEADER_SIZE + totalLen - payloadStart)
+        if (payloadLen <= 0 || payloadStart + payloadLen > length) return null
+
+        return UdpPacket(
+            sourceIp = srcIp,
+            destIp = dstIp,
+            sourcePort = srcPort,
+            destPort = dstPort,
+            payload = buffer.copyOfRange(payloadStart, payloadStart + payloadLen)
         )
     }
 

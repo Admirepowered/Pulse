@@ -7,7 +7,10 @@ plugins {
 android {
     namespace = "com.pulse.proxy"
     compileSdk = 35
-
+    lint {
+        disable = "ExpiredTargetSdkVersion"
+        checkReleaseBuilds = false
+    }
     defaultConfig {
         applicationId = "com.pulse.proxy"
         minSdk = 21

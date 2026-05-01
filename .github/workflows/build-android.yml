@@ -26,12 +26,11 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Setup Android SDK2
-        uses: android-actions/setup-android@v3
-        with:
-          packages: |
-            platform-tools
-            build-tools;34.0.0
+      - name: Install Android Build Tools 33.0.0
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;33.0.0"
+          echo "Installed build-tools:"
+          ls -la $ANDROID_HOME/build-tools/
 
       - name: Setup NDK
         run: |

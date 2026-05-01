@@ -1667,10 +1667,12 @@ int load_config(const char* filename, Config* config) {
     if (config->country_db_path[0] != '\0') {
         mmdb* db = NULL;
         if (mmdb_open(config->country_db_path, &db) != 0) {
-            fprintf(stderr, "Failed to open country database: %s\n", config->country_db_path);
-            return -1;
+            fprintf(stderr, "Failed to open country database: %s; region-db matching disabled.\n", config->country_db_path);
+            config->country_db_path[0] = '\0';
+            config->country_db_handle = NULL;
+        } else {
+            config->country_db_handle = db;
         }
-        config->country_db_handle = db;
     }
 
     if (config->endpoint_count == 0) {

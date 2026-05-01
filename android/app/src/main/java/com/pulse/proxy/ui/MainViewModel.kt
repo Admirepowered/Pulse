@@ -1,10 +1,13 @@
 package com.pulse.proxy.ui
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.pulse.proxy.config.ConfigManager
+import com.pulse.proxy.data.ConfigUiState
 import com.pulse.proxy.data.LogEntry
+import com.pulse.proxy.data.VisualRule
 import com.pulse.proxy.data.VpnStatus
 import com.pulse.proxy.service.PulseVpnService
 import kotlinx.coroutines.delay
@@ -26,8 +29,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _configContent = MutableStateFlow("")
     val configContent: StateFlow<String> = _configContent.asStateFlow()
 
+    private val _configUiState = MutableStateFlow(ConfigUiState())
+    val configUiState: StateFlow<ConfigUiState> = _configUiState.asStateFlow()
+
     init {
         refreshConfig()
+        refreshConfigurationState()
         startStatusPolling()
     }
 
@@ -48,11 +55,78 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun refreshConfig() {
         _configContent.value = configManager.readConfig()
+        refreshConfigurationState()
     }
 
     fun saveConfig(content: String) {
         configManager.saveConfig(content)
+        refreshConfigurationState()
     }
 
     fun isVpnRunning(): Boolean = PulseVpnService.isRunning
+
+    fun refreshConfigurationState(message: String = _configUiState.value.statusMessage) {
+        val subscriptions = configManager.listSubscriptions()
+        val selectedSubscriptionId = configManager.selectedSubscriptionId()
+            .ifBlank { subscriptions.firstOrNull()?.id.orEmpty() }
+        val endpoints = configManager.listEndpoints(selectedSubscriptionId)
+        val selectedEndpointKey = configManager.selectedEndpointKey()
+            .ifBlank { endpoints.firstOrNull()?.key.orEmpty() }
+
+        _configUiState.value = _configUiState.value.copy(
+            subscriptions = subscriptions,
+            selectedSubscriptionId = selectedSubscriptionId,
+            endpoints = endpoints,
+            selectedEndpointKey = selectedEndpointKey,
+            rulesContent = configManager.readRules(),
+            visualRules = configManager.readVisualRules(),
+            statusMessage = message
+        )
+    }
+
+    fun setSubscriptionUrl(url: String) {
+        _configUiState.value = _configUiState.value.copy(subscriptionUrl = url)
+    }
+
+    fun updateSubscription() {
+        val url = _configUiState.value.subscriptionUrl
+        viewModelScope.launch {
+            _configUiState.value = _configUiState.value.copy(statusMessage = "Importing profile from URL...")
+            val message = configManager.updateSubscription(url)
+            refreshConfigurationState(message)
+        }
+    }
+
+    fun importProfileFromUri(uri: Uri) {
+        viewModelScope.launch {
+            _configUiState.value = _configUiState.value.copy(statusMessage = "Importing profile from file...")
+            val message = configManager.importProfileFromUri(uri)
+            refreshConfigurationState(message)
+        }
+    }
+
+    fun selectSubscription(id: String) {
+        configManager.setSelectedSubscription(id)
+        refreshConfigurationState("Config selected")
+    }
+
+    fun selectEndpoint(key: String) {
+        configManager.setSelectedEndpoint(key)
+        refreshConfigurationState("Server selected")
+    }
+
+    fun saveRules(content: String) {
+        configManager.saveRules(content)
+        refreshConfigurationState("Rules saved")
+    }
+
+    fun addDefaultRules() {
+        configManager.appendDefaultRules()
+        refreshConfigurationState("Default rules added")
+    }
+
+    fun saveVisualRules(rules: List<VisualRule>) {
+        configManager.saveVisualRules(rules)
+        refreshConfigurationState("Rules saved")
+    }
 }

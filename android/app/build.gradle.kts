@@ -11,7 +11,7 @@ android {
     defaultConfig {
         applicationId = "com.pulse.proxy"
         minSdk = 21
-        targetSdk = 35
+        targetSdk = 28
         versionCode = 1
         versionName = "1.0.0"
     }
@@ -42,17 +42,36 @@ android {
 
     sourceSets {
         getByName("main") {
-            jniLibs.srcDirs("src/main/jniLibs")
-            assets.srcDirs("src/main/assets")
+            jniLibs.srcDirs(
+                "src/main/jniLibs",
+                layout.buildDirectory.dir("generated/vlessJniLibs")
+            )
+            assets.srcDirs("src/main/assets", "src/main/jniLibs")
         }
     }
 
     packaging {
         jniLibs {
+            useLegacyPackaging = true
             keepDebugSymbols += "**/*.so"
             keepDebugSymbols += "**/vless_proxy"
         }
     }
+}
+
+val prepareVlessProxyJniLibs by tasks.registering(Copy::class) {
+    from("src/main/jniLibs") {
+        include("**/vless_proxy")
+        eachFile {
+            name = "libvless_proxy.so"
+        }
+    }
+    includeEmptyDirs = false
+    into(layout.buildDirectory.dir("generated/vlessJniLibs"))
+}
+
+tasks.named("preBuild") {
+    dependsOn(prepareVlessProxyJniLibs)
 }
 
 // Disable stripReleaseDebugSymbols to avoid WSL1 memory issues

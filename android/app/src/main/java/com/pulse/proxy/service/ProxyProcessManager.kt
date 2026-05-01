@@ -1,7 +1,6 @@
 package com.pulse.proxy.service
 
 import android.content.Context
-import android.os.Build
 import com.pulse.proxy.util.LogBuffer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,34 +26,16 @@ class ProxyProcessManager(
         if (isRunning) return true
 
         return try {
-            val abi = Build.SUPPORTED_ABIS[0]
-            val nativeDir = context.applicationInfo.nativeLibraryDir
-            val binaryPath = "$nativeDir/vless_proxy"
-
-            // Ensure binary is executable
-            val binFile = File(binaryPath)
-            if (!binFile.exists()) {
-                // Fallback: try to find in common locations
-                val altPaths = listOf(
-                    "$nativeDir/vless_proxy",
-                    "${context.filesDir}/bin/vless_proxy",
-                    "${context.applicationInfo.dataDir}/lib/vless_proxy"
-                )
-                var found = false
-                for (p in altPaths) {
-                    if (File(p).exists()) {
-                        found = true; break
-                    }
-                }
-                if (!found) {
-                    logBuffer.append("Native binary not found for ABI: $abi")
-                    return false
-                }
+            val binaryManager = NativeBinaryManager(context)
+            val binFile = binaryManager.prepareVlessProxy()
+            if (binFile == null) {
+                logBuffer.append("Native binary not found for ABI ${binaryManager.abi()}. Reinstall the latest APK. Tried: ${binaryManager.describeSearchPaths()}")
+                return false
             }
             binFile.setExecutable(true)
 
             val pb = ProcessBuilder(
-                binaryPath, "run", configPath
+                binFile.absolutePath, "run", configPath
             )
             pb.directory(context.filesDir)
             pb.redirectErrorStream(true)

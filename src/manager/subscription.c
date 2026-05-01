@@ -510,7 +510,11 @@ static int parse_proxy_spec(const char* proxy_spec, ProxyAddress* proxy) {
     char port_text[16];
     size_t host_len = 0;
 
-    if (proxy_spec == NULL || proxy_spec[0] == '\0') {
+    if (proxy_spec == NULL) {
+        return 1;
+    }
+
+    if (proxy_spec[0] == '\0') {
         strcpy(proxy->host, "127.0.0.1");
         proxy->port = 1080;
         return 0;
@@ -1745,6 +1749,179 @@ int download_subscription_command(const char* url, const char* proxy_spec) {
     printf("Add this to your main config:\n");
     printf("[main]\n");
     printf("include = [\"%s\"]\n", output_name);
+    result = 0;
+
+cleanup:
+    free(response_body);
+    free(decoded);
+    free(lines);
+    return result;
+}
+
+static int read_subscription_file_body(const char* path, char** out_body) {
+    FILE* fp = NULL;
+    long size = 0;
+    char* body = NULL;
+
+    fp = fopen(path, "rb");
+    if (fp == NULL) {
+        fprintf(stderr, "Failed to open subscription file: %s\n", path);
+        return -1;
+    }
+
+    if (fseek(fp, 0, SEEK_END) != 0) {
+        fclose(fp);
+        return -1;
+    }
+    size = ftell(fp);
+    if (size < 0 || size > SUB_MAX_BODY) {
+        fclose(fp);
+        fprintf(stderr, "Subscription file is too large.\n");
+        return -1;
+    }
+    rewind(fp);
+
+    body = (char*)malloc((size_t)size + 1);
+    if (body == NULL) {
+        fclose(fp);
+        return -1;
+    }
+
+    if (size > 0 && fread(body, 1, (size_t)size, fp) != (size_t)size) {
+        fclose(fp);
+        free(body);
+        return -1;
+    }
+    fclose(fp);
+
+    body[size] = '\0';
+    *out_body = body;
+    return 0;
+}
+
+static void sanitize_output_name(const char* input, char* out, size_t out_size) {
+    size_t i = 0;
+    size_t j = 0;
+    const char* start = input;
+
+    if (input == NULL || input[0] == '\0') {
+        sub_safe_copy(out, out_size, "imported.toml");
+        return;
+    }
+
+    for (i = 0; input[i] != '\0'; ++i) {
+        if (input[i] == '/' || input[i] == '\\') {
+            start = input + i + 1;
+        }
+    }
+
+    for (i = 0; start[i] != '\0' && j + 1 < out_size; ++i) {
+        char c = start[i];
+        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+            (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.') {
+            out[j++] = c;
+        } else {
+            out[j++] = '-';
+        }
+    }
+    out[j] = '\0';
+
+    if (out[0] == '\0') {
+        sub_safe_copy(out, out_size, "imported.toml");
+    }
+    if (strstr(out, ".toml") == NULL) {
+        size_t len = strlen(out);
+        if (len + 5 < out_size) {
+            strcat(out, ".toml");
+        }
+    }
+}
+
+int import_subscription_file_command(const char* input_path, const char* output_name_arg) {
+    char* response_body = NULL;
+    unsigned char* decoded = NULL;
+    size_t decoded_len = 0;
+    char* lines = NULL;
+    char preview[121];
+    char output_name[CONFIG_VALUE_LEN];
+    char output_path[CONFIG_PATH_LEN];
+    SubscriptionEntry entries[SUB_MAX_ENTRIES];
+    int entry_count = 0;
+    char* line = NULL;
+    char* next = NULL;
+    int result = 1;
+
+    if (read_subscription_file_body(input_path, &response_body) != 0) {
+        return 1;
+    }
+
+    trim_inplace(response_body);
+    if (contains_subscription_scheme(response_body)) {
+        decoded_len = strlen(response_body);
+        decoded = (unsigned char*)malloc(decoded_len + 1);
+        if (decoded == NULL) {
+            goto cleanup;
+        }
+        memcpy(decoded, response_body, decoded_len + 1);
+    } else if (base64_decode_text(response_body, &decoded, &decoded_len) != 0) {
+        build_body_preview(response_body, preview, sizeof(preview));
+        fprintf(stderr,
+            "Failed to decode subscription file. body_len=%zu preview=\"%s\"\n",
+            strlen(response_body),
+            preview);
+        goto cleanup;
+    }
+
+    lines = (char*)malloc(decoded_len + 1);
+    if (lines == NULL) {
+        goto cleanup;
+    }
+    memcpy(lines, decoded, decoded_len);
+    lines[decoded_len] = '\0';
+
+    line = lines;
+    while (line != NULL && *line != '\0' && entry_count < SUB_MAX_ENTRIES) {
+        SubscriptionEntry entry;
+        next = strpbrk(line, "\r\n");
+        if (next != NULL) {
+            *next = '\0';
+            while (next[1] == '\r' || next[1] == '\n') {
+                ++next;
+            }
+            ++next;
+        }
+
+        trim_inplace(line);
+        if (line[0] != '\0') {
+            memset(&entry, 0, sizeof(entry));
+            if (parse_subscription_line(line, &entry, entry_count + 1) == 0) {
+                entries[entry_count++] = entry;
+            }
+        }
+
+        line = next;
+    }
+
+    if (entry_count == 0) {
+        fprintf(stderr, "No supported subscription entries were found.\n");
+        goto cleanup;
+    }
+
+    sanitize_output_name(output_name_arg != NULL ? output_name_arg : input_path, output_name, sizeof(output_name));
+    snprintf(output_path, sizeof(output_path), "config/%s", output_name);
+
+    if (ensure_config_dir() != 0) {
+        fprintf(stderr, "Failed to create config directory.\n");
+        goto cleanup;
+    }
+
+    if (write_subscription_toml(output_path, entries, entry_count) != 0) {
+        fprintf(stderr, "Failed to write %s\n", output_path);
+        goto cleanup;
+    }
+
+    printf("Saved subscription: %s\n", output_path);
+    printf("Imported endpoints: %d\n", entry_count);
     result = 0;
 
 cleanup:

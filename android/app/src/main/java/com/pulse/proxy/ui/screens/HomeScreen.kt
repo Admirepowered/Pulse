@@ -1,8 +1,5 @@
 package com.pulse.proxy.ui.screens
 
-import android.content.Context
-import android.content.Intent
-import android.net.VpnService
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -31,11 +28,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.pulse.proxy.data.VpnStatus
-import com.pulse.proxy.service.PulseVpnService
 import com.pulse.proxy.ui.MainViewModel
 import com.pulse.proxy.ui.theme.RunningGreen
 import com.pulse.proxy.ui.theme.StoppedRed
@@ -43,9 +38,15 @@ import com.pulse.proxy.ui.theme.TrafficDown
 import com.pulse.proxy.ui.theme.TrafficUp
 
 @Composable
-fun HomeScreen(viewModel: MainViewModel) {
+fun HomeScreen(
+    viewModel: MainViewModel,
+    onStartVpn: () -> Unit,
+    onStopVpn: () -> Unit
+) {
     val status by viewModel.vpnStatus.collectAsState()
-    val context = LocalContext.current
+    val configState by viewModel.configUiState.collectAsState()
+    val selectedSubscription = configState.selectedSubscription
+    val selectedEndpoint = configState.endpoints.firstOrNull { it.key == configState.selectedEndpointKey }
 
     Scaffold { padding ->
         Column(
@@ -79,9 +80,9 @@ fun HomeScreen(viewModel: MainViewModel) {
             Button(
                 onClick = {
                     if (status.running) {
-                        context.stopVpn()
+                        onStopVpn()
                     } else {
-                        context.startVpn()
+                        onStartVpn()
                     }
                 },
                 modifier = Modifier
@@ -124,6 +125,8 @@ fun HomeScreen(viewModel: MainViewModel) {
                         fontWeight = FontWeight.SemiBold
                     )
                     Spacer(modifier = Modifier.height(8.dp))
+                    InfoRow("Config", selectedSubscription?.name ?: "No subscription")
+                    InfoRow("Server", selectedEndpoint?.title ?: "No server selected")
                     InfoRow("Proxy", "SOCKS5://127.0.0.1:1080")
                     InfoRow("VPN Address", "10.0.0.2/24")
                     InfoRow("DNS", "8.8.8.8, 1.1.1.1")
@@ -197,23 +200,4 @@ private fun formatBytes(bytes: Long): String {
     if (kb < 1024) return "%.1f KB".format(kb)
     val mb = kb / 1024.0
     return "%.1f MB".format(mb)
-}
-
-private fun Context.startVpn() {
-    val intent = Intent(this, PulseVpnService::class.java)
-    val prepare = VpnService.prepare(this)
-    if (prepare != null) {
-        // Need user consent - launch the request
-        // This would typically be handled in MainActivity
-        startActivity(prepare)
-    } else {
-        startService(intent)
-    }
-}
-
-private fun Context.stopVpn() {
-    val intent = Intent(this, PulseVpnService::class.java).apply {
-        putExtra("action", "stop")
-    }
-    startService(intent)
 }

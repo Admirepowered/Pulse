@@ -29,6 +29,7 @@ static void print_usage(const char* argv0) {
     printf("Usage:\n");
     printf("  %s run [config.toml]\n", argv0);
     printf("  %s sub <url> [--proxy] [--proxy host:port]\n", argv0);
+    printf("  %s import-file <path> [output-name]\n", argv0);
 }
 
 static int run_proxy_command(const char* config_path) {
@@ -150,6 +151,23 @@ static int handle_sub_command(int argc, char** argv) {
     return download_subscription_command(url, proxy_spec);
 }
 
+static int handle_import_file_command(int argc, char** argv) {
+    const char* input_path = NULL;
+    const char* output_name = NULL;
+
+    if (argc < 3) {
+        fprintf(stderr, "Missing subscription file path.\n");
+        return 1;
+    }
+
+    input_path = argv[2];
+    if (argc >= 4) {
+        output_name = argv[3];
+    }
+
+    return import_subscription_file_command(input_path, output_name);
+}
+
 int main(int argc, char** argv) {
     int exit_code = 0;
 
@@ -174,6 +192,8 @@ int main(int argc, char** argv) {
         exit_code = handle_run_command(argc, argv);
     } else if (strcmp(argv[1], "sub") == 0) {
         exit_code = handle_sub_command(argc, argv);
+    } else if (strcmp(argv[1], "import-file") == 0) {
+        exit_code = handle_import_file_command(argc, argv);
     } else {
         fprintf(stderr, "Unknown command: %s\n", argv[1]);
         print_usage(argv[0]);

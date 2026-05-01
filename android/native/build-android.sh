@@ -43,6 +43,7 @@ TOOLCHAIN="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64"
 PULSE_SOURCES=(
     "$PULSE_SRC/app/main.c"
     "$PULSE_SRC/core/pulse.c"
+    "$PULSE_SRC/core/android_tls_align.c"
     "$PULSE_SRC/core/mmdb.c"
     "$PULSE_SRC/core/socket_io.c"
     "$PULSE_SRC/inbounds/server.c"
@@ -162,7 +163,7 @@ NG3CONFIG
 
     # 3. Build Pulse Proxy
     echo "  Building pulse_proxy for $ABI..."
-    "$CC" -std=c11 -O2 -Wall \
+    "$CC" -std=c11 -O1 -Wall \
         -I"$PULSE_SRC" \
         -I"$PULSE_SRC/core" \
         -I"$INSTALL_DIR/include" \
@@ -174,6 +175,41 @@ NG3CONFIG
         -lssl -lcrypto -lnghttp3 \
         -static \
         -o "$INSTALL_DIR/bin/vless_proxy"
+
+    if [ "$ABI" = "arm64-v8a" ]; then
+        python3 - "$INSTALL_DIR/bin/vless_proxy" <<'PY'
+import struct
+import sys
+
+path = sys.argv[1]
+with open(path, "r+b") as f:
+    ident = f.read(16)
+    if ident[:4] != b"\x7fELF" or ident[4] != 2 or ident[5] != 1:
+        raise SystemExit("unsupported ELF format for TLS alignment patch")
+
+    f.seek(32)
+    e_phoff = struct.unpack("<Q", f.read(8))[0]
+    f.seek(54)
+    e_phentsize = struct.unpack("<H", f.read(2))[0]
+    e_phnum = struct.unpack("<H", f.read(2))[0]
+
+    PT_TLS = 7
+    for index in range(e_phnum):
+        offset = e_phoff + index * e_phentsize
+        f.seek(offset)
+        p_type = struct.unpack("<I", f.read(4))[0]
+        if p_type != PT_TLS:
+            continue
+
+        p_align_offset = offset + 48
+        f.seek(p_align_offset)
+        p_align = struct.unpack("<Q", f.read(8))[0]
+        if p_align < 64:
+            f.seek(p_align_offset)
+            f.write(struct.pack("<Q", 64))
+        break
+PY
+    fi
 
     echo "  pulse_proxy for $ABI: $INSTALL_DIR/bin/vless_proxy"
     echo "=== $ABI done ==="

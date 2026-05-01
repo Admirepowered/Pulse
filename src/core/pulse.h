@@ -228,6 +228,7 @@ const EndpointConfig* find_endpoint_by_name(const Config* config, const char* ke
 int resolve_route(const Config* config, const Destination* destination, RouteDecision* decision);
 int start_proxy(const Config* config);
 int download_subscription_command(const char* url, const char* proxy_spec);
+int import_subscription_file_command(const char* input_path, const char* output_name);
 const char* endpoint_type_name(EndpointType type);
 const char* inbound_type_name(InboundType type);
 

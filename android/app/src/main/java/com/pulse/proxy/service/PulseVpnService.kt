@@ -2,7 +2,9 @@ package com.pulse.proxy.service
 
 import android.app.PendingIntent
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.net.VpnService
+import android.os.Build
 import android.os.ParcelFileDescriptor
 import com.pulse.proxy.MainActivity
 import com.pulse.proxy.config.ConfigManager
@@ -52,23 +54,36 @@ class PulseVpnService : VpnService() {
     private fun startVpn() {
         if (isRunning) return
 
-        // Initialize config
+        // Show foreground notification FIRST (required on Android 8+)
+        val notification = notificationManager?.buildRunningNotification()
+        if (notification != null) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(
+                    VpnNotificationManager.NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                )
+            } else {
+                startForeground(VpnNotificationManager.NOTIFICATION_ID, notification)
+            }
+        }
+
         val configManager = ConfigManager(this)
-        configManager.initialize()
-
-        // Download MMDB if needed (runs in background)
         val mmdbManager = MmdbManager(this)
-
-        // Start proxy process
         proxyManager = ProxyProcessManager(this, logBuffer)
-        val configPath = configManager.getConfigPath()
 
-        // Start MMDB download and proxy
         kotlinx.coroutines.GlobalScope.launch {
             try {
-                mmdbManager.ensureMmdbAvailable()
-            } catch (_: Exception) {}
+                configManager.initialize()
+                val mmdbReady = mmdbManager.ensureMmdbAvailable()
+                if (!mmdbReady) {
+                    logBuffer.append("Country database unavailable; region rules are skipped")
+                }
+            } catch (e: Exception) {
+                logBuffer.append("Country database check failed: ${e.message}")
+            }
 
+            val configPath = configManager.getConfigPath()
             proxyManager?.start(configPath)
         }.start()
 
@@ -109,9 +124,6 @@ class PulseVpnService : VpnService() {
         isRunning = true
         logBuffer.append("VPN started, local proxy at 127.0.0.1:1080")
 
-        // Show foreground notification
-        notificationManager?.showRunningNotification()
-
         // Start stats monitoring
         Thread {
             while (isRunning) {
@@ -133,6 +145,7 @@ class PulseVpnService : VpnService() {
         proxyManager?.stop()
         proxyManager = null
         notificationManager?.cancelNotification()
+        stopForeground(STOP_FOREGROUND_REMOVE)
         logBuffer.append("VPN stopped")
     }
 

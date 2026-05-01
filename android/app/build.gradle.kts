@@ -8,7 +8,8 @@ android {
     namespace = "com.pulse.proxy"
     compileSdk = 35
     lint {
-        disable = "ExpiredTargetSdkVersion"
+        disable.add("ExpiredTargetSdkVersion")
+        disable.addAll(setOf("ExpiredTargetSdkVersion", "OtherIssue"))
         checkReleaseBuilds = false
     }
     defaultConfig {

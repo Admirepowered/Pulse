@@ -1,0 +1,25 @@
+# Wails / Go
+/build/bin/
+/frontend/dist/
+*.test
+
+# Node
+/frontend/node_modules/
+/frontend/.vite/
+
+# Local runtime
+/data/
+/profiles/
+store.json
+pulse-runtime.yaml
+
+# OS/editor
+.DS_Store
+Thumbs.db
+*.tmp
+*.log
+.env
+.env.*
+.idea/
+.vscode/
+.venv/

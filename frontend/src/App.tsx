@@ -3,8 +3,6 @@ import {
     Activity,
     Bug,
     Check,
-    ChevronDown,
-    ChevronRight,
     CircleStop,
     Cloud,
     FolderOpen,
@@ -212,7 +210,6 @@ function App() {
     const [editorContent, setEditorContent] = useState('');
     const [settingsDraft, setSettingsDraft] = useState<Settings>(emptySettings);
     const [backgroundDataURL, setBackgroundDataURL] = useState('');
-    const [expandedProxyGroups, setExpandedProxyGroups] = useState<Set<string>>(() => new Set());
 
     const refreshSnapshot = useCallback(async () => {
         const next = await GetSnapshot() as RuntimeState;
@@ -296,18 +293,6 @@ function App() {
         if (!value) return connections;
         return connections.filter((item) => `${item.address} ${item.rule} ${item.chains}`.toLowerCase().includes(value));
     }, [connections, query]);
-
-    const toggleProxyGroup = (name: string) => {
-        setExpandedProxyGroups((current) => {
-            const next = new Set(current);
-            if (next.has(name)) {
-                next.delete(name);
-            } else {
-                next.add(name);
-            }
-            return next;
-        });
-    };
 
     const openEditor = async (profile: Profile) => {
         setEditorProfile(profile);
@@ -413,37 +398,31 @@ function App() {
                 {tab === 'proxies' && (
                     <section className="stack proxyPage">
                         <SearchBox value={query} onChange={setQuery} placeholder="搜索策略组、节点、类型"/>
-                        {filteredGroups.map((group) => {
-                            const expanded = expandedProxyGroups.has(group.name);
-                            const ToggleIcon = expanded ? ChevronDown : ChevronRight;
-                            return (
-                                <article className={expanded ? 'panel proxyGroup' : 'panel proxyGroup collapsed'} key={group.name}>
-                                    <button className="proxyGroupHead" onClick={() => toggleProxyGroup(group.name)}>
-                                        <ToggleIcon size={17}/>
-                                        <div>
-                                            <h2>{group.name}</h2>
-                                            <span>{group.type} · {group.now || '未选择'}</span>
-                                        </div>
-                                        <StatusPill ok={Boolean(group.now)} label={`${group.nodes.length} 节点`}/>
-                                    </button>
-                                    {expanded && (
-                                        <div className="nodeGrid">
-                                            {group.nodes.map((node) => (
-                                                <button
-                                                    className={node.name === group.now ? 'node selected' : 'node'}
-                                                    key={`${group.name}-${node.name}`}
-                                                    onClick={() => run(() => SelectProxy(group.name, node.name), `${group.name} -> ${node.name}`)}
-                                                >
-                                                    <span>{node.name}</span>
-                                                    <small>{node.type || 'proxy'} · {node.delay >= 0 ? `${node.delay}ms` : '待测'}</small>
-                                                    {node.name === group.now && <Check size={16}/>}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
-                                </article>
-                            );
-                        })}
+                        {filteredGroups.map((group) => (
+                            <details className="panel proxyGroup" key={group.name}>
+                                <summary className="proxyGroupHead">
+                                    <span className="summaryChevron" aria-hidden="true"/>
+                                    <div className="proxyGroupTitle">
+                                        <h2>{group.name}</h2>
+                                        <span>{group.type} · {group.now || '未选择'}</span>
+                                    </div>
+                                    <StatusPill ok={Boolean(group.now)} label={`${group.nodes.length} 节点`}/>
+                                </summary>
+                                <div className="nodeGrid">
+                                    {group.nodes.map((node) => (
+                                        <button
+                                            className={node.name === group.now ? 'node selected' : 'node'}
+                                            key={`${group.name}-${node.name}`}
+                                            onClick={() => run(() => SelectProxy(group.name, node.name), `${group.name} -> ${node.name}`)}
+                                        >
+                                            <span>{node.name}</span>
+                                            <small>{node.type || 'proxy'} · {node.delay >= 0 ? `${node.delay}ms` : '待测'}</small>
+                                            {node.name === group.now && <Check size={16}/>}
+                                        </button>
+                                    ))}
+                                </div>
+                            </details>
+                        ))}
                     </section>
                 )}
 

@@ -152,6 +152,7 @@ button:disabled {
 button,
 input,
 textarea,
+summary,
 .actions,
 .windowControls {
     --wails-draggable: no-drag;
@@ -174,6 +175,7 @@ h2 {
 
 .topbar p,
 .panelHead span,
+.proxyGroupTitle span,
 .profileRow span,
 .connectionRow span,
 .field span,
@@ -400,33 +402,53 @@ textarea {
 
 .proxyGroup {
     padding: 0;
-    overflow: hidden;
+    overflow: visible;
 }
 
 .proxyGroupHead {
     width: 100%;
-    height: auto;
-    min-height: 58px;
-    justify-content: flex-start;
-    border: 0;
+    min-height: 64px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
     border-radius: 8px;
-    background: transparent;
-    padding: 12px 14px;
+    padding: 10px 14px;
     text-align: left;
+    cursor: pointer;
+    list-style: none;
+}
+
+.proxyGroupHead::-webkit-details-marker {
+    display: none;
 }
 
 .proxyGroupHead:hover {
     background: #f8fafc;
 }
 
-.proxyGroupHead > div {
+.summaryChevron {
+    width: 8px;
+    height: 8px;
+    flex: 0 0 auto;
+    border-right: 2px solid #526071;
+    border-bottom: 2px solid #526071;
+    transform: rotate(-45deg);
+    transition: transform .15s ease;
+}
+
+.proxyGroup[open] .summaryChevron {
+    transform: rotate(45deg);
+}
+
+.proxyGroupTitle {
     min-width: 0;
     display: grid;
     gap: 3px;
+    line-height: 1.25;
 }
 
-.proxyGroupHead h2,
-.proxyGroupHead span {
+.proxyGroupTitle h2,
+.proxyGroupTitle span {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -438,7 +460,7 @@ textarea {
 }
 
 .proxyGroup .nodeGrid {
-    padding: 0 14px 14px;
+    padding: 2px 14px 14px;
 }
 
 .node {

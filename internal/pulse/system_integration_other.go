@@ -1,6 +1,6 @@
 //go:build !windows
 
-package main
+package pulse
 
 func setAutoStart(enabled bool) error {
 	return nil

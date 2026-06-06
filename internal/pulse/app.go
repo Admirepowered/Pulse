@@ -1,4 +1,4 @@
-package main
+package pulse
 
 import (
 	"bufio"
@@ -173,7 +173,7 @@ func NewApp() *App {
 	}
 }
 
-func (a *App) startup(ctx context.Context) {
+func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
 	if err := a.initStore(); err != nil {
 		a.appendLog("error", err.Error())
@@ -190,7 +190,7 @@ func (a *App) startup(ctx context.Context) {
 	}
 }
 
-func (a *App) shutdown(ctx context.Context) {
+func (a *App) Shutdown(ctx context.Context) {
 	_ = a.StopCore()
 }
 

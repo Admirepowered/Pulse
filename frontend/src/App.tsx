@@ -2,6 +2,7 @@ import {type CSSProperties, useCallback, useEffect, useMemo, useState} from 'rea
 import {
     Activity,
     Bug,
+    Cat,
     Check,
     CircleStop,
     Cloud,
@@ -22,7 +23,6 @@ import {
     Save,
     Search,
     Settings as SettingsIcon,
-    Shield,
     SquarePen,
     Trash2,
     Upload,
@@ -56,8 +56,8 @@ import {
     StopCore,
     UpdateProfile,
     UpdateProvider,
-} from '../wailsjs/go/main/App';
-import {main as Models} from '../wailsjs/go/models';
+} from '../wailsjs/go/pulse/App';
+import {pulse as Models} from '../wailsjs/go/models';
 import {Quit, WindowMinimise, WindowToggleMaximise} from '../wailsjs/runtime/runtime';
 
 type TabId = 'dashboard' | 'proxies' | 'profiles' | 'rules' | 'connections' | 'logs' | 'settings';
@@ -277,6 +277,14 @@ function App() {
         }
     }, [refreshPageData, refreshSnapshot, tab]);
 
+    const saveSettings = useCallback(async () => {
+        const next = normalizeSettings(settingsDraft);
+        await SaveSettings(new Models.Settings(next));
+        setSettingsDraft(next);
+        setSnapshot((current) => normalizeSnapshot({...current, settings: next}));
+        setSettingsDirty(false);
+    }, [settingsDraft]);
+
     useEffect(() => {
         refreshSnapshot().catch((error) => setNotice(String(error)));
     }, [refreshSnapshot]);
@@ -294,15 +302,21 @@ function App() {
     }, [settingsDirty, snapshot.settings]);
 
     useEffect(() => {
-        const path = snapshot.settings.backgroundPath;
+        const path = settingsDraft.backgroundPath;
         if (!path) {
             setBackgroundDataURL('');
             return;
         }
+        let active = true;
         ReadBackgroundImageDataURL(path)
-            .then((value) => setBackgroundDataURL(value as string))
+            .then((value) => {
+                if (active) setBackgroundDataURL(value as string);
+            })
             .catch((error) => setNotice(error instanceof Error ? error.message : String(error)));
-    }, [snapshot.settings.backgroundPath]);
+        return () => {
+            active = false;
+        };
+    }, [settingsDraft.backgroundPath]);
 
     useEffect(() => {
         refreshPageData(tab).catch(() => undefined);
@@ -375,7 +389,7 @@ function App() {
         <main className={backgroundDataURL ? 'shell hasBackground' : 'shell'} style={shellStyle}>
             <aside className="sidebar">
                 <div className="brand">
-                    <Shield size={28}/>
+                    <Cat size={28}/>
                     <div>
                         <strong>Pulse</strong>
                         <span>mihomo</span>
@@ -620,10 +634,7 @@ function App() {
                             setSettingsDraft(settings);
                             setSettingsDirty(true);
                         }}
-                        onSave={() => run(async () => {
-                            await SaveSettings(new Models.Settings(settingsDraft));
-                            setSettingsDirty(false);
-                        }, '设置已保存')}
+                        onSave={() => run(saveSettings, '设置已保存')}
                         onOpenDir={() => run(OpenDataDirectory)}
                         onChooseBackground={chooseBackground}
                         onClearBackground={clearBackground}
@@ -856,15 +867,19 @@ function SubscriptionUsage({info}: { info?: SubscriptionInfo }) {
     );
 }
 
+function normalizeSettings(settings?: Partial<Settings>): Settings {
+    return {
+        ...emptySettings,
+        ...(settings || {}),
+        webdav: {...emptySettings.webdav, ...(settings?.webdav || {})},
+    };
+}
+
 function normalizeSnapshot(snapshot: RuntimeState): RuntimeState {
     return {
         ...emptySnapshot,
         ...snapshot,
-        settings: {
-            ...emptySettings,
-            ...snapshot.settings,
-            webdav: {...emptySettings.webdav, ...(snapshot.settings?.webdav || {})},
-        },
+        settings: normalizeSettings(snapshot.settings),
         traffic: snapshot.traffic || {up: 0, down: 0},
         profiles: (snapshot.profiles || []).map((profile) => ({
             ...profile,

@@ -56,6 +56,15 @@ jobs:
         shell: pwsh
         run: wails build
 
+      - name: Setup UPX
+        uses: crazy-max/ghaction-upx@v3
+        with:
+          install-only: true
+
+      - name: Compress Windows Executable
+        shell: pwsh
+        run: upx --best --lzma build/bin/Pulse.exe
+
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
         with:

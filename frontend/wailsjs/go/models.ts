@@ -1,4 +1,4 @@
-export namespace main {
+export namespace pulse {
 
 	export class ConnectionRow {
 	    id: string;

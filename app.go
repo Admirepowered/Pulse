@@ -335,17 +335,31 @@ func (a *App) GetSnapshot() RuntimeState {
 
 func (a *App) SaveSettings(settings Settings) error {
 	settings = mergeSettings(settings, defaultSettings())
+	a.appendLog("info", fmt.Sprintf(
+		"save settings requested: store=%s coreMode=%s autoStartCore=%t autoStart=%t systemProxy=%t allowLan=%t mixedPort=%d",
+		a.storePath,
+		settings.CoreMode,
+		settings.AutoStartCore,
+		settings.AutoStart,
+		settings.SystemProxy,
+		settings.AllowLan,
+		settings.MixedPort,
+	))
 	a.mu.Lock()
 	running := a.coreRunningLocked()
 	a.store.Settings = settings
 	err := a.saveStoreLocked()
 	a.mu.Unlock()
 	if err != nil {
+		a.appendLog("error", "save settings store write failed: "+err.Error())
 		return err
 	}
+	a.appendLog("info", "save settings store write complete")
 	if err := setAutoStart(settings.AutoStart); err != nil {
+		a.appendLog("error", "save settings auto-start apply failed: "+err.Error())
 		return err
 	}
+	a.appendLog("info", fmt.Sprintf("save settings auto-start applied: enabled=%t", settings.AutoStart))
 	if running {
 		a.applyRuntimeSettings(settings)
 	}

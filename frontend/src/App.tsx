@@ -213,6 +213,7 @@ function App() {
     const [editorProfile, setEditorProfile] = useState<Profile | null>(null);
     const [editorContent, setEditorContent] = useState('');
     const [settingsDraft, setSettingsDraft] = useState<Settings>(emptySettings);
+    const [settingsDirty, setSettingsDirty] = useState(false);
     const [backgroundDataURL, setBackgroundDataURL] = useState('');
 
     const refreshSnapshot = useCallback(async () => {
@@ -264,8 +265,10 @@ function App() {
     }, [notice]);
 
     useEffect(() => {
-        setSettingsDraft(snapshot.settings);
-    }, [snapshot.settings]);
+        if (!settingsDirty) {
+            setSettingsDraft(snapshot.settings);
+        }
+    }, [settingsDirty, snapshot.settings]);
 
     useEffect(() => {
         const path = snapshot.settings.backgroundPath;
@@ -317,6 +320,7 @@ function App() {
             if (!path) return;
             const dataURL = await ReadBackgroundImageDataURL(path) as string;
             setSettingsDraft((current) => ({...current, backgroundPath: path}));
+            setSettingsDirty(true);
             setBackgroundDataURL(dataURL);
         } catch (error) {
             setNotice(error instanceof Error ? error.message : String(error));
@@ -327,6 +331,7 @@ function App() {
 
     const clearBackground = () => {
         setSettingsDraft((current) => ({...current, backgroundPath: ''}));
+        setSettingsDirty(true);
         setBackgroundDataURL('');
     };
 
@@ -579,8 +584,14 @@ function App() {
                 {tab === 'settings' && (
                     <SettingsPanel
                         settings={settingsDraft}
-                        onChange={setSettingsDraft}
-                        onSave={() => run(() => SaveSettings(new Models.Settings(settingsDraft)), '设置已保存')}
+                        onChange={(settings) => {
+                            setSettingsDraft(settings);
+                            setSettingsDirty(true);
+                        }}
+                        onSave={() => run(async () => {
+                            await SaveSettings(new Models.Settings(settingsDraft));
+                            setSettingsDirty(false);
+                        }, '设置已保存')}
                         onOpenDir={() => run(OpenDataDirectory)}
                         onChooseBackground={chooseBackground}
                         onClearBackground={clearBackground}

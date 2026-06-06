@@ -57,6 +57,7 @@ type Settings struct {
 	SystemProxy    bool           `json:"systemProxy"`
 	Theme          string         `json:"theme"`
 	AutoStart      bool           `json:"autoStart"`
+	AutoStartCore  bool           `json:"autoStartCore"`
 	BackgroundPath string         `json:"backgroundPath"`
 	BackgroundBlur int            `json:"backgroundBlur"`
 	WebDAV         WebDAVSettings `json:"webdav"`
@@ -156,6 +157,14 @@ func (a *App) startup(ctx context.Context) {
 		return
 	}
 	a.appendLog("info", "Pulse Wails client started")
+	if a.store.Settings.AutoStartCore {
+		go func() {
+			time.Sleep(300 * time.Millisecond)
+			if err := a.StartCore(); err != nil {
+				a.appendLog("error", "auto start mihomo failed: "+err.Error())
+			}
+		}()
+	}
 }
 
 func (a *App) shutdown(ctx context.Context) {
@@ -201,8 +210,12 @@ func (a *App) initStore() error {
 		return err
 	}
 	needsSave := strings.TrimSpace(a.store.Settings.Secret) == ""
+	missingAutoStartCore := !storeHasSetting(data, "autoStartCore")
 	a.store.Settings = mergeSettings(a.store.Settings, defaultSettings())
-	if needsSave {
+	if missingAutoStartCore {
+		a.store.Settings.AutoStartCore = true
+	}
+	if needsSave || missingAutoStartCore {
 		return a.saveStoreLocked()
 	}
 	return nil
@@ -214,13 +227,14 @@ func defaultSettings() Settings {
 		core = "mihomo.exe"
 	}
 	return Settings{
-		CorePath:   core,
-		ApiBase:    "http://127.0.0.1:9090",
-		Secret:     randomSecret(),
-		MixedPort:  7890,
-		Mode:       "rule",
-		Theme:      "system",
-		TunEnabled: false,
+		CorePath:      core,
+		ApiBase:       "http://127.0.0.1:9090",
+		Secret:        randomSecret(),
+		MixedPort:     7890,
+		Mode:          "rule",
+		Theme:         "system",
+		TunEnabled:    false,
+		AutoStartCore: true,
 	}
 }
 
@@ -245,6 +259,17 @@ func mergeSettings(current, defaults Settings) Settings {
 	}
 	current.BackgroundBlur = clampBackgroundBlur(current.BackgroundBlur)
 	return current
+}
+
+func storeHasSetting(data []byte, key string) bool {
+	var raw struct {
+		Settings map[string]json.RawMessage `json:"settings"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil || raw.Settings == nil {
+		return false
+	}
+	_, ok := raw.Settings[key]
+	return ok
 }
 
 func randomSecret() string {

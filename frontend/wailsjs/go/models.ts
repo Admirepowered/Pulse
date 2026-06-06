@@ -198,6 +198,7 @@ export namespace main {
 	    systemProxy: boolean;
 	    theme: string;
 	    autoStart: boolean;
+	    autoStartCore: boolean;
 	    backgroundPath: string;
 	    backgroundBlur: number;
 	    webdav: WebDAVSettings;
@@ -218,6 +219,7 @@ export namespace main {
 	        this.systemProxy = source["systemProxy"];
 	        this.theme = source["theme"];
 	        this.autoStart = source["autoStart"];
+	        this.autoStartCore = source["autoStartCore"];
 	        this.backgroundPath = source["backgroundPath"];
 	        this.backgroundBlur = source["backgroundBlur"];
 	        this.webdav = this.convertValues(source["webdav"], WebDAVSettings);

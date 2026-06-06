@@ -80,6 +80,7 @@ type Settings = {
     systemProxy: boolean;
     theme: string;
     autoStart: boolean;
+    autoStartCore: boolean;
     backgroundPath: string;
     backgroundBlur: number;
     webdav: WebDAVSettings;
@@ -163,6 +164,7 @@ const emptySettings: Settings = {
     systemProxy: false,
     theme: 'system',
     autoStart: false,
+    autoStartCore: true,
     backgroundPath: '',
     backgroundBlur: 0,
     webdav: {enabled: false, url: '', username: '', password: ''},
@@ -252,6 +254,12 @@ function App() {
     useEffect(() => {
         refreshSnapshot().catch((error) => setNotice(String(error)));
     }, [refreshSnapshot]);
+
+    useEffect(() => {
+        if (!notice) return;
+        const timer = window.setTimeout(() => setNotice(''), noticeError(notice) ? 6000 : 3500);
+        return () => window.clearTimeout(timer);
+    }, [notice]);
 
     useEffect(() => {
         setSettingsDraft(snapshot.settings);
@@ -386,7 +394,7 @@ function App() {
                 </header>
 
                 {notice && (
-                    <div className={notice.includes('error') || notice.includes('not') || notice.includes('empty') ? 'notice error' : 'notice'}>
+                    <div className={noticeError(notice) ? 'notice error' : 'notice'}>
                         {notice}
                     </div>
                 )}
@@ -673,6 +681,7 @@ function SettingsPanel({settings, onChange, onSave, onOpenDir, onChooseBackgroun
                 <Toggle label="Allow LAN" checked={settings.allowLan} onChange={(value) => set('allowLan', value)}/>
                 <Toggle label="TUN" checked={settings.tunEnabled} onChange={(value) => set('tunEnabled', value)}/>
                 <Toggle label="系统代理" checked={settings.systemProxy} onChange={(value) => set('systemProxy', value)}/>
+                <Toggle label="启动时启动核心" checked={settings.autoStartCore} onChange={(value) => set('autoStartCore', value)}/>
                 <Toggle label="开机启动" checked={settings.autoStart} onChange={(value) => set('autoStart', value)}/>
             </article>
 
@@ -778,6 +787,11 @@ function normalizeSnapshot(snapshot: RuntimeState): RuntimeState {
         profiles: snapshot.profiles || [],
         recentLogs: snapshot.recentLogs || [],
     };
+}
+
+function noticeError(value: string) {
+    const lower = value.toLowerCase();
+    return lower.includes('error') || lower.includes('not') || lower.includes('empty') || lower.includes('failed');
 }
 
 function formatBytes(bytes: number) {

@@ -71,6 +71,7 @@ type WebDAVSettings = {
 
 type Settings = {
     corePath: string;
+    coreMode: string;
     apiBase: string;
     secret: string;
     mixedPort: number;
@@ -155,6 +156,7 @@ type ConnectionRow = {
 
 const emptySettings: Settings = {
     corePath: 'mihomo.exe',
+    coreMode: 'embedded',
     apiBase: 'http://127.0.0.1:9090',
     secret: '',
     mixedPort: 7890,
@@ -667,6 +669,16 @@ function SettingsPanel({settings, onChange, onSave, onOpenDir, onChooseBackgroun
         <section className="split">
             <article className="panel formPanel">
                 <div className="panelHead"><h2>Core</h2></div>
+                <div className="segmented">
+                    {[
+                        {id: 'embedded', label: '内嵌'},
+                        {id: 'custom', label: '自定义'},
+                    ].map((mode) => (
+                        <button className={settings.coreMode === mode.id ? 'active' : ''} key={mode.id} onClick={() => set('coreMode', mode.id)}>
+                            {mode.label}
+                        </button>
+                    ))}
+                </div>
                 <Field label="mihomo 路径" value={settings.corePath} onChange={(value) => set('corePath', value)}/>
                 <Field label="API 地址" value={settings.apiBase} onChange={(value) => set('apiBase', value)}/>
                 <Field label="Secret" value={settings.secret} onChange={(value) => set('secret', value)}/>

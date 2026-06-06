@@ -48,6 +48,7 @@ type Store struct {
 
 type Settings struct {
 	CorePath       string         `json:"corePath"`
+	CoreMode       string         `json:"coreMode"`
 	ApiBase        string         `json:"apiBase"`
 	Secret         string         `json:"secret"`
 	MixedPort      int            `json:"mixedPort"`
@@ -181,6 +182,9 @@ func (a *App) initStore() error {
 	if err := os.MkdirAll(filepath.Join(a.dataDir, "profiles"), 0o755); err != nil {
 		return err
 	}
+	if err := os.MkdirAll(filepath.Join(a.dataDir, "logs"), 0o755); err != nil {
+		return err
+	}
 
 	if _, err := os.Stat(a.storePath); errors.Is(err, os.ErrNotExist) {
 		profilePath := filepath.Join(a.dataDir, "profiles", "direct.yaml")
@@ -228,6 +232,7 @@ func defaultSettings() Settings {
 	}
 	return Settings{
 		CorePath:      core,
+		CoreMode:      "embedded",
 		ApiBase:       "http://127.0.0.1:9090",
 		Secret:        randomSecret(),
 		MixedPort:     7890,
@@ -241,6 +246,9 @@ func defaultSettings() Settings {
 func mergeSettings(current, defaults Settings) Settings {
 	if current.CorePath == "" {
 		current.CorePath = defaults.CorePath
+	}
+	if current.CoreMode == "" {
+		current.CoreMode = defaults.CoreMode
 	}
 	if current.ApiBase == "" {
 		current.ApiBase = defaults.ApiBase
@@ -305,7 +313,7 @@ func (a *App) GetSnapshot() RuntimeState {
 	return RuntimeState{
 		Running:       running,
 		ApiReachable:  apiOK,
-		CoreFound:     a.corePathExists(settings.CorePath),
+		CoreFound:     a.corePathExists(a.effectiveCorePath(settings)),
 		StartedAt:     startedAt,
 		DataDir:       dataDir,
 		ActiveProfile: active,
@@ -332,7 +340,12 @@ func (a *App) SaveSettings(settings Settings) error {
 	if running {
 		a.applyRuntimeSettings(settings)
 	}
-	return configureSystemProxy(settings, running && settings.SystemProxy)
+	if err := configureSystemProxy(settings, running && settings.SystemProxy); err != nil {
+		a.appendLog("error", "system proxy apply failed: "+err.Error())
+		return err
+	}
+	a.appendLog("info", "system proxy setting applied: "+systemProxyState())
+	return nil
 }
 
 func (a *App) AddProfileFromURL(name string, source string) (Profile, error) {
@@ -485,7 +498,7 @@ func (a *App) StartCore() error {
 	if !ok {
 		return errors.New("no active profile")
 	}
-	corePath, err := a.resolveCorePath(settings.CorePath)
+	corePath, err := a.resolveCorePath(a.effectiveCorePath(settings))
 	if err != nil {
 		return err
 	}
@@ -532,9 +545,12 @@ func (a *App) StartCore() error {
 		return err
 	}
 	if settings.SystemProxy {
+		a.appendLog("info", "enabling system proxy before state: "+systemProxyState())
 		if err := configureSystemProxy(settings, true); err != nil {
+			a.appendLog("error", "enable system proxy failed: "+err.Error())
 			return err
 		}
+		a.appendLog("info", "enabling system proxy after state: "+systemProxyState())
 	}
 	a.appendLog("info", "mihomo started with profile: "+profile.Name)
 	return nil
@@ -548,8 +564,11 @@ func (a *App) StopCore() error {
 	a.startedAt = 0
 	a.mu.Unlock()
 	if settings.SystemProxy {
+		a.appendLog("info", "disabling system proxy before state: "+systemProxyState())
 		if err := configureSystemProxy(settings, false); err != nil {
 			a.appendLog("warn", "disable system proxy failed: "+err.Error())
+		} else {
+			a.appendLog("info", "disabling system proxy after state: "+systemProxyState())
 		}
 	}
 	if cmd == nil || cmd.Process == nil {
@@ -910,6 +929,13 @@ func (a *App) corePathExists(corePath string) bool {
 	return err == nil
 }
 
+func (a *App) effectiveCorePath(settings Settings) string {
+	if settings.CoreMode == "custom" {
+		return settings.CorePath
+	}
+	return defaultSettings().CorePath
+}
+
 func (a *App) resolveCorePath(corePath string) (string, error) {
 	corePath = strings.TrimSpace(corePath)
 	if corePath == "" {
@@ -953,7 +979,13 @@ func (a *App) corePathCandidates(coreName string) []string {
 	})
 	roots := []string{}
 	if cwd, err := os.Getwd(); err == nil {
-		roots = append(roots, cwd, filepath.Join(cwd, "build", "bin"))
+		roots = append(
+			roots,
+			filepath.Join(cwd, "build", "bin"),
+			filepath.Join(cwd, "mihomo", "bin"),
+			filepath.Join(cwd, "mihomo", "build", "bin"),
+			cwd,
+		)
 	}
 	if exe, err := os.Executable(); err == nil {
 		exeDir := filepath.Dir(exe)
@@ -1150,17 +1182,37 @@ func (a *App) apiRequest(method, path string, body any, out any) error {
 func (a *App) scanCoreOutput(reader io.Reader, level string) {
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
-		a.appendLog(level, scanner.Text())
+		line := scanner.Text()
+		a.appendDataLog("mihomo.log", level, line)
+		a.appendLog(level, line)
 	}
 }
 
 func (a *App) appendLog(level, message string) {
+	a.appendDataLog("app.log", level, message)
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.logLines = append(a.logLines, LogLine{Time: time.Now().Unix(), Level: level, Message: message})
 	if len(a.logLines) > 500 {
 		a.logLines = append([]LogLine(nil), a.logLines[len(a.logLines)-500:]...)
 	}
+}
+
+func (a *App) appendDataLog(filename string, level string, message string) {
+	if a.dataDir == "" {
+		return
+	}
+	logDir := filepath.Join(a.dataDir, "logs")
+	if err := os.MkdirAll(logDir, 0o755); err != nil {
+		return
+	}
+	line := fmt.Sprintf("%s [%s] %s\n", time.Now().Format(time.RFC3339), level, message)
+	file, err := os.OpenFile(filepath.Join(logDir, filename), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		return
+	}
+	defer file.Close()
+	_, _ = file.WriteString(line)
 }
 
 func (a *App) recentLogsLocked(limit int) []LogLine {

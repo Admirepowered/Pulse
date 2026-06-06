@@ -9,3 +9,7 @@ func setAutoStart(enabled bool) error {
 func configureSystemProxy(settings Settings, enabled bool) error {
 	return nil
 }
+
+func systemProxyState() string {
+	return "system proxy integration is not implemented on this platform"
+}

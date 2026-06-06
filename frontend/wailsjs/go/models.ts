@@ -189,6 +189,7 @@ export namespace main {
 	}
 	export class Settings {
 	    corePath: string;
+	    coreMode: string;
 	    apiBase: string;
 	    secret: string;
 	    mixedPort: number;
@@ -210,6 +211,7 @@ export namespace main {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.corePath = source["corePath"];
+	        this.coreMode = source["coreMode"];
 	        this.apiBase = source["apiBase"];
 	        this.secret = source["secret"];
 	        this.mixedPort = source["mixedPort"];

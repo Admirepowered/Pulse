@@ -53,11 +53,14 @@ func configureSystemProxy(settings Settings, enabled bool) error {
 	if port <= 0 {
 		port = defaultSettings().MixedPort
 	}
-	server := fmt.Sprintf("127.0.0.1:%d", port)
+	server := fmt.Sprintf("http=127.0.0.1:%d;https=127.0.0.1:%d;socks=127.0.0.1:%d", port, port, port)
 	if err := key.SetDWordValue("ProxyEnable", 1); err != nil {
 		return err
 	}
 	if err := key.SetStringValue("ProxyServer", server); err != nil {
+		return err
+	}
+	if err := key.DeleteValue("AutoConfigURL"); err != nil && err != registry.ErrNotExist {
 		return err
 	}
 	if err := key.SetStringValue("ProxyOverride", "<local>"); err != nil {
@@ -76,6 +79,22 @@ func notifyProxySettingsChanged() {
 	)
 	internetSetOption.Call(0, internetOptionSettingsChanged, 0, 0)
 	internetSetOption.Call(0, internetOptionRefresh, 0, 0)
+}
+
+func systemProxyState() string {
+	key, err := registry.OpenKey(registry.CURRENT_USER, internetSettingsKeyPath, registry.QUERY_VALUE)
+	if err != nil {
+		return "read failed: " + err.Error()
+	}
+	defer key.Close()
+	enabled, _, err := key.GetIntegerValue("ProxyEnable")
+	if err != nil {
+		return "ProxyEnable read failed: " + err.Error()
+	}
+	server, _, _ := key.GetStringValue("ProxyServer")
+	override, _, _ := key.GetStringValue("ProxyOverride")
+	autoConfig, _, _ := key.GetStringValue("AutoConfigURL")
+	return fmt.Sprintf("ProxyEnable=%d ProxyServer=%q ProxyOverride=%q AutoConfigURL=%q", enabled, server, override, autoConfig)
 }
 
 func quoteWindowsArg(value string) string {

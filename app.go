@@ -292,11 +292,22 @@ func (a *App) GetSnapshot() RuntimeState {
 }
 
 func (a *App) SaveSettings(settings Settings) error {
-	a.mu.Lock()
-	defer a.mu.Unlock()
 	settings = mergeSettings(settings, defaultSettings())
+	a.mu.Lock()
+	running := a.coreRunningLocked()
 	a.store.Settings = settings
-	return a.saveStoreLocked()
+	err := a.saveStoreLocked()
+	a.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	if err := setAutoStart(settings.AutoStart); err != nil {
+		return err
+	}
+	if running {
+		a.applyRuntimeSettings(settings)
+	}
+	return configureSystemProxy(settings, running && settings.SystemProxy)
 }
 
 func (a *App) AddProfileFromURL(name string, source string) (Profile, error) {
@@ -495,6 +506,11 @@ func (a *App) StartCore() error {
 	if err := a.waitForAPIReady(8 * time.Second); err != nil {
 		return err
 	}
+	if settings.SystemProxy {
+		if err := configureSystemProxy(settings, true); err != nil {
+			return err
+		}
+	}
 	a.appendLog("info", "mihomo started with profile: "+profile.Name)
 	return nil
 }
@@ -502,9 +518,15 @@ func (a *App) StartCore() error {
 func (a *App) StopCore() error {
 	a.mu.Lock()
 	cmd := a.coreCmd
+	settings := a.store.Settings
 	a.coreCmd = nil
 	a.startedAt = 0
 	a.mu.Unlock()
+	if settings.SystemProxy {
+		if err := configureSystemProxy(settings, false); err != nil {
+			a.appendLog("warn", "disable system proxy failed: "+err.Error())
+		}
+	}
 	if cmd == nil || cmd.Process == nil {
 		return nil
 	}
@@ -668,6 +690,16 @@ func (a *App) fetchTraffic() (TrafficSnapshot, bool) {
 		return traffic, false
 	}
 	return traffic, true
+}
+
+func (a *App) applyRuntimeSettings(settings Settings) {
+	body := map[string]any{
+		"allow-lan": settings.AllowLan,
+		"mode":      settings.Mode,
+	}
+	if err := a.apiRequest(http.MethodPatch, "/configs", body, nil); err != nil {
+		a.appendLog("warn", "apply runtime settings failed: "+err.Error())
+	}
 }
 
 func (a *App) waitForAPIReady(timeout time.Duration) error {

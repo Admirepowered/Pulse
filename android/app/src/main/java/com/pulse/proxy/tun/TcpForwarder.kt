@@ -22,7 +22,8 @@ class TcpForwarder(
     private val tunFd: ParcelFileDescriptor,
     private val tracker: ConnectionTracker,
     private val protectDatagramSocket: (DatagramSocket) -> Boolean = { true },
-    private val protectSocket: (Socket) -> Boolean = { true }
+    private val protectSocket: (Socket) -> Boolean = { true },
+    private val udpDirectEnabled: () -> Boolean = { true }
 ) {
     private val scope = CoroutineScope(Dispatchers.IO + Job())
     private var readJob: Job? = null
@@ -84,7 +85,7 @@ class TcpForwarder(
             if (udp != null) {
                 if (udp.destPort == 53) {
                     scope.launch { handleDnsQuery(udp) }
-                } else {
+                } else if (udpDirectEnabled()) {
                     scope.launch { handleUdpDirect(udp) }
                 }
                 continue

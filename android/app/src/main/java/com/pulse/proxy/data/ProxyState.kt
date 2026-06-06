@@ -20,3 +20,11 @@ data class LogEntry(
     val timestamp: Long = System.currentTimeMillis(),
     val message: String = ""
 )
+
+data class UiSettings(
+    val vpnAutoStart: Boolean = false,
+    val proxyPort: Int = 1080,
+    val backgroundStyle: Int = 0,
+    val maxConnections: Int = 512,
+    val udpDirect: Boolean = true
+)

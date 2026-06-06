@@ -5,12 +5,15 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.pulse.proxy.config.ConfigManager
+import com.pulse.proxy.data.AppPreferences
 import com.pulse.proxy.data.ConfigUiState
 import com.pulse.proxy.data.LogEntry
+import com.pulse.proxy.data.UiSettings
 import com.pulse.proxy.data.VisualRule
 import com.pulse.proxy.data.VpnStatus
 import com.pulse.proxy.service.PulseVpnService
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,6 +22,7 @@ import kotlinx.coroutines.launch
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val configManager = ConfigManager(application)
+    private val preferences = AppPreferences(application)
 
     private val _vpnStatus = MutableStateFlow(VpnStatus())
     val vpnStatus: StateFlow<VpnStatus> = _vpnStatus.asStateFlow()
@@ -32,10 +36,38 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _configUiState = MutableStateFlow(ConfigUiState())
     val configUiState: StateFlow<ConfigUiState> = _configUiState.asStateFlow()
 
+    private val _uiSettings = MutableStateFlow(UiSettings())
+    val uiSettings: StateFlow<UiSettings> = _uiSettings.asStateFlow()
+
     init {
         refreshConfig()
         refreshConfigurationState()
         startStatusPolling()
+        observeSettings()
+    }
+
+    private fun observeSettings() {
+        viewModelScope.launch {
+            combine(
+                preferences.vpnAutoStart,
+                preferences.proxyPort,
+                preferences.backgroundStyle,
+                preferences.maxConnections,
+                preferences.udpDirect
+            ) { autoStart, port, background, maxConnections, udpDirect ->
+                UiSettings(
+                    vpnAutoStart = autoStart,
+                    proxyPort = port,
+                    backgroundStyle = background,
+                    maxConnections = maxConnections,
+                    udpDirect = udpDirect
+                )
+            }.collect {
+                PulseVpnService.maxConnectionsLimit = it.maxConnections
+                PulseVpnService.udpDirectEnabled = it.udpDirect
+                _uiSettings.value = it
+            }
+        }
     }
 
     private fun startStatusPolling() {
@@ -125,5 +157,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun saveVisualRules(rules: List<VisualRule>) {
         configManager.saveVisualRules(rules)
         refreshConfigurationState("Rules saved")
+    }
+
+    fun setBackgroundStyle(value: Int) {
+        viewModelScope.launch { preferences.setBackgroundStyle(value) }
+    }
+
+    fun setMaxConnections(value: Int) {
+        PulseVpnService.maxConnectionsLimit = value.coerceIn(64, 2048)
+        viewModelScope.launch { preferences.setMaxConnections(value) }
+    }
+
+    fun setUdpDirect(value: Boolean) {
+        PulseVpnService.udpDirectEnabled = value
+        viewModelScope.launch { preferences.setUdpDirect(value) }
+    }
+
+    fun setVpnAutoStart(value: Boolean) {
+        viewModelScope.launch { preferences.setVpnAutoStart(value) }
     }
 }

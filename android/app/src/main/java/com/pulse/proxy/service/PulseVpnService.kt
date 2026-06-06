@@ -37,6 +37,8 @@ class PulseVpnService : VpnService() {
             private set
         @Volatile var proxyRunning = false
             private set
+        @Volatile var maxConnectionsLimit = 512
+        @Volatile var udpDirectEnabled = true
         val logBuffer = LogBuffer()
 
         fun stats(): VpnStatus {
@@ -141,12 +143,13 @@ class PulseVpnService : VpnService() {
             return
         }
 
-        tracker = ConnectionTracker()
+        tracker = ConnectionTracker(maxConnections = maxConnectionsLimit)
         forwarder = TcpForwarder(
             tunFd = tunFd!!,
             tracker = tracker!!,
             protectDatagramSocket = { socket -> protect(socket) },
-            protectSocket = { socket -> protect(socket) }
+            protectSocket = { socket -> protect(socket) },
+            udpDirectEnabled = { udpDirectEnabled }
         )
         forwarder?.start()
 

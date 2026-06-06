@@ -30,10 +30,10 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pulse.proxy.service.PulseVpnService
 import com.pulse.proxy.ui.MainViewModel
-import com.pulse.proxy.ui.screens.ConfigEditorScreen
-import com.pulse.proxy.ui.screens.HomeScreen
-import com.pulse.proxy.ui.screens.LogScreen
-import com.pulse.proxy.ui.screens.RulesScreen
+import com.pulse.proxy.ui.screens.ConfigurationScreen
+import com.pulse.proxy.ui.screens.DashboardScreen
+import com.pulse.proxy.ui.screens.ProxyScreen
+import com.pulse.proxy.ui.screens.ToolsScreen
 import com.pulse.proxy.ui.theme.PulseTheme
 
 class MainActivity : ComponentActivity() {
@@ -121,13 +121,13 @@ class MainActivity : ComponentActivity() {
                         NavigationBar {
                             NavigationBarItem(
                                 icon = { Icon(Icons.Default.Home, contentDescription = null) },
-                                label = { Text("Home") },
+                                label = { Text("仪表盘") },
                                 selected = selectedTab == 0,
                                 onClick = { selectedTab = 0 }
                             )
                             NavigationBarItem(
-                                icon = { Icon(Icons.Default.Code, contentDescription = null) },
-                                label = { Text("Config") },
+                                icon = { Icon(Icons.Default.List, contentDescription = null) },
+                                label = { Text("代理") },
                                 selected = selectedTab == 1,
                                 onClick = {
                                     viewModel.refreshConfigurationState()
@@ -135,8 +135,8 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                             NavigationBarItem(
-                                icon = { Icon(Icons.Default.Rule, contentDescription = null) },
-                                label = { Text("Rules") },
+                                icon = { Icon(Icons.Default.Code, contentDescription = null) },
+                                label = { Text("配置") },
                                 selected = selectedTab == 2,
                                 onClick = {
                                     viewModel.refreshConfigurationState()
@@ -144,8 +144,8 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                             NavigationBarItem(
-                                icon = { Icon(Icons.Default.List, contentDescription = null) },
-                                label = { Text("Logs") },
+                                icon = { Icon(Icons.Default.Rule, contentDescription = null) },
+                                label = { Text("工具") },
                                 selected = selectedTab == 3,
                                 onClick = { selectedTab = 3 }
                             )
@@ -153,26 +153,21 @@ class MainActivity : ComponentActivity() {
                     }
                 ) { innerPadding ->
                     when (selectedTab) {
-                        0 -> HomeScreen(
+                        0 -> DashboardScreen(
                             viewModel = viewModel,
                             onStartVpn = { handleStartVpn() },
                             onStopVpn = { stopVpnService() }
                         )
-                        1 -> ConfigEditorScreen(
+                        1 -> ProxyScreen(
+                            viewModel = viewModel
+                        )
+                        2 -> ConfigurationScreen(
                             viewModel = viewModel,
                             onImportFile = {
                                 profileFileRequest.launch(arrayOf("*/*"))
-                            },
-                            onBack = { selectedTab = 0 }
+                            }
                         )
-                        2 -> RulesScreen(
-                            viewModel = viewModel,
-                            onBack = { selectedTab = 0 }
-                        )
-                        3 -> LogScreen(
-                            viewModel = viewModel,
-                            onBack = { selectedTab = 0 }
-                        )
+                        3 -> ToolsScreen(viewModel = viewModel)
                     }
                 }
             }

@@ -35,9 +35,6 @@ jobs:
         shell: pwsh
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
 
-      - name: Test Go
-        run: go test ./...
-
       - name: Install Frontend Dependencies
         working-directory: frontend
         run: npm ci
@@ -49,6 +46,9 @@ jobs:
       - name: Build Frontend
         working-directory: frontend
         run: npm run build
+
+      - name: Test Go
+        run: go test ./...
 
       - name: Build Wails App
         shell: pwsh

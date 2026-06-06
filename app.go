@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	goruntime "runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -68,6 +69,7 @@ type Settings struct {
 	Theme          string         `json:"theme"`
 	AutoStart      bool           `json:"autoStart"`
 	AutoStartCore  bool           `json:"autoStartCore"`
+	CloseBehavior  string         `json:"closeBehavior"`
 	BackgroundPath string         `json:"backgroundPath"`
 	BackgroundBlur int            `json:"backgroundBlur"`
 	WebDAV         WebDAVSettings `json:"webdav"`
@@ -81,13 +83,24 @@ type WebDAVSettings struct {
 }
 
 type Profile struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Type      string `json:"type"`
-	Source    string `json:"source"`
-	Path      string `json:"path"`
-	UpdatedAt int64  `json:"updatedAt"`
-	Enabled   bool   `json:"enabled"`
+	ID           string           `json:"id"`
+	Name         string           `json:"name"`
+	Type         string           `json:"type"`
+	Source       string           `json:"source"`
+	Path         string           `json:"path"`
+	UpdatedAt    int64            `json:"updatedAt"`
+	Enabled      bool             `json:"enabled"`
+	Subscription SubscriptionInfo `json:"subscription"`
+}
+
+type SubscriptionInfo struct {
+	Upload         int64  `json:"upload"`
+	Download       int64  `json:"download"`
+	Total          int64  `json:"total"`
+	Expire         int64  `json:"expire"`
+	UpdateInterval int    `json:"updateInterval"`
+	RawUserInfo    string `json:"rawUserInfo"`
+	UpdatedAt      int64  `json:"updatedAt"`
 }
 
 type RuntimeState struct {
@@ -249,6 +262,7 @@ func defaultSettings() Settings {
 		Theme:         "system",
 		TunEnabled:    false,
 		AutoStartCore: true,
+		CloseBehavior: "minimize",
 	}
 }
 
@@ -273,6 +287,9 @@ func mergeSettings(current, defaults Settings) Settings {
 	}
 	if current.Theme == "" {
 		current.Theme = defaults.Theme
+	}
+	if current.CloseBehavior == "" {
+		current.CloseBehavior = defaults.CloseBehavior
 	}
 	current.BackgroundBlur = clampBackgroundBlur(current.BackgroundBlur)
 	return current
@@ -382,7 +399,7 @@ func (a *App) AddProfileFromURL(name string, source string) (Profile, error) {
 		return Profile{}, err
 	}
 	name = inferProfileName(name, source, headers, body)
-	profile, err := a.writeProfile(name, "subscription", source, body)
+	profile, err := a.writeProfile(name, "subscription", source, body, parseSubscriptionInfo(headers))
 	if err == nil {
 		a.appendLog("info", "subscription updated: "+name)
 	}
@@ -397,7 +414,7 @@ func (a *App) ImportProfile(name string, content string) (Profile, error) {
 	if strings.TrimSpace(content) == "" {
 		return Profile{}, errors.New("profile content is empty")
 	}
-	return a.writeProfile(name, "local", "", []byte(content))
+	return a.writeProfile(name, "local", "", []byte(content), SubscriptionInfo{})
 }
 
 func (a *App) UpdateProfile(profileID string) (Profile, error) {
@@ -419,6 +436,9 @@ func (a *App) UpdateProfile(profileID string) (Profile, error) {
 	}
 	if isGeneratedProfileName(profile.Name, profile.ID) {
 		profile.Name = inferProfileName("", profile.Source, headers, body)
+	}
+	if info := parseSubscriptionInfo(headers); subscriptionInfoHasData(info) {
+		profile.Subscription = info
 	}
 	profile.UpdatedAt = time.Now().Unix()
 	a.mu.Lock()
@@ -965,20 +985,59 @@ func (a *App) downloadProfile(source string) ([]byte, http.Header, error) {
 	return body, resp.Header, nil
 }
 
-func (a *App) writeProfile(name, profileType, source string, body []byte) (Profile, error) {
+func parseSubscriptionInfo(headers http.Header) SubscriptionInfo {
+	info := SubscriptionInfo{
+		RawUserInfo: strings.TrimSpace(headers.Get("subscription-userinfo")),
+		UpdatedAt:   time.Now().Unix(),
+	}
+	for _, part := range strings.Split(info.RawUserInfo, ";") {
+		key, value, ok := strings.Cut(strings.TrimSpace(part), "=")
+		if !ok {
+			continue
+		}
+		amount, err := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
+		if err != nil {
+			continue
+		}
+		switch strings.ToLower(strings.TrimSpace(key)) {
+		case "upload":
+			info.Upload = amount
+		case "download":
+			info.Download = amount
+		case "total":
+			info.Total = amount
+		case "expire":
+			info.Expire = amount
+		}
+	}
+	if interval, err := strconv.Atoi(strings.TrimSpace(headers.Get("profile-update-interval"))); err == nil {
+		info.UpdateInterval = interval
+	}
+	if !subscriptionInfoHasData(info) {
+		info.UpdatedAt = 0
+	}
+	return info
+}
+
+func subscriptionInfoHasData(info SubscriptionInfo) bool {
+	return info.RawUserInfo != "" || info.Total > 0 || info.Expire > 0 || info.UpdateInterval > 0
+}
+
+func (a *App) writeProfile(name, profileType, source string, body []byte, subscription SubscriptionInfo) (Profile, error) {
 	id := fmt.Sprintf("%d", time.Now().UnixNano())
 	path := filepath.Join(a.dataDir, "profiles", sanitizeFilename(id+"-"+name)+".yaml")
 	if err := os.WriteFile(path, body, 0o644); err != nil {
 		return Profile{}, err
 	}
 	profile := Profile{
-		ID:        id,
-		Name:      name,
-		Type:      profileType,
-		Source:    source,
-		Path:      path,
-		UpdatedAt: time.Now().Unix(),
-		Enabled:   true,
+		ID:           id,
+		Name:         name,
+		Type:         profileType,
+		Source:       source,
+		Path:         path,
+		UpdatedAt:    time.Now().Unix(),
+		Enabled:      true,
+		Subscription: subscription,
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()

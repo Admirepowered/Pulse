@@ -1,5 +1,5 @@
 export namespace main {
-	
+
 	export class ConnectionRow {
 	    id: string;
 	    network: string;
@@ -9,11 +9,11 @@ export namespace main {
 	    upload: number;
 	    download: number;
 	    start: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new ConnectionRow(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -30,16 +30,40 @@ export namespace main {
 	    time: number;
 	    level: string;
 	    message: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new LogLine(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.time = source["time"];
 	        this.level = source["level"];
 	        this.message = source["message"];
+	    }
+	}
+	export class SubscriptionInfo {
+	    upload: number;
+	    download: number;
+	    total: number;
+	    expire: number;
+	    updateInterval: number;
+	    rawUserInfo: string;
+	    updatedAt: number;
+
+	    static createFrom(source: any = {}) {
+	        return new SubscriptionInfo(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.upload = source["upload"];
+	        this.download = source["download"];
+	        this.total = source["total"];
+	        this.expire = source["expire"];
+	        this.updateInterval = source["updateInterval"];
+	        this.rawUserInfo = source["rawUserInfo"];
+	        this.updatedAt = source["updatedAt"];
 	    }
 	}
 	export class Profile {
@@ -50,11 +74,12 @@ export namespace main {
 	    path: string;
 	    updatedAt: number;
 	    enabled: boolean;
-	
+	    subscription: SubscriptionInfo;
+
 	    static createFrom(source: any = {}) {
 	        return new Profile(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -64,62 +89,9 @@ export namespace main {
 	        this.path = source["path"];
 	        this.updatedAt = source["updatedAt"];
 	        this.enabled = source["enabled"];
+	        this.subscription = this.convertValues(source["subscription"], SubscriptionInfo);
 	    }
-	}
-	export class ProviderRow {
-	    name: string;
-	    vehicle: string;
-	    updatedAt: string;
-	    proxies: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new ProviderRow(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.name = source["name"];
-	        this.vehicle = source["vehicle"];
-	        this.updatedAt = source["updatedAt"];
-	        this.proxies = source["proxies"];
-	    }
-	}
-	export class ProxyNode {
-	    name: string;
-	    type: string;
-	    delay: number;
-	    alive: boolean;
-	
-	    static createFrom(source: any = {}) {
-	        return new ProxyNode(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.name = source["name"];
-	        this.type = source["type"];
-	        this.delay = source["delay"];
-	        this.alive = source["alive"];
-	    }
-	}
-	export class ProxyGroup {
-	    name: string;
-	    type: string;
-	    now: string;
-	    nodes: ProxyNode[];
-	
-	    static createFrom(source: any = {}) {
-	        return new ProxyGroup(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.name = source["name"];
-	        this.type = source["type"];
-	        this.now = source["now"];
-	        this.nodes = this.convertValues(source["nodes"], ProxyNode);
-	    }
-	
+
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -138,16 +110,88 @@ export namespace main {
 		    return a;
 		}
 	}
-	
+	export class ProviderRow {
+	    name: string;
+	    vehicle: string;
+	    updatedAt: string;
+	    proxies: number;
+
+	    static createFrom(source: any = {}) {
+	        return new ProviderRow(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.vehicle = source["vehicle"];
+	        this.updatedAt = source["updatedAt"];
+	        this.proxies = source["proxies"];
+	    }
+	}
+	export class ProxyNode {
+	    name: string;
+	    type: string;
+	    delay: number;
+	    alive: boolean;
+
+	    static createFrom(source: any = {}) {
+	        return new ProxyNode(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.type = source["type"];
+	        this.delay = source["delay"];
+	        this.alive = source["alive"];
+	    }
+	}
+	export class ProxyGroup {
+	    name: string;
+	    type: string;
+	    now: string;
+	    nodes: ProxyNode[];
+
+	    static createFrom(source: any = {}) {
+	        return new ProxyGroup(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.type = source["type"];
+	        this.now = source["now"];
+	        this.nodes = this.convertValues(source["nodes"], ProxyNode);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
 	export class RuleRow {
 	    type: string;
 	    payload: string;
 	    proxy: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new RuleRow(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.type = source["type"];
@@ -158,11 +202,11 @@ export namespace main {
 	export class TrafficSnapshot {
 	    up: number;
 	    down: number;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new TrafficSnapshot(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.up = source["up"];
@@ -174,11 +218,11 @@ export namespace main {
 	    url: string;
 	    username: string;
 	    password: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new WebDAVSettings(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.enabled = source["enabled"];
@@ -200,14 +244,15 @@ export namespace main {
 	    theme: string;
 	    autoStart: boolean;
 	    autoStartCore: boolean;
+	    closeBehavior: string;
 	    backgroundPath: string;
 	    backgroundBlur: number;
 	    webdav: WebDAVSettings;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new Settings(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.corePath = source["corePath"];
@@ -222,11 +267,12 @@ export namespace main {
 	        this.theme = source["theme"];
 	        this.autoStart = source["autoStart"];
 	        this.autoStartCore = source["autoStartCore"];
+	        this.closeBehavior = source["closeBehavior"];
 	        this.backgroundPath = source["backgroundPath"];
 	        this.backgroundBlur = source["backgroundBlur"];
 	        this.webdav = this.convertValues(source["webdav"], WebDAVSettings);
 	    }
-	
+
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -256,11 +302,11 @@ export namespace main {
 	    settings: Settings;
 	    traffic: TrafficSnapshot;
 	    recentLogs: LogLine[];
-	
+
 	    static createFrom(source: any = {}) {
 	        return new RuntimeState(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.running = source["running"];
@@ -274,7 +320,7 @@ export namespace main {
 	        this.traffic = this.convertValues(source["traffic"], TrafficSnapshot);
 	        this.recentLogs = this.convertValues(source["recentLogs"], LogLine);
 	    }
-	
+
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -293,8 +339,9 @@ export namespace main {
 		    return a;
 		}
 	}
-	
-	
+
+
+
 
 }
 

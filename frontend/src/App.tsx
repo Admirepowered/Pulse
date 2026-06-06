@@ -82,6 +82,7 @@ type Settings = {
     theme: string;
     autoStart: boolean;
     autoStartCore: boolean;
+    closeBehavior: string;
     backgroundPath: string;
     backgroundBlur: number;
     webdav: WebDAVSettings;
@@ -95,6 +96,17 @@ type Profile = {
     path: string;
     updatedAt: number;
     enabled: boolean;
+    subscription: SubscriptionInfo;
+};
+
+type SubscriptionInfo = {
+    upload: number;
+    download: number;
+    total: number;
+    expire: number;
+    updateInterval: number;
+    rawUserInfo: string;
+    updatedAt: number;
 };
 
 type LogLine = {
@@ -167,9 +179,20 @@ const emptySettings: Settings = {
     theme: 'system',
     autoStart: false,
     autoStartCore: true,
+    closeBehavior: 'minimize',
     backgroundPath: '',
     backgroundBlur: 0,
     webdav: {enabled: false, url: '', username: '', password: ''},
+};
+
+const emptySubscriptionInfo: SubscriptionInfo = {
+    upload: 0,
+    download: 0,
+    total: 0,
+    expire: 0,
+    updateInterval: 0,
+    rawUserInfo: '',
+    updatedAt: 0,
 };
 
 const emptySnapshot: RuntimeState = {
@@ -335,6 +358,14 @@ function App() {
         setBackgroundDataURL('');
     };
 
+    const closeWindow = () => {
+        if (snapshot.settings.closeBehavior === 'exit') {
+            Quit();
+            return;
+        }
+        WindowMinimise();
+    };
+
     const shellStyle = {
         '--background-image': backgroundDataURL ? `url("${backgroundDataURL}")` : 'none',
         '--background-blur': `${Math.max(0, Math.min(40, settingsDraft.backgroundBlur || 0))}px`,
@@ -369,7 +400,7 @@ function App() {
 
             <section className="workspace">
                 <header className="topbar">
-                    <div>
+                    <div className="topbarTitle">
                         <h1>{tabs.find((item) => item.id === tab)?.label}</h1>
                         <p>{snapshot.activeProfile || 'Direct'}</p>
                     </div>
@@ -393,7 +424,7 @@ function App() {
                             <button className="chromeButton" title="最大化" onClick={WindowToggleMaximise}>
                                 <Maximize2 size={14}/>
                             </button>
-                            <button className="chromeButton close" title="关闭" onClick={Quit}>
+                            <button className="chromeButton close" title={snapshot.settings.closeBehavior === 'exit' ? '退出' : '最小化'} onClick={closeWindow}>
                                 <X size={15}/>
                             </button>
                         </div>
@@ -457,6 +488,7 @@ function App() {
                                             <div>
                                                 <strong>{profile.name}</strong>
                                                 <span>{profile.type} · {formatTime(profile.updatedAt)}</span>
+                                                <SubscriptionUsage info={profile.subscription}/>
                                             </div>
                                             <div className="rowActions">
                                                 <button title="启用" onClick={() => run(() => SetActiveProfile(profile.id), '已切换 Profile')}>
@@ -706,6 +738,16 @@ function SettingsPanel({settings, onChange, onSave, onOpenDir, onChooseBackgroun
                 <Toggle label="系统代理" checked={settings.systemProxy} onChange={(value) => set('systemProxy', value)}/>
                 <Toggle label="启动时启动核心" checked={settings.autoStartCore} onChange={(value) => set('autoStartCore', value)}/>
                 <Toggle label="开机启动" checked={settings.autoStart} onChange={(value) => set('autoStart', value)}/>
+                <div className="segmented">
+                    {[
+                        {id: 'minimize', label: '关闭时最小化'},
+                        {id: 'exit', label: '关闭时退出'},
+                    ].map((mode) => (
+                        <button className={settings.closeBehavior === mode.id ? 'active' : ''} key={mode.id} onClick={() => set('closeBehavior', mode.id)}>
+                            {mode.label}
+                        </button>
+                    ))}
+                </div>
             </article>
 
             <div className="stack">
@@ -797,6 +839,23 @@ function StatusPill({ok, label}: { ok: boolean; label: string }) {
     return <span className={ok ? 'pill ok' : 'pill'}>{label}</span>;
 }
 
+function SubscriptionUsage({info}: { info?: SubscriptionInfo }) {
+    if (!info || !info.total) return null;
+    const used = Math.max(0, (info.upload || 0) + (info.download || 0));
+    const percent = Math.min(100, Math.max(0, (used / info.total) * 100));
+    return (
+        <div className="subscriptionUsage">
+            <div>
+                <span>{formatBytes(used)} / {formatBytes(info.total)}</span>
+                <span>{info.expire ? `到期 ${formatDate(info.expire)}` : '未提供到期时间'}</span>
+            </div>
+            <div className="usageBar" title={`${percent.toFixed(1)}%`}>
+                <span style={{width: `${percent}%`}}/>
+            </div>
+        </div>
+    );
+}
+
 function normalizeSnapshot(snapshot: RuntimeState): RuntimeState {
     return {
         ...emptySnapshot,
@@ -807,7 +866,10 @@ function normalizeSnapshot(snapshot: RuntimeState): RuntimeState {
             webdav: {...emptySettings.webdav, ...(snapshot.settings?.webdav || {})},
         },
         traffic: snapshot.traffic || {up: 0, down: 0},
-        profiles: snapshot.profiles || [],
+        profiles: (snapshot.profiles || []).map((profile) => ({
+            ...profile,
+            subscription: {...emptySubscriptionInfo, ...(profile.subscription || {})},
+        })),
         recentLogs: snapshot.recentLogs || [],
     };
 }
@@ -841,6 +903,11 @@ function formatDuration(seconds: number) {
 function formatTime(timestamp: number) {
     if (!timestamp) return '未更新';
     return new Date(timestamp * 1000).toLocaleString();
+}
+
+function formatDate(timestamp: number) {
+    if (!timestamp) return '未知';
+    return new Date(timestamp * 1000).toLocaleDateString();
 }
 
 function formatClock(timestamp: number) {

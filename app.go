@@ -24,20 +24,29 @@ import (
 	"time"
 	"unicode/utf8"
 
+	mihomoObservable "github.com/metacubex/mihomo/common/observable"
+	mihomoConfig "github.com/metacubex/mihomo/config"
+	mihomoConstant "github.com/metacubex/mihomo/constant"
+	"github.com/metacubex/mihomo/hub"
+	"github.com/metacubex/mihomo/hub/executor"
+	"github.com/metacubex/mihomo/hub/route"
+	mihomoLog "github.com/metacubex/mihomo/log"
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 	"gopkg.in/yaml.v3"
 )
 
 type App struct {
-	ctx        context.Context
-	mu         sync.Mutex
-	dataDir    string
-	storePath  string
-	store      Store
-	coreCmd    *exec.Cmd
-	startedAt  int64
-	logLines   []LogLine
-	httpClient *http.Client
+	ctx                 context.Context
+	mu                  sync.Mutex
+	dataDir             string
+	storePath           string
+	store               Store
+	coreCmd             *exec.Cmd
+	embeddedCoreRunning bool
+	mihomoLogSub        mihomoObservable.Subscription[mihomoLog.Event]
+	startedAt           int64
+	logLines            []LogLine
+	httpClient          *http.Client
 }
 
 type Store struct {
@@ -313,7 +322,7 @@ func (a *App) GetSnapshot() RuntimeState {
 	return RuntimeState{
 		Running:       running,
 		ApiReachable:  apiOK,
-		CoreFound:     a.corePathExists(a.effectiveCorePath(settings)),
+		CoreFound:     a.coreAvailable(settings),
 		StartedAt:     startedAt,
 		DataDir:       dataDir,
 		ActiveProfile: active,
@@ -498,50 +507,61 @@ func (a *App) StartCore() error {
 	if !ok {
 		return errors.New("no active profile")
 	}
-	corePath, err := a.resolveCorePath(a.effectiveCorePath(settings))
-	if err != nil {
-		return err
-	}
 	runtimeConfig, err := a.buildRuntimeConfig(profile.Path, settings)
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command(corePath, "-d", a.dataDir, "-f", runtimeConfig)
-	setCoreProcessOptions(cmd)
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return err
-	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return err
-	}
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-
-	a.mu.Lock()
-	a.coreCmd = cmd
-	a.startedAt = time.Now().Unix()
-	a.mu.Unlock()
-
-	go a.scanCoreOutput(stdout, "info")
-	go a.scanCoreOutput(stderr, "warn")
-	go func() {
-		err := cmd.Wait()
-		a.mu.Lock()
-		if a.coreCmd == cmd {
-			a.coreCmd = nil
-			a.startedAt = 0
-		}
-		a.mu.Unlock()
+	if settings.CoreMode == "custom" {
+		corePath, err := a.resolveCorePath(settings.CorePath)
 		if err != nil {
-			a.appendLog("error", "mihomo stopped: "+err.Error())
-			return
+			return err
 		}
-		a.appendLog("info", "mihomo stopped")
-	}()
+		cmd := exec.Command(corePath, "-d", a.dataDir, "-f", runtimeConfig)
+		setCoreProcessOptions(cmd)
+		stdout, err := cmd.StdoutPipe()
+		if err != nil {
+			return err
+		}
+		stderr, err := cmd.StderrPipe()
+		if err != nil {
+			return err
+		}
+		if err := cmd.Start(); err != nil {
+			return err
+		}
+
+		a.mu.Lock()
+		a.coreCmd = cmd
+		a.startedAt = time.Now().Unix()
+		a.mu.Unlock()
+
+		go a.scanCoreOutput(stdout, "info")
+		go a.scanCoreOutput(stderr, "warn")
+		go func() {
+			err := cmd.Wait()
+			a.mu.Lock()
+			if a.coreCmd == cmd {
+				a.coreCmd = nil
+				a.startedAt = 0
+			}
+			a.mu.Unlock()
+			if err != nil {
+				a.appendLog("error", "mihomo stopped: "+err.Error())
+				return
+			}
+			a.appendLog("info", "mihomo stopped")
+		}()
+	} else if err := a.startEmbeddedCore(runtimeConfig, settings); err != nil {
+		return err
+	}
 	if err := a.waitForAPIReady(8 * time.Second); err != nil {
+		if settings.CoreMode != "custom" {
+			a.stopEmbeddedCore()
+			a.mu.Lock()
+			a.embeddedCoreRunning = false
+			a.startedAt = 0
+			a.mu.Unlock()
+		}
 		return err
 	}
 	if settings.SystemProxy {
@@ -559,8 +579,10 @@ func (a *App) StartCore() error {
 func (a *App) StopCore() error {
 	a.mu.Lock()
 	cmd := a.coreCmd
+	embedded := a.embeddedCoreRunning
 	settings := a.store.Settings
 	a.coreCmd = nil
+	a.embeddedCoreRunning = false
 	a.startedAt = 0
 	a.mu.Unlock()
 	if settings.SystemProxy {
@@ -572,6 +594,10 @@ func (a *App) StopCore() error {
 		}
 	}
 	if cmd == nil || cmd.Process == nil {
+		if embedded {
+			a.stopEmbeddedCore()
+			a.appendLog("info", "mihomo stop requested")
+		}
 		return nil
 	}
 	if err := cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
@@ -587,6 +613,72 @@ func (a *App) RestartCore() error {
 	}
 	time.Sleep(400 * time.Millisecond)
 	return a.StartCore()
+}
+
+func (a *App) startEmbeddedCore(runtimeConfig string, settings Settings) error {
+	configBytes, err := os.ReadFile(runtimeConfig)
+	if err != nil {
+		return err
+	}
+	a.startMihomoLogSubscription()
+	mihomoConstant.SetHomeDir(a.dataDir)
+	mihomoConstant.SetConfig(runtimeConfig)
+	if err := mihomoConfig.Init(mihomoConstant.Path.HomeDir()); err != nil {
+		return err
+	}
+	route.SetEmbedMode(true)
+	controller := "127.0.0.1:9090"
+	if parsed, err := url.Parse(settings.ApiBase); err == nil && parsed.Host != "" {
+		controller = parsed.Host
+	}
+	if err := hub.Parse(configBytes, hub.WithExternalController(controller), hub.WithSecret(settings.Secret)); err != nil {
+		a.stopMihomoLogSubscription()
+		return err
+	}
+	a.mu.Lock()
+	a.embeddedCoreRunning = true
+	a.startedAt = time.Now().Unix()
+	a.mu.Unlock()
+	a.appendLog("info", "embedded mihomo core started")
+	return nil
+}
+
+func (a *App) stopEmbeddedCore() {
+	route.ReCreateServer(&route.Config{})
+	executor.Shutdown()
+	a.stopMihomoLogSubscription()
+}
+
+func (a *App) startMihomoLogSubscription() {
+	a.mu.Lock()
+	if a.mihomoLogSub != nil {
+		a.mu.Unlock()
+		return
+	}
+	sub := mihomoLog.Subscribe()
+	a.mihomoLogSub = sub
+	a.mu.Unlock()
+	go func() {
+		for event := range sub {
+			a.appendDataLog("mihomo.log", event.Type(), event.Payload)
+			a.mu.Lock()
+			a.logLines = append(a.logLines, LogLine{Time: time.Now().Unix(), Level: event.Type(), Message: event.Payload})
+			if len(a.logLines) > 500 {
+				a.logLines = append([]LogLine(nil), a.logLines[len(a.logLines)-500:]...)
+			}
+			a.mu.Unlock()
+		}
+	}()
+}
+
+func (a *App) stopMihomoLogSubscription() {
+	a.mu.Lock()
+	sub := a.mihomoLogSub
+	a.mihomoLogSub = nil
+	a.mu.Unlock()
+	if sub != nil {
+		mihomoLog.UnSubscribe(sub)
+	}
 }
 
 func (a *App) FetchProxyGroups() ([]ProxyGroup, error) {
@@ -921,7 +1013,7 @@ func (a *App) profileByIDLocked(profileID string) (Profile, bool) {
 }
 
 func (a *App) coreRunningLocked() bool {
-	return a.coreCmd != nil && a.coreCmd.Process != nil
+	return a.embeddedCoreRunning || (a.coreCmd != nil && a.coreCmd.Process != nil)
 }
 
 func (a *App) corePathExists(corePath string) bool {
@@ -929,11 +1021,11 @@ func (a *App) corePathExists(corePath string) bool {
 	return err == nil
 }
 
-func (a *App) effectiveCorePath(settings Settings) string {
-	if settings.CoreMode == "custom" {
-		return settings.CorePath
+func (a *App) coreAvailable(settings Settings) bool {
+	if settings.CoreMode != "custom" {
+		return true
 	}
-	return defaultSettings().CorePath
+	return a.corePathExists(settings.CorePath)
 }
 
 func (a *App) resolveCorePath(corePath string) (string, error) {

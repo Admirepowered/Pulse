@@ -52,12 +52,6 @@ jobs:
       - name: Test Go
         run: go test ./...
 
-      - name: Build mihomo Core
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force build/bin | Out-Null
-          go build -C mihomo -o ../build/bin/mihomo.exe .
-
       - name: Build Wails App
         shell: pwsh
         run: wails build
@@ -66,5 +60,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Pulse-windows-amd64
-          path: build/bin/**
+          path: build/bin/Pulse.exe
           if-no-files-found: error

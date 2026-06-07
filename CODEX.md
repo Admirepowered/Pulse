@@ -24,6 +24,7 @@ This file is for future Codex sessions working on Pulse.
 - Proxy delay tests use `settings.delayTestUrl`; keep group and node delay tests on the same configurable URL.
 - Successful actions should stay quiet. Only failures should show global notices.
 - Successful long-running actions should use inline animated feedback near the affected label or row: spinner while running, check mark on success, cross on failure, then fade away. Avoid abrupt success banners.
+- Profile and provider update controls should be icon-only buttons; show running/success/failure state inside the button when possible.
 - Disabled controls should use a clear `not-allowed` cursor, not a loading cursor.
 - If a setting needs mihomo restart, let the backend decide and log the restart reason.
 - Keep user-visible notices short and auto-dismissed.

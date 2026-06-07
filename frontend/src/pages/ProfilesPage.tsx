@@ -12,6 +12,7 @@ export function ProfilesPage({
     profileURL,
     dropActive,
     updatingProfiles,
+    updatingProviders,
     t,
     onProfileURLChange,
     onOpenGithub,
@@ -30,6 +31,7 @@ export function ProfilesPage({
     profileURL: string;
     dropActive: boolean;
     updatingProfiles: Record<string, 'running' | 'done' | 'failed'>;
+    updatingProviders: Record<string, 'running' | 'done' | 'failed'>;
     t: Translator;
     onProfileURLChange: (value: string) => void;
     onOpenGithub: () => void;
@@ -132,16 +134,17 @@ export function ProfilesPage({
                                     </div>
                                     <div className="rowActions">
                                         <span className="activeMark">{active ? t('enable') : ''}</span>
-                                        {status && (
-                                            <span
-                                                className={`inlineStatus ${status}`}
-                                                title={status === 'running' ? '正在更新' : status === 'done' ? '已更新' : '更新失败'}
-                                            >
-                                                {status === 'running' && <LoaderCircle size={14}/>}
-                                                {status === 'done' && <Check size={14}/>}
-                                                {status === 'failed' && <X size={14}/>}
-                                            </span>
-                                        )}
+                                        <button
+                                            className={`iconButton stateButton ${status || ''}`}
+                                            title={status === 'running' ? '正在更新' : status === 'done' ? '已更新' : status === 'failed' ? '更新失败' : t('update')}
+                                            disabled={status === 'running'}
+                                            onClick={(event) => {
+                                                event.stopPropagation();
+                                                onUpdateProfile(profile.id);
+                                            }}
+                                        >
+                                            <StatusIcon status={status}/>
+                                        </button>
                                     </div>
                                 </div>
                             );
@@ -163,8 +166,13 @@ export function ProfilesPage({
                                 <span>{provider.name}</span>
                                 <span>{provider.vehicle || 'provider'}</span>
                                 <span>{provider.proxies} {t('nodes')}</span>
-                                <button onClick={() => onUpdateProvider(provider.name)}>
-                                    <RefreshCcw size={15}/>{t('update')}
+                                <button
+                                    className={`iconButton stateButton ${updatingProviders[provider.name] || ''}`}
+                                    title={updatingProviders[provider.name] === 'running' ? '正在更新' : updatingProviders[provider.name] === 'done' ? '已更新' : updatingProviders[provider.name] === 'failed' ? '更新失败' : t('update')}
+                                    disabled={updatingProviders[provider.name] === 'running'}
+                                    onClick={() => onUpdateProvider(provider.name)}
+                                >
+                                    <StatusIcon status={updatingProviders[provider.name]}/>
                                 </button>
                             </div>
                         ))}
@@ -211,4 +219,11 @@ export function ProfilesPage({
             )}
         </section>
     );
+}
+
+function StatusIcon({status}: { status?: 'running' | 'done' | 'failed' }) {
+    if (status === 'running') return <LoaderCircle size={15}/>;
+    if (status === 'done') return <Check size={15}/>;
+    if (status === 'failed') return <X size={15}/>;
+    return <RefreshCcw size={15}/>;
 }

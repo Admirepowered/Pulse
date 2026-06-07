@@ -132,6 +132,7 @@ function App() {
     const [testingGroup, setTestingGroup] = useState('');
     const [proxyGroupStatus, setProxyGroupStatus] = useState<Record<string, InlineActionState>>({});
     const [profileUpdateStatus, setProfileUpdateStatus] = useState<Record<string, InlineActionState>>({});
+    const [providerUpdateStatus, setProviderUpdateStatus] = useState<Record<string, InlineActionState>>({});
     const [profileDropActive, setProfileDropActive] = useState(false);
     const t = useMemo(() => getTranslator(settingsDraft.language || snapshot.settings.language), [settingsDraft.language, snapshot.settings.language]);
 
@@ -385,6 +386,26 @@ function App() {
         }
     };
 
+    const updateProviderInline = async (name: string) => {
+        setProviderUpdateStatus((current) => ({...current, [name]: 'running'}));
+        const ok = await run(() => UpdateProvider(name));
+        if (ok) {
+            setProviderUpdateStatus((current) => ({...current, [name]: 'done'}));
+            window.setTimeout(() => setProviderUpdateStatus((current) => {
+                const next = {...current};
+                if (next[name] === 'done') delete next[name];
+                return next;
+            }), 1200);
+        } else {
+            setProviderUpdateStatus((current) => ({...current, [name]: 'failed'}));
+            window.setTimeout(() => setProviderUpdateStatus((current) => {
+                const next = {...current};
+                if (next[name] === 'failed') delete next[name];
+                return next;
+            }), 1400);
+        }
+    };
+
     const backgroundStyle = {
         backgroundImage: backgroundDataURL ? `url(${JSON.stringify(backgroundDataURL)})` : 'none',
         filter: `blur(${Math.max(0, Math.min(40, settingsDraft.backgroundBlur || 0))}px)`,
@@ -539,13 +560,14 @@ function App() {
                         onProfileURLChange={setProfileURL}
                         dropActive={profileDropActive}
                         updatingProfiles={profileUpdateStatus}
+                        updatingProviders={providerUpdateStatus}
                         onOpenGithub={() => run(() => OpenURL('https://github.com/Admirepowered/Pulse'))}
                         onActivate={(id) => run(() => SetActiveProfile(id), t('switchedProfile'))}
                         onEdit={openEditor}
                         onRename={(profile, name) => run(() => RenameProfile(profile.id, name))}
                         onUpdateProfile={updateProfileInline}
                         onDeleteProfile={(id) => run(() => DeleteProfile(id), t('profileDeleted'))}
-                        onUpdateProvider={(name) => run(() => UpdateProvider(name), t('providerUpdated'))}
+                        onUpdateProvider={updateProviderInline}
                         onAddSubscription={() => run(async () => {
                             await AddProfileFromURL('', profileURL);
                             setProfileURL('');

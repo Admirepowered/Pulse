@@ -746,6 +746,24 @@ textarea {
     animation: inlineStatusDone 1.4s ease both;
 }
 
+.stateButton.running svg {
+    animation: spin .8s linear infinite;
+}
+
+.stateButton.done {
+    border-color: #bdebd4;
+    background: #e9f8f1;
+    color: #0f766e;
+    animation: stateButtonDone 1.2s ease both;
+}
+
+.stateButton.failed {
+    border-color: #f3b7ad;
+    background: #fff1ef;
+    color: #c2410c;
+    animation: stateButtonDone 1.4s ease both;
+}
+
 @keyframes inlineStatusIn {
     from {
         opacity: 0;
@@ -775,6 +793,25 @@ textarea {
     100% {
         opacity: 0;
         transform: scale(.92);
+    }
+}
+
+@keyframes stateButtonDone {
+    0% {
+        transform: scale(.9);
+    }
+    18% {
+        transform: scale(1.08);
+    }
+    34% {
+        transform: scale(1);
+    }
+    78% {
+        opacity: 1;
+    }
+    100% {
+        opacity: .72;
+        transform: scale(.98);
     }
 }
 
@@ -959,7 +996,7 @@ textarea {
 }
 
 .profileRow .rowActions {
-    min-width: 68px;
+    min-width: 78px;
     justify-content: flex-end;
 }
 
@@ -1020,7 +1057,7 @@ textarea {
 }
 
 .tableRow {
-    grid-template-columns: minmax(120px, 1fr) 90px 80px auto;
+    grid-template-columns: minmax(120px, 1fr) 90px 80px 40px;
 }
 
 .ruleRow {

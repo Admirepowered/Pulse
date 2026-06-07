@@ -378,11 +378,15 @@ func (a *App) initStore() error {
 	}
 	needsSave := strings.TrimSpace(a.store.Settings.Secret) == ""
 	missingAutoStartCore := !storeHasSetting(data, "autoStartCore")
+	missingBackgroundOpacity := !storeHasSetting(data, "backgroundOpacity")
 	a.store.Settings = mergeSettings(a.store.Settings, defaultSettings())
 	if missingAutoStartCore {
 		a.store.Settings.AutoStartCore = true
 	}
-	if needsSave || missingAutoStartCore {
+	if missingBackgroundOpacity {
+		a.store.Settings.BackgroundOpacity = defaultSettings().BackgroundOpacity
+	}
+	if needsSave || missingAutoStartCore || missingBackgroundOpacity {
 		return a.saveStoreLocked()
 	}
 	return nil
@@ -442,9 +446,6 @@ func mergeSettings(current, defaults Settings) Settings {
 		current.CloseBehavior = defaults.CloseBehavior
 	}
 	current.BackgroundBlur = clampBackgroundBlur(current.BackgroundBlur)
-	if current.BackgroundOpacity == 0 {
-		current.BackgroundOpacity = defaults.BackgroundOpacity
-	}
 	current.BackgroundOpacity = clampBackgroundOpacity(current.BackgroundOpacity)
 	return current
 }
@@ -479,8 +480,8 @@ func clampBackgroundBlur(value int) int {
 }
 
 func clampBackgroundOpacity(value int) int {
-	if value < 15 {
-		return 15
+	if value < 0 {
+		return 0
 	}
 	if value > 100 {
 		return 100

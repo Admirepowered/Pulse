@@ -114,13 +114,13 @@ export function SettingsPage({settings, t, onChange, onApply, onSave, onOpenDir,
                         />
                     </label>
                     <label className="rangeField">
-                        <span>透明度 <strong>{settings.backgroundOpacity || 62}%</strong></span>
+                        <span>{t('opacity')} <strong>{settings.backgroundOpacity ?? 62}%</strong></span>
                         <input
                             type="range"
-                            min="15"
+                            min="0"
                             max="100"
                             step="1"
-                            value={settings.backgroundOpacity || 62}
+                            value={settings.backgroundOpacity ?? 62}
                             onChange={(event) => set('backgroundOpacity', Number(event.target.value))}
                         />
                     </label>

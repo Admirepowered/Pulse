@@ -255,7 +255,7 @@ function App() {
         backgroundImage: backgroundDataURL ? `url(${JSON.stringify(backgroundDataURL)})` : 'none',
         filter: `blur(${Math.max(0, Math.min(40, settingsDraft.backgroundBlur || 0))}px)`,
     } as CSSProperties;
-    const surfaceAlpha = Math.max(15, Math.min(100, settingsDraft.backgroundOpacity || 62)) / 100;
+    const surfaceAlpha = Math.max(0, Math.min(100, settingsDraft.backgroundOpacity ?? 62)) / 100;
     const shellStyle = {
         '--surface-alpha': `${surfaceAlpha}`,
         '--surface-soft-alpha': `${Math.max(.15, surfaceAlpha - .04)}`,

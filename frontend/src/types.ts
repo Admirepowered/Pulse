@@ -169,7 +169,7 @@ export const emptySnapshot: RuntimeState = {
     running: false,
     apiReachable: false,
     coreFound: false,
-    version: '0.0.0',
+    version: 'P0',
     buildNumber: '0',
     startedAt: 0,
     dataDir: '',

@@ -1,12 +1,13 @@
 GIT := git -c safe.directory=$(CURDIR)
 COUNT := $(shell $(GIT) rev-list --count HEAD)
 TAG := $(firstword $(shell $(GIT) tag --points-at HEAD --list "v*"))
-VERSION := $(if $(TAG),$(patsubst v%,%,$(TAG)),0.0.$(COUNT))
+BASE_VERSION := $(patsubst v%,%,$(TAG))
+VERSION := $(if $(TAG),$(BASE_VERSION)-P$(COUNT),P$(COUNT))
 LD_FLAGS := -X Pulse/internal/pulse.AppVersion=$(VERSION) -X Pulse/internal/pulse.BuildNumber=$(COUNT)
-WINDOWS_ARTIFACT := Pulse-$(VERSION).$(COUNT)-windows-amd64.exe
-LINUX_ARTIFACT := Pulse-$(VERSION).$(COUNT)-linux-amd64
-MACOS_AMD64_ARTIFACT := Pulse-$(VERSION).$(COUNT)-darwin-amd64
-MACOS_ARM64_ARTIFACT := Pulse-$(VERSION).$(COUNT)-darwin-arm64
+WINDOWS_ARTIFACT := Pulse-$(VERSION)-windows-amd64.exe
+LINUX_ARTIFACT := Pulse-$(VERSION)-linux-amd64
+MACOS_AMD64_ARTIFACT := Pulse-$(VERSION)-darwin-amd64
+MACOS_ARM64_ARTIFACT := Pulse-$(VERSION)-darwin-arm64
 
 .PHONY: version print-windows-artifact print-linux-artifact print-macos-amd64-artifact print-macos-arm64-artifact build build-windows build-linux build-macos build-macos-amd64 build-macos-arm64 test frontend
 

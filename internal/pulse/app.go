@@ -205,7 +205,7 @@ type ConnectionSnapshot struct {
 const subscriptionUserAgent = "clash-verge/v2.5.2"
 
 var (
-	AppVersion  = "0.0.0"
+	AppVersion  = "P0"
 	BuildNumber = "0"
 )
 

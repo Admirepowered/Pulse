@@ -6,6 +6,14 @@ export function AddProfileFromURL(arg1, arg2) {
   return window['go']['pulse']['App']['AddProfileFromURL'](arg1, arg2);
 }
 
+export function ApplyUpdate() {
+  return window['go']['pulse']['App']['ApplyUpdate']();
+}
+
+export function CheckForUpdates() {
+  return window['go']['pulse']['App']['CheckForUpdates']();
+}
+
 export function CloseAllConnections() {
   return window['go']['pulse']['App']['CloseAllConnections']();
 }
@@ -64,6 +72,10 @@ export function ImportProfileFromFile(arg1) {
 
 export function ListBackgroundImages() {
   return window['go']['pulse']['App']['ListBackgroundImages']();
+}
+
+export function ListNetworkInterfaces() {
+  return window['go']['pulse']['App']['ListNetworkInterfaces']();
 }
 
 export function MinimizeWindow() {

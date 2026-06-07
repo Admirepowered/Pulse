@@ -17,6 +17,7 @@ export type Settings = {
     mode: string;
     logLevel: string;
     tunEnabled: boolean;
+    tunInterface: string;
     systemProxy: boolean;
     delayTestUrl: string;
     language: string;
@@ -34,6 +35,21 @@ export type Settings = {
 export type BackgroundImage = {
     id: string;
     name: string;
+};
+
+export type NetworkInterface = {
+    name: string;
+    displayName: string;
+    addresses: string[];
+};
+
+export type UpdateInfo = {
+    currentVersion: string;
+    latestVersion: string;
+    available: boolean;
+    url: string;
+    assetName: string;
+    message: string;
 };
 
 export type SubscriptionInfo = {
@@ -143,6 +159,7 @@ export type ConnectionRow = {
     uploadSpeed: number;
     downloadSpeed: number;
     start: string;
+    closedAt: number;
 };
 
 export type ConnectionSnapshot = {
@@ -152,6 +169,7 @@ export type ConnectionSnapshot = {
     uploadSpeed: number;
     downloadSpeed: number;
     connections: ConnectionRow[];
+    closed: ConnectionRow[];
 };
 
 export const emptySubscriptionInfo: SubscriptionInfo = {
@@ -174,6 +192,7 @@ export const emptySettings: Settings = {
     mode: 'rule',
     logLevel: 'info',
     tunEnabled: false,
+    tunInterface: '',
     systemProxy: false,
     delayTestUrl: 'https://www.gstatic.com/generate_204',
     language: 'zh',
@@ -195,6 +214,7 @@ export const emptyConnectionSnapshot: ConnectionSnapshot = {
     uploadSpeed: 0,
     downloadSpeed: 0,
     connections: [],
+    closed: [],
 };
 
 export const emptyGeodataStatus: GeodataStatus = {

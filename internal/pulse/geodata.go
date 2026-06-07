@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -73,15 +74,14 @@ func (a *App) EnsureGeodata() error {
 		if ok, err := existingNonEmptyFile(target); err == nil && ok {
 			continue
 		}
+		if err := a.copyBundledGeodataFile(file, target); err == nil {
+			continue
+		} else {
+			a.appendLog("warn", "bundled geodata unavailable: "+file.Name+" "+err.Error())
+		}
 		if err := a.downloadGeodataFile(file, target); err != nil {
-			a.setGeodataStatus(GeodataStatus{
-				Checking:  false,
-				Ready:     false,
-				File:      file.Name,
-				Message:   err.Error(),
-				UpdatedAt: time.Now().Unix(),
-			})
-			return err
+			a.appendLog("warn", "github geodata download failed, let mihomo fallback handle it: "+err.Error())
+			continue
 		}
 	}
 	a.setGeodataStatus(GeodataStatus{
@@ -102,6 +102,52 @@ func existingNonEmptyFile(path string) (bool, error) {
 		return false, err
 	}
 	return !info.IsDir() && info.Size() > 0, nil
+}
+
+func (a *App) copyBundledGeodataFile(file geodataFile, target string) error {
+	executable, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	candidates := []string{
+		filepath.Join(filepath.Dir(executable), file.Name),
+		filepath.Join(filepath.Dir(executable), strings.ToLower(file.Name)),
+		filepath.Join(".", file.Name),
+		filepath.Join(".", strings.ToLower(file.Name)),
+	}
+	for _, candidate := range candidates {
+		if ok, err := existingNonEmptyFile(candidate); err == nil && ok {
+			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+				return err
+			}
+			input, err := os.Open(candidate)
+			if err != nil {
+				return err
+			}
+			defer input.Close()
+			tempPath := target + ".part"
+			output, err := os.Create(tempPath)
+			if err != nil {
+				return err
+			}
+			if _, err := io.Copy(output, input); err != nil {
+				_ = output.Close()
+				_ = os.Remove(tempPath)
+				return err
+			}
+			if err := output.Close(); err != nil {
+				_ = os.Remove(tempPath)
+				return err
+			}
+			if err := os.Rename(tempPath, target); err != nil {
+				_ = os.Remove(tempPath)
+				return err
+			}
+			a.appendLog("info", "geodata copied from application directory: "+candidate)
+			return nil
+		}
+	}
+	return os.ErrNotExist
 }
 
 func (a *App) downloadGeodataFile(file geodataFile, target string) error {

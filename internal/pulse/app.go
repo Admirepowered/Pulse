@@ -13,6 +13,7 @@ import (
 	"io"
 	"math"
 	"mime"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -84,12 +85,12 @@ type App struct {
 	showSignalPath       string
 	lastShowSignalTime   time.Time
 	connectionSamples    map[string]connectionSample
+	closedConnections    []ConnectionRow
 }
 
 type connectionSample struct {
-	Upload   int64
-	Download int64
-	At       time.Time
+	Row ConnectionRow
+	At  time.Time
 }
 
 type Store struct {
@@ -108,6 +109,7 @@ type Settings struct {
 	Mode              string         `json:"mode"`
 	LogLevel          string         `json:"logLevel"`
 	TunEnabled        bool           `json:"tunEnabled"`
+	TunInterface      string         `json:"tunInterface"`
 	SystemProxy       bool           `json:"systemProxy"`
 	DelayTestURL      string         `json:"delayTestUrl"`
 	Language          string         `json:"language"`
@@ -125,6 +127,12 @@ type Settings struct {
 type BackgroundImage struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
+}
+
+type NetworkInterface struct {
+	Name        string   `json:"name"`
+	DisplayName string   `json:"displayName"`
+	Addresses   []string `json:"addresses"`
 }
 
 type WebDAVSettings struct {
@@ -231,6 +239,7 @@ type ConnectionRow struct {
 	UploadSpeed   int64  `json:"uploadSpeed"`
 	DownloadSpeed int64  `json:"downloadSpeed"`
 	Start         string `json:"start"`
+	ClosedAt      int64  `json:"closedAt"`
 }
 
 type ConnectionSnapshot struct {
@@ -240,6 +249,7 @@ type ConnectionSnapshot struct {
 	UploadSpeed   int64           `json:"uploadSpeed"`
 	DownloadSpeed int64           `json:"downloadSpeed"`
 	Connections   []ConnectionRow `json:"connections"`
+	Closed        []ConnectionRow `json:"closed"`
 }
 
 const (
@@ -743,19 +753,46 @@ func (a *App) SetAutoStart(enabled bool) error {
 	return a.SaveSettings(settings)
 }
 
+func (a *App) ListNetworkInterfaces() ([]NetworkInterface, error) {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return nil, err
+	}
+	rows := make([]NetworkInterface, 0, len(interfaces))
+	for _, item := range interfaces {
+		if item.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		addresses := []string{}
+		if addrs, err := item.Addrs(); err == nil {
+			for _, addr := range addrs {
+				addresses = append(addresses, addr.String())
+			}
+		}
+		rows = append(rows, NetworkInterface{
+			Name:        item.Name,
+			DisplayName: item.Name,
+			Addresses:   addresses,
+		})
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].Name < rows[j].Name })
+	return rows, nil
+}
+
 func settingsRequireCoreRestart(previous, next Settings) bool {
 	return previous.CoreMode != next.CoreMode ||
 		previous.CorePath != next.CorePath ||
 		previous.ApiBase != next.ApiBase ||
 		previous.Secret != next.Secret ||
-		previous.MixedPort != next.MixedPort
+		previous.MixedPort != next.MixedPort ||
+		previous.TunEnabled != next.TunEnabled ||
+		previous.TunInterface != next.TunInterface
 }
 
 func settingsRequireRuntimeApply(previous, next Settings) bool {
 	return previous.AllowLan != next.AllowLan ||
 		previous.Mode != next.Mode ||
-		previous.LogLevel != next.LogLevel ||
-		previous.TunEnabled != next.TunEnabled
+		previous.LogLevel != next.LogLevel
 }
 
 func (a *App) AddProfileFromURL(name string, source string) (Profile, error) {
@@ -1507,12 +1544,11 @@ func (a *App) FetchConnections() (ConnectionSnapshot, error) {
 		if previous, ok := previousSamples[c.ID]; ok {
 			elapsed := now.Sub(previous.At).Seconds()
 			if elapsed > 0 {
-				uploadSpeed = int64(math.Max(0, float64(c.Upload-previous.Upload)/elapsed))
-				downloadSpeed = int64(math.Max(0, float64(c.Download-previous.Download)/elapsed))
+				uploadSpeed = int64(math.Max(0, float64(c.Upload-previous.Row.Upload)/elapsed))
+				downloadSpeed = int64(math.Max(0, float64(c.Download-previous.Row.Download)/elapsed))
 			}
 		}
-		nextSamples[c.ID] = connectionSample{Upload: c.Upload, Download: c.Download, At: now}
-		rows = append(rows, ConnectionRow{
+		row := ConnectionRow{
 			ID:            c.ID,
 			Network:       c.Network,
 			Address:       address,
@@ -1526,9 +1562,23 @@ func (a *App) FetchConnections() (ConnectionSnapshot, error) {
 			UploadSpeed:   uploadSpeed,
 			DownloadSpeed: downloadSpeed,
 			Start:         c.Start,
-		})
+		}
+		nextSamples[c.ID] = connectionSample{Row: row, At: now}
+		rows = append(rows, row)
 	}
 	a.mu.Lock()
+	for id, sample := range previousSamples {
+		if _, ok := nextSamples[id]; ok {
+			continue
+		}
+		row := sample.Row
+		row.ClosedAt = now.Unix()
+		a.closedConnections = append([]ConnectionRow{row}, a.closedConnections...)
+	}
+	if len(a.closedConnections) > 500 {
+		a.closedConnections = append([]ConnectionRow(nil), a.closedConnections[:500]...)
+	}
+	closed := append([]ConnectionRow(nil), a.closedConnections...)
 	a.connectionSamples = nextSamples
 	a.mu.Unlock()
 	return ConnectionSnapshot{
@@ -1538,6 +1588,7 @@ func (a *App) FetchConnections() (ConnectionSnapshot, error) {
 		UploadSpeed:   traffic.Up,
 		DownloadSpeed: traffic.Down,
 		Connections:   rows,
+		Closed:        closed,
 	}, nil
 }
 
@@ -1566,17 +1617,27 @@ func (a *App) applyRuntimeSettings(settings Settings) error {
 		"allow-lan": settings.AllowLan,
 		"mode":      settings.Mode,
 		"log-level": normalizeLogLevel(settings.LogLevel),
-		"tun": map[string]any{
-			"enable":                settings.TunEnabled,
-			"stack":                 "mixed",
-			"auto-route":            true,
-			"auto-detect-interface": true,
-		},
+		"tun":       tunConfigMap(settings),
 	}
 	if err := a.apiRequest(http.MethodPatch, "/configs", body, nil); err != nil {
 		return err
 	}
 	return nil
+}
+
+func tunConfigMap(settings Settings) map[string]any {
+	config := map[string]any{
+		"enable":     settings.TunEnabled,
+		"stack":      "mixed",
+		"auto-route": true,
+	}
+	if name := strings.TrimSpace(settings.TunInterface); name != "" {
+		config["interface-name"] = name
+		config["auto-detect-interface"] = false
+	} else {
+		config["auto-detect-interface"] = true
+	}
+	return config
 }
 
 func (a *App) isEmbeddedCoreRunning() bool {
@@ -2040,7 +2101,13 @@ func mergeRuntimeConfig(content []byte, settings Settings, controller string, cu
 	setYAMLScalar(tun, "enable", settings.TunEnabled)
 	setYAMLScalar(tun, "stack", "mixed")
 	setYAMLScalar(tun, "auto-route", true)
-	setYAMLScalar(tun, "auto-detect-interface", true)
+	if name := strings.TrimSpace(settings.TunInterface); name != "" {
+		setYAMLScalar(tun, "interface-name", name)
+		setYAMLScalar(tun, "auto-detect-interface", false)
+	} else {
+		deleteYAMLKey(tun, "interface-name")
+		setYAMLScalar(tun, "auto-detect-interface", true)
+	}
 	prependRules(root, customRules)
 
 	var output bytes.Buffer
@@ -2144,6 +2211,14 @@ func setYAMLNode(mapping *yaml.Node, key string, value *yaml.Node) {
 		return
 	}
 	mapping.Content = append(mapping.Content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: key}, value)
+}
+
+func deleteYAMLKey(mapping *yaml.Node, key string) {
+	index := yamlKeyIndex(mapping, key)
+	if index < 0 {
+		return
+	}
+	mapping.Content = append(mapping.Content[:index], mapping.Content[index+2:]...)
 }
 
 func yamlKeyIndex(mapping *yaml.Node, key string) int {

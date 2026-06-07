@@ -141,6 +141,7 @@ jobs:
               ;;
             linux)
               chmod +x "build/bin/$name"
+              cp "build/bin/$name" "release/$name"
               tar -C build/bin -czf "release/$name.tar.gz" "$name"
               ;;
             macos)

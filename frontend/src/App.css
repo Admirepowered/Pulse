@@ -968,21 +968,65 @@ textarea {
     font-style: normal;
 }
 
+.connectionTabs {
+    display: flex;
+    gap: 8px;
+}
+
+.connectionTabs button {
+    height: 36px;
+    border-color: #d9e1ea;
+    background: rgba(255, 255, 255, .72);
+    color: #64748b;
+}
+
+.connectionTabs button.active {
+    border-color: #0f766e;
+    background: #eefaf6;
+    color: #0f172a;
+    font-weight: 700;
+}
+
+.connectionTabs span {
+    min-width: 22px;
+    display: inline-grid;
+    place-items: center;
+    margin-left: 4px;
+    border-radius: 999px;
+    background: #e8eef5;
+    color: #526071;
+    font-size: 12px;
+}
+
+.selectControl {
+    min-width: 160px;
+    height: 40px;
+    border: 1px solid #d9e1ea;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, .72);
+    padding: 0 10px;
+    color: #17202a;
+    outline: none;
+    font: inherit;
+}
+
 .connectionRow {
-    grid-template-columns: minmax(0, 1fr) 190px auto;
+    grid-template-columns: minmax(0, 1fr) minmax(210px, auto) 96px;
 }
 
 .connectionTraffic {
     display: grid;
-    gap: 4px;
-    justify-items: end;
+    grid-template-columns: repeat(2, max-content);
+    gap: 4px 12px;
+    justify-content: end;
 }
 
-.connectionTraffic small {
+.connectionTraffic small,
+.connectionMeta small {
     display: inline-flex;
     align-items: center;
-    justify-content: flex-end;
     gap: 5px;
+    justify-content: flex-end;
     color: #526071;
     white-space: nowrap;
 }
@@ -991,12 +1035,11 @@ textarea {
     color: #0f766e;
 }
 
-.sortControls {
-    flex-wrap: wrap;
-}
-
-.sortControls button {
-    gap: 5px;
+.connectionMeta {
+    display: grid;
+    gap: 6px;
+    justify-items: end;
+    color: #64748b;
 }
 
 .emptyState {

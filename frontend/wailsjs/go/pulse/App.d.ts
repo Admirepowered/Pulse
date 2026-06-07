@@ -4,6 +4,10 @@ import {pulse} from '../models';
 
 export function AddProfileFromURL(arg1:string,arg2:string):Promise<pulse.Profile>;
 
+export function ApplyUpdate():Promise<void>;
+
+export function CheckForUpdates():Promise<pulse.UpdateInfo>;
+
 export function CloseAllConnections():Promise<void>;
 
 export function CloseConnection(arg1:string):Promise<void>;
@@ -33,6 +37,8 @@ export function ImportProfile(arg1:string,arg2:string):Promise<pulse.Profile>;
 export function ImportProfileFromFile(arg1:string):Promise<pulse.Profile>;
 
 export function ListBackgroundImages():Promise<Array<pulse.BackgroundImage>>;
+
+export function ListNetworkInterfaces():Promise<Array<pulse.NetworkInterface>>;
 
 export function MinimizeWindow():Promise<void>;
 

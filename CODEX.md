@@ -33,7 +33,9 @@ This file is for future Codex sessions working on Pulse.
 - Use 100 items per page by default.
 - Rules, profiles, proxy providers, connections, and logs should not render unbounded lists.
 - Connections and logs should also keep a display cap so long-running sessions do not make the UI sluggish.
-- Connections should support sorting by total upload, total download, upload speed, and download speed in both directions.
+- Connections should keep the card/list visual style, with Active/Closed tabs and a sort select instead of table header sorting.
+- Connections should sort by total download and download speed in both directions. Download speed must show `/s`.
+- Active connections are closed from the right-click context menu; do not show inline close buttons on each connection row.
 - The active profile must be visibly highlighted in the Profiles page.
 - Profiles are activated by clicking the whole row. Profile rename/edit/update/delete actions belong in the right-click context menu, not inline row buttons.
 - Switching profiles while the core is running should hot-reload the generated runtime config through mihomo `/configs?force=true`; restart only as a fallback.
@@ -55,6 +57,9 @@ This file is for future Codex sessions working on Pulse.
 
 - On Windows startup, register the `clash://` URL protocol under `HKCU\Software\Classes\clash` with the current executable path and `"%1"` argument.
 - `clash://install-config?...url=...` launches should decode the `url` parameter twice and import it through the same URL subscription flow so the name is inferred from remote metadata or URL. If another Pulse instance is already running, pass the URL protocol argument through `show.signal`.
+- TUN settings live in a separate settings panel/component. The backend owns interface enumeration and writes the selected interface into the generated runtime YAML.
+- Update checks use GitHub latest release through `github_client`. Check once on app open and on manual request only. Updates download the matching executable asset and replace the current executable after exit.
+- Geodata fallback order is: existing data directory file, application directory bundled file, GitHub download, then mihomo's own fallback behavior.
 
 ## Build And Verification
 

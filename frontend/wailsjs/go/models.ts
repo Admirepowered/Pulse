@@ -14,6 +14,28 @@ export namespace pulse {
 	        this.name = source["name"];
 	    }
 	}
+	export class UpdateInfo {
+	    currentVersion: string;
+	    latestVersion: string;
+	    available: boolean;
+	    url: string;
+	    assetName: string;
+	    message: string;
+
+	    static createFrom(source: any = {}) {
+	        return new UpdateInfo(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.currentVersion = source["currentVersion"];
+	        this.latestVersion = source["latestVersion"];
+	        this.available = source["available"];
+	        this.url = source["url"];
+	        this.assetName = source["assetName"];
+	        this.message = source["message"];
+	    }
+	}
 	export class ConnectionRow {
 	    id: string;
 	    network: string;
@@ -28,6 +50,7 @@ export namespace pulse {
 	    uploadSpeed: number;
 	    downloadSpeed: number;
 	    start: string;
+	    closedAt: number;
 
 	    static createFrom(source: any = {}) {
 	        return new ConnectionRow(source);
@@ -48,6 +71,7 @@ export namespace pulse {
 	        this.uploadSpeed = source["uploadSpeed"];
 	        this.downloadSpeed = source["downloadSpeed"];
 	        this.start = source["start"];
+	        this.closedAt = source["closedAt"];
 	    }
 	}
 	export class ConnectionSnapshot {
@@ -57,6 +81,7 @@ export namespace pulse {
 	    uploadSpeed: number;
 	    downloadSpeed: number;
 	    connections: ConnectionRow[];
+	    closed: ConnectionRow[];
 
 	    static createFrom(source: any = {}) {
 	        return new ConnectionSnapshot(source);
@@ -70,6 +95,7 @@ export namespace pulse {
 	        this.uploadSpeed = source["uploadSpeed"];
 	        this.downloadSpeed = source["downloadSpeed"];
 	        this.connections = this.convertValues(source["connections"], ConnectionRow);
+	        this.closed = this.convertValues(source["closed"], ConnectionRow);
 	    }
 
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -321,6 +347,22 @@ export namespace pulse {
 	        this.down = source["down"];
 	    }
 	}
+	export class NetworkInterface {
+	    name: string;
+	    displayName: string;
+	    addresses: string[];
+
+	    static createFrom(source: any = {}) {
+	        return new NetworkInterface(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.displayName = source["displayName"];
+	        this.addresses = source["addresses"];
+	    }
+	}
 	export class WebDAVSettings {
 	    enabled: boolean;
 	    url: string;
@@ -349,6 +391,7 @@ export namespace pulse {
 	    mode: string;
 	    logLevel: string;
 	    tunEnabled: boolean;
+	    tunInterface: string;
 	    systemProxy: boolean;
 	    delayTestUrl: string;
 	    language: string;
@@ -377,6 +420,7 @@ export namespace pulse {
 	        this.mode = source["mode"];
 	        this.logLevel = source["logLevel"];
 	        this.tunEnabled = source["tunEnabled"];
+	        this.tunInterface = source["tunInterface"];
 	        this.systemProxy = source["systemProxy"];
 	        this.delayTestUrl = source["delayTestUrl"];
 	        this.language = source["language"];

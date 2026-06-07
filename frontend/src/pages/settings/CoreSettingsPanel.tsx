@@ -53,7 +53,6 @@ export function CoreSettingsPanel({settings, t, onDraft, onCommit, onApply}: {
                     </button>
                 ))}
             </div>
-            <Toggle label="TUN" checked={settings.tunEnabled} onChange={(value) => apply('tunEnabled', value)}/>
             <Toggle label={t('autoStartCore')} checked={settings.autoStartCore} onChange={(value) => apply('autoStartCore', value)}/>
             <div className="segmented">
                 {[

@@ -1,5 +1,7 @@
 export {
     AddProfileFromURL,
+    ApplyUpdate,
+    CheckForUpdates,
     CloseWindow,
     CloseAllConnections,
     CloseConnection,
@@ -13,6 +15,7 @@ export {
     ImportProfile,
     ImportProfileFromFile,
     ListBackgroundImages,
+    ListNetworkInterfaces,
     MinimizeWindow,
     OpenDataDirectory,
     OpenURL,

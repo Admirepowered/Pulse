@@ -35,6 +35,12 @@ var githubHostIPs = map[string][]string{
 		"185.199.110.133",
 		"185.199.111.133",
 	},
+	"api.github.com": {
+		"140.82.112.5",
+		"140.82.113.5",
+		"140.82.114.5",
+		"140.82.116.6",
+	},
 }
 
 func githubHTTPClient(hostname, ip string) *http.Client {

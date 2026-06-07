@@ -19,6 +19,8 @@ import {
 import './App.css';
 import {
     AddProfileFromURL,
+    ApplyUpdate,
+    CheckForUpdates,
     CloseAllConnections,
     CloseConnection,
     CloseWindow,
@@ -32,6 +34,7 @@ import {
     GetSnapshot,
     ImportProfileFromFile,
     ListBackgroundImages,
+    ListNetworkInterfaces,
     MinimizeWindow,
     Models,
     OnFileDrop,
@@ -80,6 +83,7 @@ import {
     type BackgroundImage,
     type ConnectionRow,
     type LogLine,
+    type NetworkInterface,
     type Profile,
     type ProviderRow,
     type ProxyGroup,
@@ -87,6 +91,7 @@ import {
     type RuntimeState,
     type Settings,
     type TabId,
+    type UpdateInfo,
 } from './types';
 
 const tabs: { id: TabId; labelKey: Parameters<ReturnType<typeof getTranslator>>[0]; icon: typeof Gauge }[] = [
@@ -120,6 +125,7 @@ function App() {
     const [settingsDirty, setSettingsDirty] = useState(false);
     const [backgroundDataURL, setBackgroundDataURL] = useState('');
     const [backgrounds, setBackgrounds] = useState<BackgroundImage[]>([]);
+    const [networkInterfaces, setNetworkInterfaces] = useState<NetworkInterface[]>([]);
     const [sidebarFocused, setSidebarFocused] = useState(false);
     const [testingGroup, setTestingGroup] = useState('');
     const [profileDropActive, setProfileDropActive] = useState(false);
@@ -135,7 +141,14 @@ function App() {
         if (activeTab === 'proxies') setGroups(await FetchProxyGroups() as ProxyGroup[]);
         if (activeTab === 'rules') setRules(await FetchRules() as RuleRow[]);
         if (activeTab === 'profiles') setProviders(await FetchProviders() as ProviderRow[]);
-        if (activeTab === 'settings') setBackgrounds(await ListBackgroundImages() as BackgroundImage[]);
+        if (activeTab === 'settings') {
+            const [nextBackgrounds, nextInterfaces] = await Promise.all([
+                ListBackgroundImages() as Promise<BackgroundImage[]>,
+                ListNetworkInterfaces() as Promise<NetworkInterface[]>,
+            ]);
+            setBackgrounds(nextBackgrounds);
+            setNetworkInterfaces(nextInterfaces);
+        }
         if (activeTab === 'connections') setConnectionSnapshot(await FetchConnections() as ConnectionSnapshot);
         if (activeTab === 'logs') setLogs(await GetLogs() as LogLine[]);
     }, []);
@@ -155,6 +168,22 @@ function App() {
         }
     }, [refreshPageData, refreshSnapshot, tab]);
 
+    const promptUpdate = useCallback(async (manual = false) => {
+        try {
+            const info = await CheckForUpdates() as UpdateInfo;
+            if (!info.available) {
+                if (manual) setNotice(t('noUpdateAvailable'));
+                return;
+            }
+            const message = `${t('updateAvailable')}: ${info.latestVersion}\n${info.assetName}\n\n${t('update')}?`;
+            if (window.confirm(message)) {
+                await run(ApplyUpdate);
+            }
+        } catch (error) {
+            if (manual) setNotice(error instanceof Error ? error.message : String(error));
+        }
+    }, [run, t]);
+
     const saveSettings = useCallback(async (settings: Settings = settingsDraft) => {
         const next = normalizeSettings(settings);
         await SaveSettings(new Models.Settings(next));
@@ -173,6 +202,13 @@ function App() {
     useEffect(() => {
         refreshSnapshot().catch((error) => setNotice(String(error)));
     }, [refreshSnapshot]);
+
+    useEffect(() => {
+        const timer = window.setTimeout(() => {
+            promptUpdate(false).catch(() => undefined);
+        }, 2500);
+        return () => window.clearTimeout(timer);
+    }, [promptUpdate]);
 
     useEffect(() => {
         if (!notice) return;
@@ -503,6 +539,7 @@ function App() {
                     <SettingsPage
                         settings={settingsDraft}
                         backgrounds={backgrounds}
+                        interfaces={networkInterfaces}
                         t={t}
                         onChange={(settings) => {
                             setSettingsDraft(settings);
@@ -515,6 +552,7 @@ function App() {
                         onClearBackground={clearBackground}
                         onSelectBackground={(id) => applySettings({...settingsDraft, backgroundPath: id})}
                         onDeleteBackground={(id) => deleteBackground(id)}
+                        onCheckUpdates={() => promptUpdate(true)}
                     />
                 )}
             </section>

@@ -366,6 +366,8 @@ func (a *App) SaveSettings(settings Settings) error {
 	previous := a.store.Settings
 	running := a.coreRunningLocked()
 	requiresRestart := running && settingsRequireCoreRestart(previous, settings)
+	requiresRuntimeApply := running && settingsRequireRuntimeApply(previous, settings)
+	requiresSystemProxyApply := running || previous.SystemProxy != settings.SystemProxy || (settings.SystemProxy && previous.MixedPort != settings.MixedPort)
 	a.store.Settings = settings
 	err := a.saveStoreLocked()
 	a.mu.Unlock()
@@ -392,17 +394,19 @@ func (a *App) SaveSettings(settings Settings) error {
 		}
 		return nil
 	}
-	if running {
+	if requiresRuntimeApply {
 		if err := a.applyRuntimeSettings(settings); err != nil {
 			a.appendLog("warn", "apply runtime settings failed: "+err.Error())
 			return err
 		}
 	}
-	if err := configureSystemProxy(settings, running && settings.SystemProxy); err != nil {
-		a.appendLog("error", "system proxy apply failed: "+err.Error())
-		return err
+	if requiresSystemProxyApply {
+		if err := configureSystemProxy(settings, settings.SystemProxy); err != nil {
+			a.appendLog("error", "system proxy apply failed: "+err.Error())
+			return err
+		}
+		a.appendLog("info", "system proxy setting applied: "+systemProxyState())
 	}
-	a.appendLog("info", "system proxy setting applied: "+systemProxyState())
 	return nil
 }
 
@@ -412,7 +416,13 @@ func settingsRequireCoreRestart(previous, next Settings) bool {
 		previous.ApiBase != next.ApiBase ||
 		previous.Secret != next.Secret ||
 		previous.MixedPort != next.MixedPort ||
-		previous.TunEnabled != next.TunEnabled
+		previous.TunEnabled != next.TunEnabled ||
+		(next.CoreMode == "embedded" && settingsRequireRuntimeApply(previous, next))
+}
+
+func settingsRequireRuntimeApply(previous, next Settings) bool {
+	return previous.AllowLan != next.AllowLan ||
+		previous.Mode != next.Mode
 }
 
 func (a *App) AddProfileFromURL(name string, source string) (Profile, error) {

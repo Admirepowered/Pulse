@@ -22,6 +22,10 @@ export function DeleteProfile(arg1) {
   return window['go']['pulse']['App']['DeleteProfile'](arg1);
 }
 
+export function EnsureGeodata() {
+  return window['go']['pulse']['App']['EnsureGeodata']();
+}
+
 export function FetchConnections() {
   return window['go']['pulse']['App']['FetchConnections']();
 }

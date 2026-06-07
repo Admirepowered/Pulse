@@ -12,6 +12,8 @@ export function CloseWindow():Promise<void>;
 
 export function DeleteProfile(arg1:string):Promise<void>;
 
+export function EnsureGeodata():Promise<void>;
+
 export function FetchConnections():Promise<pulse.ConnectionSnapshot>;
 
 export function FetchProviders():Promise<Array<pulse.ProviderRow>>;

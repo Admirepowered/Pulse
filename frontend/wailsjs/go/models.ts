@@ -72,6 +72,30 @@ export namespace pulse {
 		    return a;
 		}
 	}
+	export class GeodataStatus {
+	    checking: boolean;
+	    ready: boolean;
+	    file: string;
+	    message: string;
+	    downloaded: number;
+	    total: number;
+	    updatedAt: number;
+
+	    static createFrom(source: any = {}) {
+	        return new GeodataStatus(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.checking = source["checking"];
+	        this.ready = source["ready"];
+	        this.file = source["file"];
+	        this.message = source["message"];
+	        this.downloaded = source["downloaded"];
+	        this.total = source["total"];
+	        this.updatedAt = source["updatedAt"];
+	    }
+	}
 	export class LogLine {
 	    time: number;
 	    level: string;
@@ -354,6 +378,7 @@ export namespace pulse {
 	    settings: Settings;
 	    traffic: TrafficSnapshot;
 	    recentLogs: LogLine[];
+	    geodata: GeodataStatus;
 
 	    static createFrom(source: any = {}) {
 	        return new RuntimeState(source);
@@ -373,6 +398,7 @@ export namespace pulse {
 	        this.settings = this.convertValues(source["settings"], Settings);
 	        this.traffic = this.convertValues(source["traffic"], TrafficSnapshot);
 	        this.recentLogs = this.convertValues(source["recentLogs"], LogLine);
+	        this.geodata = this.convertValues(source["geodata"], GeodataStatus);
 	    }
 
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

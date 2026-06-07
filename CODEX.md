@@ -9,6 +9,7 @@ This file is for future Codex sessions working on Pulse.
 - Page-specific subcomponents should live next to the page, for example `frontend/src/pages/settings`.
 - Shared UI helpers belong in `frontend/src/components`.
 - Wails generated bindings live in `frontend/wailsjs`. If Go exported methods change, run a Wails build and verify TypeScript still builds.
+- Pulse has not shipped a public release yet, so do not preserve old config formats or migration compatibility unless the user explicitly asks for it.
 
 ## UX Rules
 

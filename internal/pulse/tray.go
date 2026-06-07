@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/getlantern/systray"
-	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 const (
@@ -38,12 +37,12 @@ func (a *App) setupTrayMenu() {
 	systray.SetTitle("Pulse")
 	systray.SetTooltip("Pulse mihomo")
 
-	showItem := systray.AddMenuItem("Show Pulse", "Show main window")
-	a.watchTrayItem(showItem, func() {
-		wailsruntime.WindowShow(a.ctx)
+	a.trayShowItem = systray.AddMenuItem("Pulse", "Pulse")
+	a.watchTrayItem(a.trayShowItem, func() {
+		a.ShowWindow()
 	})
 
-	a.trayCoreItem = systray.AddMenuItem("Start Core", "Start or stop mihomo core")
+	a.trayCoreItem = systray.AddMenuItem("Core", "mihomo")
 	a.watchTrayItem(a.trayCoreItem, func() {
 		a.mu.Lock()
 		running := a.coreRunningLocked()
@@ -59,13 +58,13 @@ func (a *App) setupTrayMenu() {
 		}
 	})
 
-	a.trayStatusItem = systray.AddMenuItem("Status: loading", "Current runtime status")
+	a.trayStatusItem = systray.AddMenuItem("Status", "Status")
 	a.trayStatusItem.Disable()
 	systray.AddSeparator()
 
-	profilesMenu := systray.AddMenuItem("Profiles", "Switch active profile")
+	a.trayProfilesMenu = systray.AddMenuItem("Profiles", "Profiles")
 	for i := 0; i < maxTrayProfiles; i++ {
-		item := profilesMenu.AddSubMenuItem("Profile", "Switch profile")
+		item := a.trayProfilesMenu.AddSubMenuItem("Profile", "Profile")
 		item.Hide()
 		a.trayProfileItems = append(a.trayProfileItems, item)
 		index := i
@@ -83,15 +82,15 @@ func (a *App) setupTrayMenu() {
 		})
 	}
 
-	nodesMenu := systray.AddMenuItem("Nodes", "Select proxy group node")
-	a.trayNodeStatusItem = nodesMenu.AddSubMenuItem("Core stopped", "Current node group status")
+	a.trayNodesMenu = systray.AddMenuItem("Nodes", "Nodes")
+	a.trayNodeStatusItem = a.trayNodesMenu.AddSubMenuItem("Status", "Status")
 	a.trayNodeStatusItem.Disable()
 	for groupIndex := 0; groupIndex < maxTrayGroups; groupIndex++ {
-		groupItem := nodesMenu.AddSubMenuItem("Group", "Select proxy group")
+		groupItem := a.trayNodesMenu.AddSubMenuItem("Group", "Group")
 		a.trayNodeGroupItems = append(a.trayNodeGroupItems, groupItem)
 		nodeItems := make([]*systray.MenuItem, 0, maxTrayNodesPerGroup)
 		for nodeIndex := 0; nodeIndex < maxTrayNodesPerGroup; nodeIndex++ {
-			item := groupItem.AddSubMenuItem("Node", "Switch node")
+			item := groupItem.AddSubMenuItem("Node", "Node")
 			item.Hide()
 			nodeItems = append(nodeItems, item)
 			gi, ni := groupIndex, nodeIndex
@@ -113,12 +112,12 @@ func (a *App) setupTrayMenu() {
 		a.trayNodeItems = append(a.trayNodeItems, nodeItems)
 	}
 
-	refreshItem := systray.AddMenuItem("Refresh Tray", "Refresh profiles and nodes")
-	a.watchTrayItem(refreshItem, func() {})
+	a.trayRefreshItem = systray.AddMenuItem("Refresh", "Refresh")
+	a.watchTrayItem(a.trayRefreshItem, func() {})
 
 	systray.AddSeparator()
-	quitItem := systray.AddMenuItem("Quit Pulse", "Quit application")
-	a.watchTrayItem(quitItem, func() {
+	a.trayQuitItem = systray.AddMenuItem("Quit", "Quit")
+	a.watchTrayItem(a.trayQuitItem, func() {
 		a.quitApplication()
 	})
 
@@ -148,6 +147,7 @@ func (a *App) updateTrayMenuState() {
 	running := a.coreRunningLocked()
 	activeProfileID := a.store.ActiveProfileID
 	profiles := append([]Profile(nil), a.store.Profiles...)
+	labels := trayLabelsForLanguage(a.store.Settings.Language)
 	activeProfileName := "Direct"
 	for _, profile := range profiles {
 		if profile.ID == activeProfileID {
@@ -157,23 +157,38 @@ func (a *App) updateTrayMenuState() {
 	}
 	a.mu.Unlock()
 
+	if a.trayShowItem != nil {
+		a.trayShowItem.SetTitle(labels.Show)
+	}
 	if a.trayCoreItem != nil {
 		if running {
-			a.trayCoreItem.SetTitle("Stop Core")
+			a.trayCoreItem.SetTitle(labels.StopCore)
 		} else {
-			a.trayCoreItem.SetTitle("Start Core")
+			a.trayCoreItem.SetTitle(labels.StartCore)
 		}
 	}
 	if a.trayStatusItem != nil {
 		if running {
-			a.trayStatusItem.SetTitle("Status: core running - " + activeProfileName)
+			a.trayStatusItem.SetTitle(labels.StatusRunning + " - " + activeProfileName)
 		} else {
-			a.trayStatusItem.SetTitle("Status: core stopped - " + activeProfileName)
+			a.trayStatusItem.SetTitle(labels.StatusStopped + " - " + activeProfileName)
 		}
+	}
+	if a.trayProfilesMenu != nil {
+		a.trayProfilesMenu.SetTitle(labels.Profiles)
+	}
+	if a.trayNodesMenu != nil {
+		a.trayNodesMenu.SetTitle(labels.Nodes)
+	}
+	if a.trayRefreshItem != nil {
+		a.trayRefreshItem.SetTitle(labels.Refresh)
+	}
+	if a.trayQuitItem != nil {
+		a.trayQuitItem.SetTitle(labels.Quit)
 	}
 
 	a.updateTrayProfiles(profiles, activeProfileID)
-	a.updateTrayNodes(running)
+	a.updateTrayNodes(running, labels)
 }
 
 func (a *App) updateTrayProfiles(profiles []Profile, activeProfileID string) {
@@ -187,7 +202,7 @@ func (a *App) updateTrayProfiles(profiles []Profile, activeProfileID string) {
 		ids = append(ids, profile.ID)
 		prefix := "  "
 		if profile.ID == activeProfileID {
-			prefix = "✓ "
+			prefix = "* "
 		}
 		item.SetTitle(prefix + truncateTrayLabel(profile.Name, 42))
 		item.Show()
@@ -197,25 +212,25 @@ func (a *App) updateTrayProfiles(profiles []Profile, activeProfileID string) {
 	a.trayMu.Unlock()
 }
 
-func (a *App) updateTrayNodes(running bool) {
+func (a *App) updateTrayNodes(running bool, labels trayLabels) {
 	if !running {
-		a.setTrayNodeStatus("Core stopped")
+		a.setTrayNodeStatus(labels.CoreStopped)
 		a.setTrayNodeGroups(nil)
 		return
 	}
 	groups, err := a.FetchProxyGroups()
 	if err != nil {
-		a.setTrayNodeStatus("Failed to load nodes")
+		a.setTrayNodeStatus(labels.LoadFailed)
 		a.setTrayNodeGroups(nil)
 		return
 	}
 	groups = selectableTrayProxyGroups(groups)
 	if len(groups) == 0 {
-		a.setTrayNodeStatus("No selectable groups")
+		a.setTrayNodeStatus(labels.NoGroups)
 		a.setTrayNodeGroups(nil)
 		return
 	}
-	a.setTrayNodeStatus("Select group")
+	a.setTrayNodeStatus(labels.SelectGroup)
 	a.setTrayNodeGroups(groups)
 }
 
@@ -251,7 +266,7 @@ func (a *App) setTrayNodeGroups(groups []ProxyGroup) {
 			nodeNames = append(nodeNames, node.Name)
 			prefix := "  "
 			if node.Name == group.Now {
-				prefix = "✓ "
+				prefix = "* "
 			}
 			item.SetTitle(prefix + truncateTrayLabel(node.Name, 44))
 			item.Show()
@@ -297,4 +312,55 @@ func truncateTrayLabel(value string, maxRunes int) string {
 		return value
 	}
 	return string(runes[:maxRunes-1]) + "..."
+}
+
+type trayLabels struct {
+	Show          string
+	StartCore     string
+	StopCore      string
+	StatusRunning string
+	StatusStopped string
+	Profiles      string
+	Nodes         string
+	Refresh       string
+	Quit          string
+	CoreStopped   string
+	LoadFailed    string
+	NoGroups      string
+	SelectGroup   string
+}
+
+func trayLabelsForLanguage(language string) trayLabels {
+	if language == "en" {
+		return trayLabels{
+			Show:          "Show Pulse",
+			StartCore:     "Start Core",
+			StopCore:      "Stop Core",
+			StatusRunning: "Status: core running",
+			StatusStopped: "Status: core stopped",
+			Profiles:      "Profiles",
+			Nodes:         "Nodes",
+			Refresh:       "Refresh Tray",
+			Quit:          "Quit Pulse",
+			CoreStopped:   "Core stopped",
+			LoadFailed:    "Failed to load nodes",
+			NoGroups:      "No selectable groups",
+			SelectGroup:   "Select group",
+		}
+	}
+	return trayLabels{
+		Show:          "显示 Pulse",
+		StartCore:     "启动核心",
+		StopCore:      "停止核心",
+		StatusRunning: "状态：核心运行中",
+		StatusStopped: "状态：核心已停止",
+		Profiles:      "订阅配置",
+		Nodes:         "节点选择",
+		Refresh:       "刷新托盘",
+		Quit:          "退出 Pulse",
+		CoreStopped:   "核心已停止",
+		LoadFailed:    "节点加载失败",
+		NoGroups:      "没有可选分组",
+		SelectGroup:   "选择分组",
+	}
 }

@@ -24,6 +24,7 @@ export {
     SetActiveProfile,
     StartCore,
     StopCore,
+    TestProxyGroup,
     UpdateProfile,
     UpdateProvider,
 } from '../wailsjs/go/pulse/App';

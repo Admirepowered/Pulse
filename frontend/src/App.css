@@ -551,6 +551,10 @@ textarea {
     flex-shrink: 0;
 }
 
+.proxyTestButton {
+    flex: 0 0 auto;
+}
+
 .proxyGroup .nodeGrid {
     padding: 2px 14px 14px;
 }

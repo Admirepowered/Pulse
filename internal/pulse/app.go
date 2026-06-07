@@ -53,15 +53,20 @@ type App struct {
 	trayOnce             sync.Once
 	trayMu               sync.Mutex
 	trayReady            bool
+	trayShowItem         *systray.MenuItem
 	trayCoreItem         *systray.MenuItem
 	trayStatusItem       *systray.MenuItem
+	trayProfilesMenu     *systray.MenuItem
 	trayProfileIDs       []string
 	trayProfileItems     []*systray.MenuItem
+	trayNodesMenu        *systray.MenuItem
 	trayNodeStatusItem   *systray.MenuItem
 	trayNodeGroupNames   []string
 	trayNodeNamesByGroup [][]string
 	trayNodeGroupItems   []*systray.MenuItem
 	trayNodeItems        [][]*systray.MenuItem
+	trayRefreshItem      *systray.MenuItem
+	trayQuitItem         *systray.MenuItem
 	showSignalPath       string
 	lastShowSignalTime   time.Time
 }
@@ -943,6 +948,41 @@ func (a *App) SelectProxy(group string, name string) error {
 	if err := a.apiRequest(http.MethodPut, "/proxies/"+url.PathEscape(group), body, nil); err != nil {
 		return err
 	}
+	a.updateTrayMenuState()
+	return nil
+}
+
+func (a *App) TestProxyGroup(group string) error {
+	groups, err := a.FetchProxyGroups()
+	if err != nil {
+		return err
+	}
+	var target *ProxyGroup
+	for i := range groups {
+		if groups[i].Name == group {
+			target = &groups[i]
+			break
+		}
+	}
+	if target == nil {
+		return fmt.Errorf("proxy group %q not found", group)
+	}
+	var wg sync.WaitGroup
+	limit := make(chan struct{}, 8)
+	for _, node := range target.Nodes {
+		nodeName := node.Name
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			limit <- struct{}{}
+			defer func() { <-limit }()
+			path := "/proxies/" + url.PathEscape(nodeName) + "/delay?timeout=5000&url=" + url.QueryEscape("https://www.gstatic.com/generate_204")
+			if err := a.apiRequest(http.MethodGet, path, nil, nil); err != nil {
+				a.appendLog("warning", fmt.Sprintf("proxy delay test failed: group=%s node=%s error=%s", group, nodeName, err.Error()))
+			}
+		}()
+	}
+	wg.Wait()
 	a.updateTrayMenuState()
 	return nil
 }

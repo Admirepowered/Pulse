@@ -44,6 +44,7 @@ import {
     SetActiveProfile,
     StartCore,
     StopCore,
+    TestProxyGroup,
     UpdateProfile,
     UpdateProvider,
     WindowToggleMaximise,
@@ -105,6 +106,7 @@ function App() {
     const [settingsDraft, setSettingsDraft] = useState<Settings>(emptySettings);
     const [settingsDirty, setSettingsDirty] = useState(false);
     const [backgroundDataURL, setBackgroundDataURL] = useState('');
+    const [testingGroup, setTestingGroup] = useState('');
     const t = useMemo(() => getTranslator(settingsDraft.language || snapshot.settings.language), [settingsDraft.language, snapshot.settings.language]);
 
     const refreshSnapshot = useCallback(async () => {
@@ -239,6 +241,15 @@ function App() {
         applySettings({...settingsDraft, backgroundPath: ''});
     };
 
+    const testProxyGroup = async (group: string) => {
+        setTestingGroup(group);
+        try {
+            await run(() => TestProxyGroup(group), t('delayTested'));
+        } finally {
+            setTestingGroup('');
+        }
+    };
+
     const backgroundStyle = {
         backgroundImage: backgroundDataURL ? `url(${JSON.stringify(backgroundDataURL)})` : 'none',
         filter: `blur(${Math.max(0, Math.min(40, settingsDraft.backgroundBlur || 0))}px)`,
@@ -324,8 +335,10 @@ function App() {
                         groups={filteredGroups}
                         query={query}
                         t={t}
+                        testingGroup={testingGroup}
                         onQueryChange={setQuery}
                         onSelect={(group, node) => run(() => SelectProxy(group, node), `${group} -> ${node}`)}
+                        onTestGroup={(group) => testProxyGroup(group)}
                     />
                 )}
 

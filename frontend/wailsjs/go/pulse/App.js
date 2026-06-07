@@ -106,6 +106,10 @@ export function StopCore() {
   return window['go']['pulse']['App']['StopCore']();
 }
 
+export function TestProxyGroup(arg1) {
+  return window['go']['pulse']['App']['TestProxyGroup'](arg1);
+}
+
 export function UpdateProfile(arg1) {
   return window['go']['pulse']['App']['UpdateProfile'](arg1);
 }

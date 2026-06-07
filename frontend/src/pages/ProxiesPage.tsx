@@ -1,14 +1,16 @@
-import {Check} from 'lucide-react';
+import {Check, TimerReset} from 'lucide-react';
 import {SearchBox, StatusPill} from '../components/common';
 import type {Translator} from '../i18n';
 import type {ProxyGroup} from '../types';
 
-export function ProxiesPage({groups, query, t, onQueryChange, onSelect}: {
+export function ProxiesPage({groups, query, t, testingGroup, onQueryChange, onSelect, onTestGroup}: {
     groups: ProxyGroup[];
     query: string;
     t: Translator;
+    testingGroup: string;
     onQueryChange: (value: string) => void;
     onSelect: (group: string, node: string) => void;
+    onTestGroup: (group: string) => void;
 }) {
     return (
         <section className="stack proxyPage">
@@ -22,6 +24,18 @@ export function ProxiesPage({groups, query, t, onQueryChange, onSelect}: {
                             <span>{group.type} · {group.now || t('notSelected')}</span>
                         </div>
                         <StatusPill ok={Boolean(group.now)} label={`${group.nodes.length} ${t('nodes')}`}/>
+                        <button
+                            className="iconButton proxyTestButton"
+                            title={testingGroup === group.name ? t('testingDelay') : t('testDelay')}
+                            disabled={testingGroup === group.name}
+                            onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                onTestGroup(group.name);
+                            }}
+                        >
+                            <TimerReset size={17}/>
+                        </button>
                     </summary>
                     <div className="nodeGrid">
                         {group.nodes.map((node) => (

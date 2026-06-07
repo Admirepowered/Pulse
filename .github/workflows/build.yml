@@ -43,6 +43,10 @@ jobs:
         shell: pwsh
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
 
+      - name: Install Make
+        shell: pwsh
+        run: choco install make -y --no-progress
+
       - name: Install Frontend Dependencies
         working-directory: frontend
         run: npm ci
@@ -58,25 +62,11 @@ jobs:
       - name: Test Go
         run: go test ./...
 
-      - name: Resolve Version
-        id: version
-        shell: pwsh
-        run: |
-          $count = (git rev-list --count HEAD).Trim()
-          if ($env:GITHUB_REF -like "refs/tags/v*") {
-            $version = $env:GITHUB_REF_NAME.TrimStart("v")
-          } else {
-            $version = "0.0.$count"
-          }
-          "version=$version" >> $env:GITHUB_OUTPUT
-          "build_number=$count" >> $env:GITHUB_OUTPUT
-          Write-Host "Pulse version $version ($count)"
-
       - name: Build Wails App
         shell: pwsh
         run: |
-          $name = "Pulse-${{ steps.version.outputs.version }}.${{ steps.version.outputs.build_number }}-windows-amd64.exe"
-          wails build -ldflags "-X Pulse/internal/pulse.AppVersion=${{ steps.version.outputs.version }} -X Pulse/internal/pulse.BuildNumber=${{ steps.version.outputs.build_number }}" -o $name
+          $name = (make print-windows-artifact).Trim()
+          make build-windows
           "artifact_name=$name" >> $env:GITHUB_ENV
 
       - name: Setup UPX
@@ -91,7 +81,7 @@ jobs:
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Pulse-${{ steps.version.outputs.version }}.${{ steps.version.outputs.build_number }}-windows-amd64
+          name: ${{ env.artifact_name }}
           path: build/bin/${{ env.artifact_name }}
           if-no-files-found: error
 

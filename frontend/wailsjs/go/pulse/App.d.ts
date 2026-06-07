@@ -54,6 +54,8 @@ export function StartCore():Promise<void>;
 
 export function StopCore():Promise<void>;
 
+export function TestProxyGroup(arg1:string):Promise<void>;
+
 export function UpdateProfile(arg1:string):Promise<pulse.Profile>;
 
 export function UpdateProvider(arg1:string):Promise<void>;

@@ -14,8 +14,6 @@ import {
     RefreshCcw,
     Save,
     Settings as SettingsIcon,
-    Check,
-    LoaderCircle,
     X,
 } from 'lucide-react';
 import './App.css';
@@ -106,6 +104,8 @@ const tabs: { id: TabId; labelKey: Parameters<ReturnType<typeof getTranslator>>[
     {id: 'settings', labelKey: 'settings', icon: SettingsIcon},
 ];
 
+type InlineActionState = 'running' | 'done' | 'failed';
+
 function App() {
     const [tab, setTab] = useState<TabId>('dashboard');
     const [snapshot, setSnapshot] = useState<RuntimeState>(emptySnapshot);
@@ -116,7 +116,6 @@ function App() {
     const [logs, setLogs] = useState<LogLine[]>([]);
     const [query, setQuery] = useState('');
     const [notice, setNotice] = useState('');
-    const [actionStatus, setActionStatus] = useState<{ id: string; label: string; state: 'running' | 'done' } | null>(null);
     const [busy, setBusy] = useState(false);
     const [profileURL, setProfileURL] = useState('');
     const [editorProfile, setEditorProfile] = useState<Profile | null>(null);
@@ -131,6 +130,8 @@ function App() {
     const [networkInterfaces, setNetworkInterfaces] = useState<NetworkInterface[]>([]);
     const [sidebarFocused, setSidebarFocused] = useState(false);
     const [testingGroup, setTestingGroup] = useState('');
+    const [proxyGroupStatus, setProxyGroupStatus] = useState<Record<string, InlineActionState>>({});
+    const [profileUpdateStatus, setProfileUpdateStatus] = useState<Record<string, InlineActionState>>({});
     const [profileDropActive, setProfileDropActive] = useState(false);
     const t = useMemo(() => getTranslator(settingsDraft.language || snapshot.settings.language), [settingsDraft.language, snapshot.settings.language]);
 
@@ -157,21 +158,17 @@ function App() {
     }, []);
 
     const run = useCallback(async (task: () => Promise<unknown>, message?: string) => {
-        const actionId = `${Date.now()}-${Math.random()}`;
+        void message;
         setBusy(true);
         setNotice('');
-        if (message) setActionStatus({id: actionId, label: message, state: 'running'});
         try {
             await task();
             await refreshSnapshot();
             await refreshPageData(tab);
-            if (message) {
-                setActionStatus({id: actionId, label: message, state: 'done'});
-                window.setTimeout(() => setActionStatus((current) => current?.id === actionId ? null : current), 1100);
-            }
+            return true;
         } catch (error) {
-            setActionStatus(null);
             setNotice(error instanceof Error ? error.message : String(error));
+            return false;
         } finally {
             setBusy(false);
         }
@@ -345,10 +342,46 @@ function App() {
 
     const testProxyGroup = async (group: string) => {
         setTestingGroup(group);
+        setProxyGroupStatus((current) => ({...current, [group]: 'running'}));
         try {
-            await run(() => TestProxyGroup(group), t('delayTested'));
+            const ok = await run(() => TestProxyGroup(group));
+            if (ok) {
+                setProxyGroupStatus((current) => ({...current, [group]: 'done'}));
+                window.setTimeout(() => setProxyGroupStatus((current) => {
+                    const next = {...current};
+                    if (next[group] === 'done') delete next[group];
+                    return next;
+                }), 1200);
+            } else {
+                setProxyGroupStatus((current) => ({...current, [group]: 'failed'}));
+                window.setTimeout(() => setProxyGroupStatus((current) => {
+                    const next = {...current};
+                    if (next[group] === 'failed') delete next[group];
+                    return next;
+                }), 1400);
+            }
         } finally {
             setTestingGroup('');
+        }
+    };
+
+    const updateProfileInline = async (id: string) => {
+        setProfileUpdateStatus((current) => ({...current, [id]: 'running'}));
+        const ok = await run(() => UpdateProfile(id));
+        if (ok) {
+            setProfileUpdateStatus((current) => ({...current, [id]: 'done'}));
+            window.setTimeout(() => setProfileUpdateStatus((current) => {
+                const next = {...current};
+                if (next[id] === 'done') delete next[id];
+                return next;
+            }), 1200);
+        } else {
+            setProfileUpdateStatus((current) => ({...current, [id]: 'failed'}));
+            window.setTimeout(() => setProfileUpdateStatus((current) => {
+                const next = {...current};
+                if (next[id] === 'failed') delete next[id];
+                return next;
+            }), 1400);
         }
     };
 
@@ -473,13 +506,6 @@ function App() {
                     </div>
                 )}
 
-                {actionStatus && (
-                    <div className={actionStatus.state === 'done' ? 'actionToast done' : 'actionToast'}>
-                        {actionStatus.state === 'running' ? <LoaderCircle size={16}/> : <Check size={16}/>}
-                        <span>{actionStatus.label}</span>
-                    </div>
-                )}
-
                 {tab === 'dashboard' && (
                     <DashboardPage
                         snapshot={snapshot}
@@ -496,6 +522,7 @@ function App() {
                         query={query}
                         t={t}
                         testingGroup={testingGroup}
+                        groupStatus={proxyGroupStatus}
                         onQueryChange={setQuery}
                         onSelect={(group, node) => run(() => SelectProxy(group, node))}
                         onTestGroup={(group) => testProxyGroup(group)}
@@ -511,11 +538,12 @@ function App() {
                         t={t}
                         onProfileURLChange={setProfileURL}
                         dropActive={profileDropActive}
+                        updatingProfiles={profileUpdateStatus}
                         onOpenGithub={() => run(() => OpenURL('https://github.com/Admirepowered/Pulse'))}
                         onActivate={(id) => run(() => SetActiveProfile(id), t('switchedProfile'))}
                         onEdit={openEditor}
                         onRename={(profile, name) => run(() => RenameProfile(profile.id, name))}
-                        onUpdateProfile={(id) => run(() => UpdateProfile(id), t('profileUpdated'))}
+                        onUpdateProfile={updateProfileInline}
                         onDeleteProfile={(id) => run(() => DeleteProfile(id), t('profileDeleted'))}
                         onUpdateProvider={(name) => run(() => UpdateProvider(name), t('providerUpdated'))}
                         onAddSubscription={() => run(async () => {

@@ -16,6 +16,7 @@ This file is for future Codex sessions working on Pulse.
 - Text inputs save on blur and Enter.
 - Toggles, segmented buttons, and direct commands apply immediately.
 - Range sliders update the draft UI while dragging and save when the interaction finishes.
+- Background opacity controls component transparency only. Do not add frosted-glass blur to components for this setting.
 - Node selection should not show a global notice; keep it quiet unless there is an error.
 - Right-clicking a proxy node runs a delay test for that node only.
 - Successful actions should stay quiet. Only failures should show global notices.
@@ -33,10 +34,12 @@ This file is for future Codex sessions working on Pulse.
 
 ## Profile Rules
 
-- Custom profile rules are stored on the profile metadata in `store.json`, not in the subscription YAML.
+- Custom profile rules are stored as structured JSON files under the data directory, not in `store.json` and not in the subscription YAML.
+- Custom rules are edited with typed controls, not a raw textarea.
+- Supported custom rule rows include type, payload, policy, `no-resolve`, and drag ordering.
 - Runtime config generation injects custom rules at the beginning of `rules:` so they win before subscription rules.
 - Subscription updates must not erase custom rules.
-- One custom rule per line is expected, using Clash rule syntax such as `DOMAIN-SUFFIX,example.com,DIRECT`.
+- Subscription updates may optionally use the local mixed proxy when the user enables proxy updates.
 
 ## Build And Verification
 

@@ -38,13 +38,13 @@ export function ReadBackgroundImageDataURL(arg1:string):Promise<string>;
 
 export function ReadProfileContent(arg1:string):Promise<string>;
 
-export function ReadProfileCustomRules(arg1:string):Promise<string>;
+export function ReadProfileCustomRules(arg1:string):Promise<Array<pulse.CustomRule>>;
 
 export function RestartCore():Promise<void>;
 
 export function SaveProfileContent(arg1:string,arg2:string):Promise<void>;
 
-export function SaveProfileCustomRules(arg1:string,arg2:string):Promise<void>;
+export function SaveProfileCustomRules(arg1:string,arg2:Array<pulse.CustomRule>):Promise<void>;
 
 export function SaveSettings(arg1:pulse.Settings):Promise<void>;
 

@@ -67,7 +67,6 @@
 
 .hasBackground .sidebar {
     background: rgba(14, 23, 35, var(--surface-strong-alpha));
-    backdrop-filter: blur(14px);
 }
 
 .brand {
@@ -401,7 +400,6 @@ h2 {
 .hasBackground .metric,
 .hasBackground .search {
     background: rgba(255, 255, 255, var(--surface-alpha));
-    backdrop-filter: blur(10px);
 }
 
 .hasBackground button,
@@ -415,7 +413,6 @@ h2 {
 .hasBackground .node,
 .hasBackground .pill {
     background: rgba(255, 255, 255, var(--surface-soft-alpha));
-    backdrop-filter: blur(8px);
 }
 
 .hasBackground .sidebar button {
@@ -490,7 +487,6 @@ h2 {
 
 .hasBackground .networkCard {
     background: rgba(255, 255, 255, var(--surface-alpha));
-    backdrop-filter: blur(10px);
 }
 
 .networkCardHead,
@@ -1024,7 +1020,6 @@ textarea {
 
 .hasBackground .modal {
     background: rgba(255, 255, 255, .96);
-    backdrop-filter: blur(18px);
 }
 
 .compactModal {
@@ -1043,6 +1038,61 @@ textarea {
 
 .rulesEditor {
     min-height: 300px;
+}
+
+.customRuleEditor {
+    min-height: 0;
+    display: grid;
+    gap: 8px;
+}
+
+.customRuleHeader,
+.customRuleRow {
+    display: grid;
+    grid-template-columns: 24px minmax(130px, .7fr) minmax(150px, 1fr) minmax(140px, .8fr) 110px 36px;
+    gap: 8px;
+    align-items: center;
+}
+
+.customRuleHeader {
+    color: #64748b;
+    font-size: 12px;
+}
+
+.customRuleHeader span:first-child {
+    grid-column: 2;
+}
+
+.customRuleRow {
+    border: 1px solid #e1e7ef;
+    border-radius: 6px;
+    padding: 8px;
+    background: #fbfcfe;
+}
+
+.customRuleRow input,
+.customRuleRow select {
+    min-width: 0;
+    height: 34px;
+    border: 1px solid #d9e1ea;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, .72);
+    padding: 0 8px;
+    color: #17202a;
+    font: inherit;
+}
+
+.dragHandle {
+    color: #94a3b8;
+    cursor: grab;
+}
+
+.miniToggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    color: #526071;
 }
 
 .modalActions {

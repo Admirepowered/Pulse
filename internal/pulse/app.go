@@ -97,6 +97,7 @@ type Settings struct {
 	AutoStart         bool           `json:"autoStart"`
 	AutoStartCore     bool           `json:"autoStartCore"`
 	CloseBehavior     string         `json:"closeBehavior"`
+	SubscriptionProxy bool           `json:"subscriptionProxy"`
 	BackgroundPath    string         `json:"backgroundPath"`
 	BackgroundBlur    int            `json:"backgroundBlur"`
 	BackgroundOpacity int            `json:"backgroundOpacity"`
@@ -119,7 +120,6 @@ type Profile struct {
 	UpdatedAt    int64            `json:"updatedAt"`
 	Enabled      bool             `json:"enabled"`
 	Subscription SubscriptionInfo `json:"subscription"`
-	CustomRules  []string         `json:"customRules"`
 }
 
 type SubscriptionInfo struct {
@@ -177,6 +177,14 @@ type RuleRow struct {
 	Type    string `json:"type"`
 	Payload string `json:"payload"`
 	Proxy   string `json:"proxy"`
+}
+
+type CustomRule struct {
+	ID        string `json:"id"`
+	Type      string `json:"type"`
+	Payload   string `json:"payload"`
+	Proxy     string `json:"proxy"`
+	NoResolve bool   `json:"noResolve"`
 }
 
 type ProviderRow struct {
@@ -411,6 +419,7 @@ func defaultSettings() Settings {
 		TunEnabled:        false,
 		AutoStartCore:     true,
 		CloseBehavior:     "minimize",
+		SubscriptionProxy: false,
 		BackgroundOpacity: 62,
 	}
 }
@@ -759,40 +768,68 @@ func (a *App) SaveProfileContent(profileID string, content string) error {
 	return err
 }
 
-func (a *App) ReadProfileCustomRules(profileID string) (string, error) {
+func (a *App) ReadProfileCustomRules(profileID string) ([]CustomRule, error) {
 	a.mu.Lock()
 	profile, ok := a.profileByIDLocked(profileID)
 	a.mu.Unlock()
 	if !ok {
-		return "", errors.New("profile not found")
+		return nil, errors.New("profile not found")
 	}
-	return strings.Join(profile.CustomRules, "\n"), nil
+	rules, err := a.readProfileCustomRules(profile)
+	if err != nil {
+		return nil, err
+	}
+	return rules, nil
 }
 
-func (a *App) SaveProfileCustomRules(profileID string, content string) error {
-	rules, err := normalizeCustomRules(content)
+func (a *App) SaveProfileCustomRules(profileID string, rules []CustomRule) error {
+	a.mu.Lock()
+	profile, ok := a.profileByIDLocked(profileID)
+	if !ok {
+		a.mu.Unlock()
+		return errors.New("profile not found")
+	}
+	running := a.coreRunningLocked()
+	activeProfileID := a.store.ActiveProfileID
+	a.mu.Unlock()
+	if err := a.writeProfileCustomRules(profile.ID, normalizeCustomRuleRows(rules)); err != nil {
+		return err
+	}
+	if running && activeProfileID == profileID {
+		return a.RestartCore()
+	}
+	return nil
+}
+
+func (a *App) customRulesPath(profileID string) string {
+	return filepath.Join(a.dataDir, "custom-rules", sanitizeFilename(profileID)+".json")
+}
+
+func (a *App) readProfileCustomRules(profile Profile) ([]CustomRule, error) {
+	data, err := os.ReadFile(a.customRulesPath(profile.ID))
+	if err == nil {
+		var rules []CustomRule
+		if err := json.Unmarshal(data, &rules); err != nil {
+			return nil, err
+		}
+		return normalizeCustomRuleRows(rules), nil
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+	return []CustomRule{}, nil
+}
+
+func (a *App) writeProfileCustomRules(profileID string, rules []CustomRule) error {
+	dir := filepath.Dir(a.customRulesPath(profileID))
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(rules, "", "  ")
 	if err != nil {
 		return err
 	}
-	a.mu.Lock()
-	running := a.coreRunningLocked()
-	activeProfileID := a.store.ActiveProfileID
-	for i := range a.store.Profiles {
-		if a.store.Profiles[i].ID == profileID {
-			a.store.Profiles[i].CustomRules = rules
-			err := a.saveStoreLocked()
-			a.mu.Unlock()
-			if err != nil {
-				return err
-			}
-			if running && activeProfileID == profileID {
-				return a.RestartCore()
-			}
-			return nil
-		}
-	}
-	a.mu.Unlock()
-	return errors.New("profile not found")
+	return os.WriteFile(a.customRulesPath(profileID), data, 0o644)
 }
 
 func (a *App) StartCore() error {
@@ -1335,7 +1372,10 @@ func (a *App) ReadBackgroundImageDataURL(path string) (string, error) {
 }
 
 func (a *App) downloadProfile(source string) ([]byte, http.Header, error) {
-	if parsed, err := url.Parse(source); err == nil && isGithubDownloadHost(parsed.Hostname()) {
+	a.mu.Lock()
+	settings := a.store.Settings
+	a.mu.Unlock()
+	if parsed, err := url.Parse(source); err == nil && !settings.SubscriptionProxy && isGithubDownloadHost(parsed.Hostname()) {
 		resp, err := a.githubRequest(http.MethodGet, source, nil, map[string]string{"Accept": "text/yaml, text/plain, application/octet-stream, */*"})
 		if err != nil {
 			return nil, nil, err
@@ -1356,7 +1396,11 @@ func (a *App) downloadProfile(source string) ([]byte, http.Header, error) {
 	}
 	req.Header.Set("User-Agent", subscriptionUserAgent)
 	req.Header.Set("Accept", "text/yaml, text/plain, application/octet-stream, */*")
-	resp, err := a.httpClient.Do(req)
+	client := a.httpClient
+	if settings.SubscriptionProxy {
+		client = subscriptionProxyClient(settings)
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1369,6 +1413,16 @@ func (a *App) downloadProfile(source string) ([]byte, http.Header, error) {
 		return nil, resp.Header, err
 	}
 	return body, resp.Header, nil
+}
+
+func subscriptionProxyClient(settings Settings) *http.Client {
+	proxyURL := &url.URL{Scheme: "http", Host: fmt.Sprintf("127.0.0.1:%d", settings.MixedPort)}
+	return &http.Client{
+		Timeout: 60 * time.Second,
+		Transport: &http.Transport{
+			Proxy: http.ProxyURL(proxyURL),
+		},
+	}
 }
 
 func parseSubscriptionInfo(headers http.Header) SubscriptionInfo {
@@ -1567,7 +1621,7 @@ func existingFile(path string) (string, bool) {
 	return path, true
 }
 
-func mergeRuntimeConfig(content []byte, settings Settings, controller string, customRules []string) ([]byte, error) {
+func mergeRuntimeConfig(content []byte, settings Settings, controller string, customRules []CustomRule) ([]byte, error) {
 	var doc yaml.Node
 	if err := yaml.Unmarshal(content, &doc); err != nil {
 		return nil, fmt.Errorf("parse profile YAML: %w", err)
@@ -1607,36 +1661,43 @@ func mergeRuntimeConfig(content []byte, settings Settings, controller string, cu
 	return output.Bytes(), nil
 }
 
-func normalizeCustomRules(content string) ([]string, error) {
-	var rules []string
-	scanner := bufio.NewScanner(strings.NewReader(content))
-	scanner.Buffer(make([]byte, 1024), 1024*1024)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
+func normalizeCustomRuleRows(rules []CustomRule) []CustomRule {
+	out := make([]CustomRule, 0, len(rules))
+	for _, rule := range rules {
+		rule.Type = strings.TrimSpace(strings.ToUpper(rule.Type))
+		rule.Payload = strings.TrimSpace(rule.Payload)
+		rule.Proxy = strings.TrimSpace(rule.Proxy)
+		if rule.ID == "" {
+			rule.ID = randomRuleID()
+		}
+		if rule.Type == "" || rule.Proxy == "" {
 			continue
 		}
-		if strings.HasPrefix(line, "-") {
-			line = strings.TrimSpace(strings.TrimPrefix(line, "-"))
-		}
-		line = strings.Trim(line, `"'`)
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
+		if rule.Type != "MATCH" && rule.Payload == "" {
 			continue
 		}
-		parts := strings.Split(line, ",")
-		if len(parts) < 2 {
-			return nil, fmt.Errorf("invalid custom rule %q, expected Clash rule format", line)
-		}
-		rules = append(rules, line)
+		out = append(out, rule)
 	}
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
-	return rules, nil
+	return out
 }
 
-func prependRules(root *yaml.Node, rules []string) {
+func customRuleString(rule CustomRule) string {
+	parts := []string{strings.ToUpper(strings.TrimSpace(rule.Type))}
+	if parts[0] != "MATCH" {
+		parts = append(parts, strings.TrimSpace(rule.Payload))
+	}
+	parts = append(parts, strings.TrimSpace(rule.Proxy))
+	if rule.NoResolve {
+		parts = append(parts, "no-resolve")
+	}
+	return strings.Join(parts, ",")
+}
+
+func randomRuleID() string {
+	return fmt.Sprintf("%d", time.Now().UnixNano())
+}
+
+func prependRules(root *yaml.Node, rules []CustomRule) {
 	if len(rules) == 0 {
 		return
 	}
@@ -1647,7 +1708,7 @@ func prependRules(root *yaml.Node, rules []string) {
 	}
 	nodes := make([]*yaml.Node, 0, len(rules)+len(ruleNode.Content))
 	for _, rule := range rules {
-		nodes = append(nodes, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: rule})
+		nodes = append(nodes, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: customRuleString(rule)})
 	}
 	ruleNode.Content = append(nodes, ruleNode.Content...)
 }
@@ -1727,7 +1788,11 @@ func (a *App) buildRuntimeConfig(profile Profile, settings Settings) (string, er
 	if parsed, err := url.Parse(settings.ApiBase); err == nil && parsed.Host != "" {
 		controller = parsed.Host
 	}
-	merged, err := mergeRuntimeConfig(content, settings, controller, profile.CustomRules)
+	customRules, err := a.readProfileCustomRules(profile)
+	if err != nil {
+		return "", err
+	}
+	merged, err := mergeRuntimeConfig(content, settings, controller, customRules)
 	if err != nil {
 		return "", err
 	}

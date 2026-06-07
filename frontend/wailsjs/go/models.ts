@@ -145,7 +145,6 @@ export namespace pulse {
 	    updatedAt: number;
 	    enabled: boolean;
 	    subscription: SubscriptionInfo;
-	    customRules: string[];
 
 	    static createFrom(source: any = {}) {
 	        return new Profile(source);
@@ -161,7 +160,6 @@ export namespace pulse {
 	        this.updatedAt = source["updatedAt"];
 	        this.enabled = source["enabled"];
 	        this.subscription = this.convertValues(source["subscription"], SubscriptionInfo);
-	        this.customRules = source["customRules"];
 	    }
 
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -181,6 +179,26 @@ export namespace pulse {
 		    }
 		    return a;
 		}
+	}
+	export class CustomRule {
+	    id: string;
+	    type: string;
+	    payload: string;
+	    proxy: string;
+	    noResolve: boolean;
+
+	    static createFrom(source: any = {}) {
+	        return new CustomRule(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.type = source["type"];
+	        this.payload = source["payload"];
+	        this.proxy = source["proxy"];
+	        this.noResolve = source["noResolve"];
+	    }
 	}
 	export class ProviderRow {
 	    name: string;
@@ -319,6 +337,7 @@ export namespace pulse {
 	    autoStart: boolean;
 	    autoStartCore: boolean;
 	    closeBehavior: string;
+	    subscriptionProxy: boolean;
 	    backgroundPath: string;
 	    backgroundBlur: number;
 	    backgroundOpacity: number;
@@ -345,6 +364,7 @@ export namespace pulse {
 	        this.autoStart = source["autoStart"];
 	        this.autoStartCore = source["autoStartCore"];
 	        this.closeBehavior = source["closeBehavior"];
+	        this.subscriptionProxy = source["subscriptionProxy"];
 	        this.backgroundPath = source["backgroundPath"];
 	        this.backgroundBlur = source["backgroundBlur"];
 	        this.backgroundOpacity = source["backgroundOpacity"];

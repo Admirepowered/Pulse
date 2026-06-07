@@ -23,6 +23,7 @@ export type Settings = {
     autoStart: boolean;
     autoStartCore: boolean;
     closeBehavior: string;
+    subscriptionProxy: boolean;
     backgroundPath: string;
     backgroundBlur: number;
     backgroundOpacity: number;
@@ -48,7 +49,14 @@ export type Profile = {
     updatedAt: number;
     enabled: boolean;
     subscription: SubscriptionInfo;
-    customRules: string[];
+};
+
+export type CustomRule = {
+    id: string;
+    type: string;
+    payload: string;
+    proxy: string;
+    noResolve: boolean;
 };
 
 export type RuntimeState = {
@@ -164,6 +172,7 @@ export const emptySettings: Settings = {
     autoStart: false,
     autoStartCore: true,
     closeBehavior: 'minimize',
+    subscriptionProxy: false,
     backgroundPath: '',
     backgroundBlur: 0,
     backgroundOpacity: 62,
@@ -225,7 +234,6 @@ export function normalizeSnapshot(snapshot: Partial<RuntimeState>): RuntimeState
         profiles: (snapshot.profiles || []).map((profile) => ({
             ...profile,
             subscription: {...emptySubscriptionInfo, ...(profile.subscription || {})},
-            customRules: profile.customRules || [],
         })),
         recentLogs: snapshot.recentLogs || [],
     };

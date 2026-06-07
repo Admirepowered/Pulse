@@ -55,6 +55,7 @@ export function CoreSettingsPanel({settings, t, onDraft, onCommit, onApply}: {
             <Toggle label="Allow LAN" checked={settings.allowLan} onChange={(value) => apply('allowLan', value)}/>
             <Toggle label="TUN" checked={settings.tunEnabled} onChange={(value) => apply('tunEnabled', value)}/>
             <Toggle label={t('systemProxy')} checked={settings.systemProxy} onChange={(value) => apply('systemProxy', value)}/>
+            <Toggle label={t('subscriptionProxy')} checked={settings.subscriptionProxy} onChange={(value) => apply('subscriptionProxy', value)}/>
             <Toggle label={t('autoStartCore')} checked={settings.autoStartCore} onChange={(value) => apply('autoStartCore', value)}/>
             <Toggle label={t('autoStart')} checked={settings.autoStart} onChange={(value) => apply('autoStart', value)}/>
             <div className="segmented">

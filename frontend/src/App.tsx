@@ -54,6 +54,7 @@ import {
 } from './api';
 import {formatBytes, noticeError, StatusPill} from './components/common';
 import {ConnectionsPage} from './pages/ConnectionsPage';
+import {CustomRulesEditor} from './components/CustomRulesEditor';
 import {DashboardPage} from './pages/DashboardPage';
 import {LogsPage} from './pages/LogsPage';
 import {ProfilesPage} from './pages/ProfilesPage';
@@ -68,6 +69,7 @@ import {
     normalizeSettings,
     normalizeSnapshot,
     type ConnectionSnapshot,
+    type CustomRule,
     type ConnectionRow,
     type LogLine,
     type Profile,
@@ -107,7 +109,7 @@ function App() {
     const [editorProfile, setEditorProfile] = useState<Profile | null>(null);
     const [editorContent, setEditorContent] = useState('');
     const [ruleEditorProfile, setRuleEditorProfile] = useState<Profile | null>(null);
-    const [ruleEditorContent, setRuleEditorContent] = useState('');
+    const [ruleEditorRules, setRuleEditorRules] = useState<CustomRule[]>([]);
     const [settingsDraft, setSettingsDraft] = useState<Settings>(emptySettings);
     const [settingsDirty, setSettingsDirty] = useState(false);
     const [backgroundDataURL, setBackgroundDataURL] = useState('');
@@ -224,7 +226,7 @@ function App() {
 
     const openRuleEditor = async (profile: Profile) => {
         setRuleEditorProfile(profile);
-        setRuleEditorContent(await ReadProfileCustomRules(profile.id) as string);
+        setRuleEditorRules(await ReadProfileCustomRules(profile.id) as CustomRule[]);
     };
 
     const chooseBackground = async () => {
@@ -511,11 +513,11 @@ function App() {
                             </button>
                         </div>
                         <p className="hintText">{t('customRulesHint')}</p>
-                        <textarea className="editor rulesEditor" value={ruleEditorContent} onChange={(event) => setRuleEditorContent(event.target.value)} spellCheck={false}/>
+                        <CustomRulesEditor rules={ruleEditorRules} t={t} onChange={setRuleEditorRules}/>
                         <div className="modalActions">
                             <button onClick={() => setRuleEditorProfile(null)}>{t('cancel')}</button>
                             <button className="primary" onClick={() => run(async () => {
-                                await SaveProfileCustomRules(ruleEditorProfile.id, ruleEditorContent);
+                                await SaveProfileCustomRules(ruleEditorProfile.id, ruleEditorRules);
                                 setRuleEditorProfile(null);
                                 if (tab === 'rules') setRules(await FetchRules() as RuleRow[]);
                             }, t('profileSaved'))}>

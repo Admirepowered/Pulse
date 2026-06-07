@@ -16,6 +16,7 @@ var assets embed.FS
 func main() {
 	// Create an instance of the app structure
 	app := pulse.NewApp()
+	pulse.StartTray(app)
 
 	// Create application with options
 	err := wails.Run(&options.App{
@@ -31,6 +32,7 @@ func main() {
 		BackgroundColour: &options.RGBA{R: 244, G: 246, B: 248, A: 1},
 		OnStartup:        app.Startup,
 		OnShutdown:       app.Shutdown,
+		OnBeforeClose:    app.BeforeClose,
 		Bind: []interface{}{
 			app,
 		},

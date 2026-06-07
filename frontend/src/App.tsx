@@ -21,6 +21,7 @@ import {
     AddProfileFromURL,
     CloseAllConnections,
     CloseConnection,
+    CloseWindow,
     DeleteProfile,
     FetchConnections,
     FetchProviders,
@@ -32,7 +33,6 @@ import {
     Models,
     OpenDataDirectory,
     OpenURL,
-    Quit,
     ReadBackgroundImageDataURL,
     ReadProfileContent,
     RestartCore,
@@ -234,14 +234,6 @@ function App() {
         applySettings({...settingsDraft, backgroundPath: ''});
     };
 
-    const closeWindow = () => {
-        if (snapshot.settings.closeBehavior === 'exit') {
-            Quit();
-            return;
-        }
-        WindowMinimise();
-    };
-
     const backgroundStyle = {
         backgroundImage: backgroundDataURL ? `url(${JSON.stringify(backgroundDataURL)})` : 'none',
         filter: `blur(${Math.max(0, Math.min(40, settingsDraft.backgroundBlur || 0))}px)`,
@@ -302,7 +294,7 @@ function App() {
                             <button className="chromeButton" title="最大化" onClick={WindowToggleMaximise}>
                                 <Maximize2 size={14}/>
                             </button>
-                            <button className="chromeButton close" title={snapshot.settings.closeBehavior === 'exit' ? '退出' : '最小化'} onClick={closeWindow}>
+                            <button className="chromeButton close" title={snapshot.settings.closeBehavior === 'exit' ? '退出' : '隐藏到托盘'} onClick={() => run(CloseWindow)}>
                                 <X size={15}/>
                             </button>
                         </div>

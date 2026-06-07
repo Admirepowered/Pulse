@@ -31,14 +31,6 @@ export function DashboardPage({snapshot, onRestart, onOpenDir, onOpenMihomo}: {
                     <button onClick={onOpenMihomo}><GitBranch size={17}/>mihomo Meta</button>
                 </div>
             </article>
-            <article className="panel">
-                <div className="panelHead"><h2>最近日志</h2></div>
-                <div className="compactLogs">
-                    {snapshot.recentLogs.slice(-8).reverse().map((line, index) => (
-                        <div key={`${line.time}-${index}`}>{line.message}</div>
-                    ))}
-                </div>
-            </article>
         </section>
     );
 }

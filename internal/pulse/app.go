@@ -25,6 +25,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/getlantern/systray"
 	mihomoObservable "github.com/metacubex/mihomo/common/observable"
 	mihomoConfig "github.com/metacubex/mihomo/config"
 	mihomoConstant "github.com/metacubex/mihomo/constant"
@@ -48,6 +49,18 @@ type App struct {
 	startedAt           int64
 	logLines            []LogLine
 	httpClient          *http.Client
+	forceQuit           bool
+	trayOnce            sync.Once
+	trayMu              sync.Mutex
+	trayReady           bool
+	trayCoreItem        *systray.MenuItem
+	trayStatusItem      *systray.MenuItem
+	trayProfileIDs      []string
+	trayProfileItems    []*systray.MenuItem
+	trayNodeGroup       string
+	trayNodeNames       []string
+	trayNodeStatusItem  *systray.MenuItem
+	trayNodeItems       []*systray.MenuItem
 }
 
 type Store struct {
@@ -180,6 +193,7 @@ func (a *App) Startup(ctx context.Context) {
 		return
 	}
 	a.appendLog("info", "Pulse Wails client started")
+	a.updateTrayMenuState()
 	if a.store.Settings.AutoStartCore {
 		go func() {
 			time.Sleep(300 * time.Millisecond)
@@ -192,6 +206,38 @@ func (a *App) Startup(ctx context.Context) {
 
 func (a *App) Shutdown(ctx context.Context) {
 	_ = a.StopCore()
+	systray.Quit()
+}
+
+func (a *App) BeforeClose(ctx context.Context) bool {
+	a.mu.Lock()
+	forceQuit := a.forceQuit
+	closeBehavior := a.store.Settings.CloseBehavior
+	a.mu.Unlock()
+	if forceQuit || closeBehavior == "exit" {
+		return false
+	}
+	wailsruntime.WindowHide(ctx)
+	return true
+}
+
+func (a *App) CloseWindow() {
+	a.mu.Lock()
+	closeBehavior := a.store.Settings.CloseBehavior
+	a.mu.Unlock()
+	if closeBehavior == "exit" {
+		a.quitApplication()
+		return
+	}
+	wailsruntime.WindowHide(a.ctx)
+}
+
+func (a *App) quitApplication() {
+	a.mu.Lock()
+	a.forceQuit = true
+	a.mu.Unlock()
+	systray.Quit()
+	wailsruntime.Quit(a.ctx)
 }
 
 func (a *App) initStore() error {
@@ -495,12 +541,22 @@ func (a *App) UpdateProfile(profileID string) (Profile, error) {
 
 func (a *App) SetActiveProfile(profileID string) error {
 	a.mu.Lock()
-	defer a.mu.Unlock()
 	if _, ok := a.profileByIDLocked(profileID); !ok {
+		a.mu.Unlock()
 		return errors.New("profile not found")
 	}
+	running := a.coreRunningLocked()
 	a.store.ActiveProfileID = profileID
-	return a.saveStoreLocked()
+	err := a.saveStoreLocked()
+	a.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	a.updateTrayMenuState()
+	if running {
+		return a.RestartCore()
+	}
+	return nil
 }
 
 func (a *App) DeleteProfile(profileID string) error {
@@ -644,6 +700,7 @@ func (a *App) StartCore() error {
 		a.appendLog("info", "enabling system proxy after state: "+systemProxyState())
 	}
 	a.appendLog("info", "mihomo started with profile: "+profile.Name)
+	a.updateTrayMenuState()
 	return nil
 }
 
@@ -669,12 +726,14 @@ func (a *App) StopCore() error {
 			a.stopEmbeddedCore()
 			a.appendLog("info", "mihomo stop requested")
 		}
+		a.updateTrayMenuState()
 		return nil
 	}
 	if err := cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
 		return err
 	}
 	a.appendLog("info", "mihomo stop requested")
+	a.updateTrayMenuState()
 	return nil
 }
 
@@ -794,7 +853,11 @@ func (a *App) FetchProxyGroups() ([]ProxyGroup, error) {
 
 func (a *App) SelectProxy(group string, name string) error {
 	body := map[string]string{"name": name}
-	return a.apiRequest(http.MethodPut, "/proxies/"+url.PathEscape(group), body, nil)
+	if err := a.apiRequest(http.MethodPut, "/proxies/"+url.PathEscape(group), body, nil); err != nil {
+		return err
+	}
+	a.updateTrayMenuState()
+	return nil
 }
 
 func (a *App) FetchRules() ([]RuleRow, error) {

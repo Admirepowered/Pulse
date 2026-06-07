@@ -14,6 +14,10 @@ export function CloseConnection(arg1) {
   return window['go']['pulse']['App']['CloseConnection'](arg1);
 }
 
+export function CloseWindow() {
+  return window['go']['pulse']['App']['CloseWindow']();
+}
+
 export function DeleteProfile(arg1) {
   return window['go']['pulse']['App']['DeleteProfile'](arg1);
 }

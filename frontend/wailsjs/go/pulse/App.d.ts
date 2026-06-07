@@ -8,6 +8,8 @@ export function CloseAllConnections():Promise<void>;
 
 export function CloseConnection(arg1:string):Promise<void>;
 
+export function CloseWindow():Promise<void>;
+
 export function DeleteProfile(arg1:string):Promise<void>;
 
 export function FetchConnections():Promise<Array<pulse.ConnectionRow>>;

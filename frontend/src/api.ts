@@ -1,5 +1,6 @@
 export {
     AddProfileFromURL,
+    CloseWindow,
     CloseAllConnections,
     CloseConnection,
     DeleteProfile,
@@ -26,4 +27,4 @@ export {
     UpdateProvider,
 } from '../wailsjs/go/pulse/App';
 export {pulse as Models} from '../wailsjs/go/models';
-export {Quit, WindowMinimise, WindowToggleMaximise} from '../wailsjs/runtime/runtime';
+export {WindowMinimise, WindowToggleMaximise} from '../wailsjs/runtime/runtime';

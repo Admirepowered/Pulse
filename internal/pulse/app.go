@@ -1357,6 +1357,12 @@ func (a *App) FetchRules() ([]RuleRow, error) {
 }
 
 func (a *App) FetchProviders() ([]ProviderRow, error) {
+	a.mu.Lock()
+	running := a.coreRunningLocked()
+	a.mu.Unlock()
+	if !running {
+		return []ProviderRow{}, nil
+	}
 	var raw struct {
 		Providers map[string]struct {
 			Name      string `json:"name"`
@@ -1366,6 +1372,10 @@ func (a *App) FetchProviders() ([]ProviderRow, error) {
 		} `json:"providers"`
 	}
 	if err := a.apiRequest(http.MethodGet, "/providers/proxies", nil, &raw); err != nil {
+		if isAPIUnavailableError(err) {
+			a.appendLog("debug", "skip proxy providers refresh while mihomo API is unavailable: "+err.Error())
+			return []ProviderRow{}, nil
+		}
 		return nil, err
 	}
 	rows := make([]ProviderRow, 0, len(raw.Providers))
@@ -1383,6 +1393,18 @@ func (a *App) FetchProviders() ([]ProviderRow, error) {
 	}
 	sort.Slice(rows, func(i, j int) bool { return rows[i].Name < rows[j].Name })
 	return rows, nil
+}
+
+func isAPIUnavailableError(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "connection refused") ||
+		strings.Contains(message, "actively refused") ||
+		strings.Contains(message, "connectex") ||
+		strings.Contains(message, "no connection could be made") ||
+		strings.Contains(message, "connection reset by peer")
 }
 
 func (a *App) UpdateProvider(name string) error {

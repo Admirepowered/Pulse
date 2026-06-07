@@ -363,7 +363,9 @@ func (a *App) SaveSettings(settings Settings) error {
 		settings.MixedPort,
 	))
 	a.mu.Lock()
+	previous := a.store.Settings
 	running := a.coreRunningLocked()
+	requiresRestart := running && settingsRequireCoreRestart(previous, settings)
 	a.store.Settings = settings
 	err := a.saveStoreLocked()
 	a.mu.Unlock()
@@ -377,8 +379,24 @@ func (a *App) SaveSettings(settings Settings) error {
 		return err
 	}
 	a.appendLog("info", fmt.Sprintf("save settings auto-start applied: enabled=%t", settings.AutoStart))
+	if requiresRestart {
+		a.appendLog("info", "settings require mihomo restart, restarting core")
+		if previous.SystemProxy {
+			if err := configureSystemProxy(previous, false); err != nil {
+				a.appendLog("warn", "disable previous system proxy before restart failed: "+err.Error())
+			}
+		}
+		if err := a.RestartCore(); err != nil {
+			a.appendLog("error", "restart core after settings change failed: "+err.Error())
+			return err
+		}
+		return nil
+	}
 	if running {
-		a.applyRuntimeSettings(settings)
+		if err := a.applyRuntimeSettings(settings); err != nil {
+			a.appendLog("warn", "apply runtime settings failed: "+err.Error())
+			return err
+		}
 	}
 	if err := configureSystemProxy(settings, running && settings.SystemProxy); err != nil {
 		a.appendLog("error", "system proxy apply failed: "+err.Error())
@@ -386,6 +404,15 @@ func (a *App) SaveSettings(settings Settings) error {
 	}
 	a.appendLog("info", "system proxy setting applied: "+systemProxyState())
 	return nil
+}
+
+func settingsRequireCoreRestart(previous, next Settings) bool {
+	return previous.CoreMode != next.CoreMode ||
+		previous.CorePath != next.CorePath ||
+		previous.ApiBase != next.ApiBase ||
+		previous.Secret != next.Secret ||
+		previous.MixedPort != next.MixedPort ||
+		previous.TunEnabled != next.TunEnabled
 }
 
 func (a *App) AddProfileFromURL(name string, source string) (Profile, error) {
@@ -862,14 +889,15 @@ func (a *App) fetchTraffic() (TrafficSnapshot, bool) {
 	return traffic, true
 }
 
-func (a *App) applyRuntimeSettings(settings Settings) {
+func (a *App) applyRuntimeSettings(settings Settings) error {
 	body := map[string]any{
 		"allow-lan": settings.AllowLan,
 		"mode":      settings.Mode,
 	}
 	if err := a.apiRequest(http.MethodPatch, "/configs", body, nil); err != nil {
-		a.appendLog("warn", "apply runtime settings failed: "+err.Error())
+		return err
 	}
+	return nil
 }
 
 func (a *App) waitForAPIReady(timeout time.Duration) error {

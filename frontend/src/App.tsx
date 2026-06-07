@@ -277,13 +277,20 @@ function App() {
         }
     }, [refreshPageData, refreshSnapshot, tab]);
 
-    const saveSettings = useCallback(async () => {
-        const next = normalizeSettings(settingsDraft);
+    const saveSettings = useCallback(async (settings: Settings = settingsDraft) => {
+        const next = normalizeSettings(settings);
         await SaveSettings(new Models.Settings(next));
         setSettingsDraft(next);
         setSnapshot((current) => normalizeSnapshot({...current, settings: next}));
         setSettingsDirty(false);
     }, [settingsDraft]);
+
+    const applySettings = useCallback((settings: Settings) => {
+        const next = normalizeSettings(settings);
+        setSettingsDraft(next);
+        setSettingsDirty(false);
+        run(() => saveSettings(next), '设置已生效');
+    }, [run, saveSettings]);
 
     useEffect(() => {
         refreshSnapshot().catch((error) => setNotice(String(error)));
@@ -356,9 +363,11 @@ function App() {
             const path = await SelectBackgroundImage() as string;
             if (!path) return;
             const dataURL = await ReadBackgroundImageDataURL(path) as string;
-            setSettingsDraft((current) => ({...current, backgroundPath: path}));
-            setSettingsDirty(true);
+            const next = normalizeSettings({...settingsDraft, backgroundPath: path});
             setBackgroundDataURL(dataURL);
+            await saveSettings(next);
+            setNotice('背景已更新');
+            await refreshSnapshot();
         } catch (error) {
             setNotice(error instanceof Error ? error.message : String(error));
         } finally {
@@ -367,9 +376,8 @@ function App() {
     };
 
     const clearBackground = () => {
-        setSettingsDraft((current) => ({...current, backgroundPath: ''}));
-        setSettingsDirty(true);
         setBackgroundDataURL('');
+        applySettings({...settingsDraft, backgroundPath: ''});
     };
 
     const closeWindow = () => {
@@ -634,7 +642,8 @@ function App() {
                             setSettingsDraft(settings);
                             setSettingsDirty(true);
                         }}
-                        onSave={() => run(saveSettings, '设置已保存')}
+                        onApply={applySettings}
+                        onSave={() => run(() => saveSettings(), '设置已保存')}
                         onOpenDir={() => run(OpenDataDirectory)}
                         onChooseBackground={chooseBackground}
                         onClearBackground={clearBackground}
@@ -707,17 +716,31 @@ function Dashboard({snapshot, onRestart, onOpenDir}: { snapshot: RuntimeState; o
     );
 }
 
-function SettingsPanel({settings, onChange, onSave, onOpenDir, onChooseBackground, onClearBackground}: {
+function SettingsPanel({settings, onChange, onApply, onSave, onOpenDir, onChooseBackground, onClearBackground}: {
     settings: Settings;
     onChange: (settings: Settings) => void;
+    onApply: (settings: Settings) => void;
     onSave: () => void;
     onOpenDir: () => void;
     onChooseBackground: () => void;
     onClearBackground: () => void;
 }) {
-    const set = <K extends keyof Settings>(key: K, value: Settings[K]) => onChange({...settings, [key]: value});
-    const setWebDAV = <K extends keyof WebDAVSettings>(key: K, value: WebDAVSettings[K]) =>
-        onChange({...settings, webdav: {...settings.webdav, [key]: value}});
+    const set = <K extends keyof Settings>(key: K, value: Settings[K], immediate = false) => {
+        const next = {...settings, [key]: value};
+        if (immediate) {
+            onApply(next);
+            return;
+        }
+        onChange(next);
+    };
+    const setWebDAV = <K extends keyof WebDAVSettings>(key: K, value: WebDAVSettings[K], immediate = false) => {
+        const next = {...settings, webdav: {...settings.webdav, [key]: value}};
+        if (immediate) {
+            onApply(next);
+            return;
+        }
+        onChange(next);
+    };
 
     return (
         <section className="split">
@@ -728,7 +751,7 @@ function SettingsPanel({settings, onChange, onSave, onOpenDir, onChooseBackgroun
                         {id: 'embedded', label: '内嵌'},
                         {id: 'custom', label: '自定义'},
                     ].map((mode) => (
-                        <button className={settings.coreMode === mode.id ? 'active' : ''} key={mode.id} onClick={() => set('coreMode', mode.id)}>
+                        <button className={settings.coreMode === mode.id ? 'active' : ''} key={mode.id} onClick={() => set('coreMode', mode.id, true)}>
                             {mode.label}
                         </button>
                     ))}
@@ -739,22 +762,22 @@ function SettingsPanel({settings, onChange, onSave, onOpenDir, onChooseBackgroun
                 <Field label="Mixed Port" type="number" value={String(settings.mixedPort)} onChange={(value) => set('mixedPort', Number(value) || 7890)}/>
                 <div className="segmented">
                     {['rule', 'global', 'direct'].map((mode) => (
-                        <button className={settings.mode === mode ? 'active' : ''} key={mode} onClick={() => set('mode', mode)}>
+                        <button className={settings.mode === mode ? 'active' : ''} key={mode} onClick={() => set('mode', mode, true)}>
                             {mode}
                         </button>
                     ))}
                 </div>
-                <Toggle label="Allow LAN" checked={settings.allowLan} onChange={(value) => set('allowLan', value)}/>
-                <Toggle label="TUN" checked={settings.tunEnabled} onChange={(value) => set('tunEnabled', value)}/>
-                <Toggle label="系统代理" checked={settings.systemProxy} onChange={(value) => set('systemProxy', value)}/>
-                <Toggle label="启动时启动核心" checked={settings.autoStartCore} onChange={(value) => set('autoStartCore', value)}/>
-                <Toggle label="开机启动" checked={settings.autoStart} onChange={(value) => set('autoStart', value)}/>
+                <Toggle label="Allow LAN" checked={settings.allowLan} onChange={(value) => set('allowLan', value, true)}/>
+                <Toggle label="TUN" checked={settings.tunEnabled} onChange={(value) => set('tunEnabled', value, true)}/>
+                <Toggle label="系统代理" checked={settings.systemProxy} onChange={(value) => set('systemProxy', value, true)}/>
+                <Toggle label="启动时启动核心" checked={settings.autoStartCore} onChange={(value) => set('autoStartCore', value, true)}/>
+                <Toggle label="开机启动" checked={settings.autoStart} onChange={(value) => set('autoStart', value, true)}/>
                 <div className="segmented">
                     {[
                         {id: 'minimize', label: '关闭时最小化'},
                         {id: 'exit', label: '关闭时退出'},
                     ].map((mode) => (
-                        <button className={settings.closeBehavior === mode.id ? 'active' : ''} key={mode.id} onClick={() => set('closeBehavior', mode.id)}>
+                        <button className={settings.closeBehavior === mode.id ? 'active' : ''} key={mode.id} onClick={() => set('closeBehavior', mode.id, true)}>
                             {mode.label}
                         </button>
                     ))}
@@ -789,7 +812,7 @@ function SettingsPanel({settings, onChange, onSave, onOpenDir, onChooseBackgroun
 
                 <article className="panel formPanel">
                     <div className="panelHead"><h2>同步</h2></div>
-                    <Toggle label="WebDAV" checked={settings.webdav.enabled} onChange={(value) => setWebDAV('enabled', value)}/>
+                    <Toggle label="WebDAV" checked={settings.webdav.enabled} onChange={(value) => setWebDAV('enabled', value, true)}/>
                     <Field label="URL" value={settings.webdav.url} onChange={(value) => setWebDAV('url', value)}/>
                     <Field label="用户名" value={settings.webdav.username} onChange={(value) => setWebDAV('username', value)}/>
                     <Field label="密码" value={settings.webdav.password} onChange={(value) => setWebDAV('password', value)}/>

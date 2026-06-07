@@ -13,17 +13,31 @@ export function Metric({icon: Icon, label, value}: { icon: LucideIcon; label: st
     );
 }
 
-export function Field({label, value, onChange, type = 'text', placeholder}: {
+export function Field({label, value, onChange, type = 'text', placeholder, onBlur, onEnter}: {
     label: string;
     value: string;
     onChange: (value: string) => void;
     type?: string;
     placeholder?: string;
+    onBlur?: () => void;
+    onEnter?: () => void;
 }) {
     return (
         <label className="field">
             <span>{label}</span>
-            <input type={type} value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)}/>
+            <input
+                type={type}
+                value={value}
+                placeholder={placeholder}
+                onChange={(event) => onChange(event.target.value)}
+                onBlur={onBlur}
+                onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                        onEnter?.();
+                        event.currentTarget.blur();
+                    }
+                }}
+            />
         </label>
     );
 }

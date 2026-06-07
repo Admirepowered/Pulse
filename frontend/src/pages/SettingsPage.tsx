@@ -1,3 +1,4 @@
+import {useEffect, useState} from 'react';
 import {FolderOpen, Image as ImageIcon, Save, X} from 'lucide-react';
 import {Field, Toggle} from '../components/common';
 import type {Translator} from '../i18n';
@@ -8,11 +9,17 @@ export function SettingsPage({settings, t, onChange, onApply, onSave, onOpenDir,
     t: Translator;
     onChange: (settings: Settings) => void;
     onApply: (settings: Settings) => void;
-    onSave: () => void;
+    onSave: (settings?: Settings) => void;
     onOpenDir: () => void;
     onChooseBackground: () => void;
     onClearBackground: () => void;
 }) {
+    const [mixedPortDraft, setMixedPortDraft] = useState(String(settings.mixedPort || 7890));
+
+    useEffect(() => {
+        setMixedPortDraft(String(settings.mixedPort || 7890));
+    }, [settings.mixedPort]);
+
     const set = <K extends keyof Settings>(key: K, value: Settings[K], immediate = false) => {
         const next = {...settings, [key]: value};
         if (immediate) {
@@ -20,6 +27,19 @@ export function SettingsPage({settings, t, onChange, onApply, onSave, onOpenDir,
             return;
         }
         onChange(next);
+    };
+    const commitMixedPort = () => {
+        const value = Number(mixedPortDraft);
+        if (!Number.isInteger(value) || value < 1 || value > 65535) {
+            setMixedPortDraft(String(settings.mixedPort || 7890));
+            return null;
+        }
+        if (value !== settings.mixedPort) {
+            const next = {...settings, mixedPort: value};
+            onChange(next);
+            return next;
+        }
+        return settings;
     };
     const setWebDAV = <K extends keyof WebDAVSettings>(key: K, value: WebDAVSettings[K], immediate = false) => {
         const next = {...settings, webdav: {...settings.webdav, [key]: value}};
@@ -47,7 +67,14 @@ export function SettingsPage({settings, t, onChange, onApply, onSave, onOpenDir,
                 <Field label={t('mihomoPath')} value={settings.corePath} onChange={(value) => set('corePath', value)}/>
                 <Field label={t('apiAddress')} value={settings.apiBase} onChange={(value) => set('apiBase', value)}/>
                 <Field label="Secret" value={settings.secret} onChange={(value) => set('secret', value)}/>
-                <Field label="Mixed Port" type="number" value={String(settings.mixedPort)} onChange={(value) => set('mixedPort', Number(value) || 7890)}/>
+                <Field
+                    label="Mixed Port"
+                    type="number"
+                    value={mixedPortDraft}
+                    onChange={setMixedPortDraft}
+                    onBlur={commitMixedPort}
+                    onEnter={commitMixedPort}
+                />
                 <div className="segmented">
                     {['rule', 'global', 'direct'].map((mode) => (
                         <button className={settings.mode === mode ? 'active' : ''} key={mode} onClick={() => set('mode', mode, true)}>
@@ -134,7 +161,10 @@ export function SettingsPage({settings, t, onChange, onApply, onSave, onOpenDir,
                     <Field label={t('password')} value={settings.webdav.password} onChange={(value) => setWebDAV('password', value)}/>
                     <div className="modalActions inline">
                         <button onClick={onOpenDir}><FolderOpen size={17}/>{t('dataDirectory')}</button>
-                        <button className="primary" onClick={onSave}><Save size={17}/>{t('saveSettings')}</button>
+                        <button className="primary" onClick={() => {
+                            const next = commitMixedPort();
+                            if (next) onSave(next);
+                        }}><Save size={17}/>{t('saveSettings')}</button>
                     </div>
                 </article>
             </div>

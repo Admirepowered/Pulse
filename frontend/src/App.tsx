@@ -36,8 +36,10 @@ import {
     OpenURL,
     ReadBackgroundImageDataURL,
     ReadProfileContent,
+    ReadProfileCustomRules,
     RestartCore,
     SaveProfileContent,
+    SaveProfileCustomRules,
     SaveSettings,
     SelectBackgroundImage,
     SelectProxy,
@@ -103,6 +105,8 @@ function App() {
     const [importContent, setImportContent] = useState('');
     const [editorProfile, setEditorProfile] = useState<Profile | null>(null);
     const [editorContent, setEditorContent] = useState('');
+    const [ruleEditorProfile, setRuleEditorProfile] = useState<Profile | null>(null);
+    const [ruleEditorContent, setRuleEditorContent] = useState('');
     const [settingsDraft, setSettingsDraft] = useState<Settings>(emptySettings);
     const [settingsDirty, setSettingsDirty] = useState(false);
     const [backgroundDataURL, setBackgroundDataURL] = useState('');
@@ -214,6 +218,11 @@ function App() {
     const openEditor = async (profile: Profile) => {
         setEditorProfile(profile);
         setEditorContent(await ReadProfileContent(profile.id) as string);
+    };
+
+    const openRuleEditor = async (profile: Profile) => {
+        setRuleEditorProfile(profile);
+        setRuleEditorContent(await ReadProfileCustomRules(profile.id) as string);
     };
 
     const chooseBackground = async () => {
@@ -410,6 +419,7 @@ function App() {
                         onOpenGithub={() => run(() => OpenURL('https://github.com/Admirepowered/Pulse'))}
                         onActivate={(id) => run(() => SetActiveProfile(id), t('switchedProfile'))}
                         onEdit={openEditor}
+                        onEditRules={openRuleEditor}
                         onUpdateProfile={(id) => run(() => UpdateProfile(id), t('profileUpdated'))}
                         onDeleteProfile={(id) => run(() => DeleteProfile(id), t('profileDeleted'))}
                         onUpdateProvider={(name) => run(() => UpdateProvider(name), t('providerUpdated'))}
@@ -451,7 +461,7 @@ function App() {
                             setSettingsDirty(true);
                         }}
                         onApply={applySettings}
-                        onSave={() => run(() => saveSettings(), t('settingsSaved'))}
+                        onSave={(settings) => run(() => saveSettings(settings), t('settingsSaved'))}
                         onOpenDir={() => run(OpenDataDirectory)}
                         onChooseBackground={chooseBackground}
                         onClearBackground={clearBackground}
@@ -477,6 +487,34 @@ function App() {
                             <button className="primary" onClick={() => run(async () => {
                                 await SaveProfileContent(editorProfile.id, editorContent);
                                 setEditorProfile(null);
+                            }, t('profileSaved'))}>
+                                <Save size={17}/>{t('save')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {ruleEditorProfile && (
+                <div className="modalBackdrop">
+                    <div className="modal compactModal">
+                        <div className="panelHead">
+                            <div>
+                                <h2>{t('customRules')}</h2>
+                                <span>{ruleEditorProfile.name}</span>
+                            </div>
+                            <button className="iconButton" onClick={() => setRuleEditorProfile(null)}>
+                                <X size={18}/>
+                            </button>
+                        </div>
+                        <p className="hintText">{t('customRulesHint')}</p>
+                        <textarea className="editor rulesEditor" value={ruleEditorContent} onChange={(event) => setRuleEditorContent(event.target.value)} spellCheck={false}/>
+                        <div className="modalActions">
+                            <button onClick={() => setRuleEditorProfile(null)}>{t('cancel')}</button>
+                            <button className="primary" onClick={() => run(async () => {
+                                await SaveProfileCustomRules(ruleEditorProfile.id, ruleEditorContent);
+                                setRuleEditorProfile(null);
+                                if (tab === 'rules') setRules(await FetchRules() as RuleRow[]);
                             }, t('profileSaved'))}>
                                 <Save size={17}/>{t('save')}
                             </button>

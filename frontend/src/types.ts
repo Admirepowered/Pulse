@@ -48,6 +48,7 @@ export type Profile = {
     updatedAt: number;
     enabled: boolean;
     subscription: SubscriptionInfo;
+    customRules: string[];
 };
 
 export type RuntimeState = {
@@ -224,6 +225,7 @@ export function normalizeSnapshot(snapshot: Partial<RuntimeState>): RuntimeState
         profiles: (snapshot.profiles || []).map((profile) => ({
             ...profile,
             subscription: {...emptySubscriptionInfo, ...(profile.subscription || {})},
+            customRules: profile.customRules || [],
         })),
         recentLogs: snapshot.recentLogs || [],
     };

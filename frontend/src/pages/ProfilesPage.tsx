@@ -1,4 +1,4 @@
-import {Check, Cloud, Link2, RefreshCcw, SquarePen, Trash2, Upload} from 'lucide-react';
+import {Check, Cloud, Link2, ListPlus, RefreshCcw, SquarePen, Trash2, Upload} from 'lucide-react';
 import {Field, SubscriptionUsage, formatTime} from '../components/common';
 import type {Translator} from '../i18n';
 import type {Profile, ProviderRow, RuntimeState} from '../types';
@@ -18,6 +18,7 @@ export function ProfilesPage({
     onOpenGithub,
     onActivate,
     onEdit,
+    onEditRules,
     onUpdateProfile,
     onDeleteProfile,
     onUpdateProvider,
@@ -38,6 +39,7 @@ export function ProfilesPage({
     onOpenGithub: () => void;
     onActivate: (id: string) => void;
     onEdit: (profile: Profile) => void;
+    onEditRules: (profile: Profile) => void;
     onUpdateProfile: (id: string) => void;
     onDeleteProfile: (id: string) => void;
     onUpdateProvider: (name: string) => void;
@@ -68,6 +70,9 @@ export function ProfilesPage({
                                     </button>
                                     <button title={t('edit')} onClick={() => onEdit(profile)}>
                                         <SquarePen size={16}/>
+                                    </button>
+                                    <button title={t('customRules')} onClick={() => onEditRules(profile)}>
+                                        <ListPlus size={16}/>
                                     </button>
                                     <button title={t('update')} onClick={() => onUpdateProfile(profile.id)}>
                                         <RefreshCcw size={16}/>

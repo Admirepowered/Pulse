@@ -145,6 +145,7 @@ export namespace pulse {
 	    updatedAt: number;
 	    enabled: boolean;
 	    subscription: SubscriptionInfo;
+	    customRules: string[];
 
 	    static createFrom(source: any = {}) {
 	        return new Profile(source);
@@ -160,6 +161,7 @@ export namespace pulse {
 	        this.updatedAt = source["updatedAt"];
 	        this.enabled = source["enabled"];
 	        this.subscription = this.convertValues(source["subscription"], SubscriptionInfo);
+	        this.customRules = source["customRules"];
 	    }
 
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

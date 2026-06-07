@@ -119,6 +119,7 @@ type Profile struct {
 	UpdatedAt    int64            `json:"updatedAt"`
 	Enabled      bool             `json:"enabled"`
 	Subscription SubscriptionInfo `json:"subscription"`
+	CustomRules  []string         `json:"customRules"`
 }
 
 type SubscriptionInfo struct {
@@ -758,6 +759,42 @@ func (a *App) SaveProfileContent(profileID string, content string) error {
 	return err
 }
 
+func (a *App) ReadProfileCustomRules(profileID string) (string, error) {
+	a.mu.Lock()
+	profile, ok := a.profileByIDLocked(profileID)
+	a.mu.Unlock()
+	if !ok {
+		return "", errors.New("profile not found")
+	}
+	return strings.Join(profile.CustomRules, "\n"), nil
+}
+
+func (a *App) SaveProfileCustomRules(profileID string, content string) error {
+	rules, err := normalizeCustomRules(content)
+	if err != nil {
+		return err
+	}
+	a.mu.Lock()
+	running := a.coreRunningLocked()
+	activeProfileID := a.store.ActiveProfileID
+	for i := range a.store.Profiles {
+		if a.store.Profiles[i].ID == profileID {
+			a.store.Profiles[i].CustomRules = rules
+			err := a.saveStoreLocked()
+			a.mu.Unlock()
+			if err != nil {
+				return err
+			}
+			if running && activeProfileID == profileID {
+				return a.RestartCore()
+			}
+			return nil
+		}
+	}
+	a.mu.Unlock()
+	return errors.New("profile not found")
+}
+
 func (a *App) StartCore() error {
 	a.mu.Lock()
 	if a.coreRunningLocked() {
@@ -773,7 +810,7 @@ func (a *App) StartCore() error {
 	if err := a.EnsureGeodata(); err != nil {
 		return err
 	}
-	runtimeConfig, err := a.buildRuntimeConfig(profile.Path, settings)
+	runtimeConfig, err := a.buildRuntimeConfig(profile, settings)
 	if err != nil {
 		return err
 	}
@@ -1517,7 +1554,7 @@ func existingFile(path string) (string, bool) {
 	return path, true
 }
 
-func mergeRuntimeConfig(content []byte, settings Settings, controller string) ([]byte, error) {
+func mergeRuntimeConfig(content []byte, settings Settings, controller string, customRules []string) ([]byte, error) {
 	var doc yaml.Node
 	if err := yaml.Unmarshal(content, &doc); err != nil {
 		return nil, fmt.Errorf("parse profile YAML: %w", err)
@@ -1542,6 +1579,7 @@ func mergeRuntimeConfig(content []byte, settings Settings, controller string) ([
 	setYAMLScalar(tun, "stack", "mixed")
 	setYAMLScalar(tun, "auto-route", true)
 	setYAMLScalar(tun, "auto-detect-interface", true)
+	prependRules(root, customRules)
 
 	var output bytes.Buffer
 	encoder := yaml.NewEncoder(&output)
@@ -1554,6 +1592,51 @@ func mergeRuntimeConfig(content []byte, settings Settings, controller string) ([
 		return nil, err
 	}
 	return output.Bytes(), nil
+}
+
+func normalizeCustomRules(content string) ([]string, error) {
+	var rules []string
+	scanner := bufio.NewScanner(strings.NewReader(content))
+	scanner.Buffer(make([]byte, 1024), 1024*1024)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if strings.HasPrefix(line, "-") {
+			line = strings.TrimSpace(strings.TrimPrefix(line, "-"))
+		}
+		line = strings.Trim(line, `"'`)
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.Split(line, ",")
+		if len(parts) < 2 {
+			return nil, fmt.Errorf("invalid custom rule %q, expected Clash rule format", line)
+		}
+		rules = append(rules, line)
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	return rules, nil
+}
+
+func prependRules(root *yaml.Node, rules []string) {
+	if len(rules) == 0 {
+		return
+	}
+	ruleNode := yamlMappingValue(root, "rules")
+	if ruleNode == nil || ruleNode.Kind != yaml.SequenceNode {
+		ruleNode = &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
+		setYAMLNode(root, "rules", ruleNode)
+	}
+	nodes := make([]*yaml.Node, 0, len(rules)+len(ruleNode.Content))
+	for _, rule := range rules {
+		nodes = append(nodes, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: rule})
+	}
+	ruleNode.Content = append(nodes, ruleNode.Content...)
 }
 
 func yamlRootMapping(doc *yaml.Node) *yaml.Node {
@@ -1622,8 +1705,8 @@ func yamlScalar(value any) *yaml.Node {
 	return node
 }
 
-func (a *App) buildRuntimeConfig(profilePath string, settings Settings) (string, error) {
-	content, err := os.ReadFile(profilePath)
+func (a *App) buildRuntimeConfig(profile Profile, settings Settings) (string, error) {
+	content, err := os.ReadFile(profile.Path)
 	if err != nil {
 		return "", err
 	}
@@ -1631,7 +1714,7 @@ func (a *App) buildRuntimeConfig(profilePath string, settings Settings) (string,
 	if parsed, err := url.Parse(settings.ApiBase); err == nil && parsed.Host != "" {
 		controller = parsed.Host
 	}
-	merged, err := mergeRuntimeConfig(content, settings, controller)
+	merged, err := mergeRuntimeConfig(content, settings, controller, profile.CustomRules)
 	if err != nil {
 		return "", err
 	}

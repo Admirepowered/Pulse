@@ -20,9 +20,9 @@ export function RulesPage({rules, t}: { rules: RuleRow[]; t: Translator }) {
             <div className="panelHead">
                 <h2>Rules</h2>
                 <div className="rowActions">
-                    <button disabled={safePage <= 0} onClick={() => setPage((value) => Math.max(0, value - 1))}>Prev</button>
+                    <button aria-label="Previous page" disabled={safePage <= 0} onClick={() => setPage((value) => Math.max(0, value - 1))}>&lt;</button>
                     <StatusPill ok label={`${safePage + 1} / ${pageCount}`}/>
-                    <button disabled={safePage >= pageCount - 1} onClick={() => setPage((value) => Math.min(pageCount - 1, value + 1))}>Next</button>
+                    <button aria-label="Next page" disabled={safePage >= pageCount - 1} onClick={() => setPage((value) => Math.min(pageCount - 1, value + 1))}>&gt;</button>
                     <StatusPill ok label={`${rules.length} ${t('ruleCountSuffix')}`}/>
                 </div>
             </div>

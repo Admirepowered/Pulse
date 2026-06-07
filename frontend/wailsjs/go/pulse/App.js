@@ -74,12 +74,20 @@ export function ReadProfileContent(arg1) {
   return window['go']['pulse']['App']['ReadProfileContent'](arg1);
 }
 
+export function ReadProfileCustomRules(arg1) {
+  return window['go']['pulse']['App']['ReadProfileCustomRules'](arg1);
+}
+
 export function RestartCore() {
   return window['go']['pulse']['App']['RestartCore']();
 }
 
 export function SaveProfileContent(arg1, arg2) {
   return window['go']['pulse']['App']['SaveProfileContent'](arg1, arg2);
+}
+
+export function SaveProfileCustomRules(arg1, arg2) {
+  return window['go']['pulse']['App']['SaveProfileCustomRules'](arg1, arg2);
 }
 
 export function SaveSettings(arg1) {

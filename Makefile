@@ -8,8 +8,9 @@ WINDOWS_ARTIFACT := Pulse-$(VERSION)-windows-amd64.exe
 LINUX_ARTIFACT := Pulse-$(VERSION)-linux-amd64
 MACOS_AMD64_ARTIFACT := Pulse-$(VERSION)-darwin-amd64
 MACOS_ARM64_ARTIFACT := Pulse-$(VERSION)-darwin-arm64
+WINDOWS_ARTIFACT_PATH := build/bin/$(WINDOWS_ARTIFACT)
 
-.PHONY: version print-windows-artifact print-linux-artifact print-macos-amd64-artifact print-macos-arm64-artifact clean clean-windows clean-linux clean-macos clean-pulse build build-windows build-linux build-macos build-macos-amd64 build-macos-arm64 test frontend
+.PHONY: version print-windows-artifact print-linux-artifact print-macos-amd64-artifact print-macos-arm64-artifact clean clean-windows clean-linux clean-macos clean-pulse compress-windows build build-windows build-linux build-macos build-macos-amd64 build-macos-arm64 test frontend
 
 version:
 	@echo Pulse $(VERSION) build $(COUNT)
@@ -46,10 +47,14 @@ clean-linux:
 clean-macos:
 	rm -f build/bin/Pulse-*-darwin-amd64 build/bin/Pulse-*-darwin-arm64
 
+compress-windows:
+	@if command -v upx >/dev/null 2>&1; then upx --best "$(WINDOWS_ARTIFACT_PATH)"; else echo "upx not found, skip compression"; fi
+
 build: build-windows
 
 build-windows: clean-windows
 	wails build -platform windows/amd64 -ldflags "$(LD_FLAGS)" -o $(WINDOWS_ARTIFACT)
+	$(MAKE) compress-windows
 
 build-linux: clean-linux
 	wails build -platform linux/amd64 -ldflags "$(LD_FLAGS)" -o $(LINUX_ARTIFACT)

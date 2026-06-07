@@ -7,38 +7,30 @@
     grid-template-columns: 232px 1fr;
     background: #f4f6f8;
     color: #17202a;
-    --background-image: none;
-    --background-blur: 0px;
 }
 
-.shell::before {
-    content: "";
+.backgroundLayer,
+.backgroundOverlay {
     position: fixed;
     inset: 0;
     z-index: 0;
     pointer-events: none;
-    background-image: var(--background-image);
-    background-position: center;
-    background-size: cover;
-    filter: blur(var(--background-blur));
     opacity: 0;
-    transform: scale(1.05);
     transition: opacity .18s ease, filter .18s ease;
 }
 
-.shell::after {
-    content: "";
-    position: fixed;
-    inset: 0;
-    z-index: 0;
-    pointer-events: none;
-    background: rgba(244, 246, 248, .42);
-    opacity: 0;
-    transition: opacity .18s ease;
+.backgroundLayer {
+    background-position: center;
+    background-size: cover;
+    transform: scale(1.05);
 }
 
-.shell.hasBackground::before,
-.shell.hasBackground::after {
+.backgroundOverlay {
+    background: rgba(244, 246, 248, .28);
+}
+
+.shell.hasBackground .backgroundLayer,
+.shell.hasBackground .backgroundOverlay {
     opacity: 1;
 }
 
@@ -298,7 +290,7 @@ h2 {
 .hasBackground .panel,
 .hasBackground .metric,
 .hasBackground .search {
-    background: rgba(255, 255, 255, .88);
+    background: rgba(255, 255, 255, .76);
     backdrop-filter: blur(10px);
 }
 

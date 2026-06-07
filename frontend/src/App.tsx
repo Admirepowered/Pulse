@@ -242,13 +242,15 @@ function App() {
         WindowMinimise();
     };
 
-    const shellStyle = {
-        '--background-image': backgroundDataURL ? `url(${JSON.stringify(backgroundDataURL)})` : 'none',
-        '--background-blur': `${Math.max(0, Math.min(40, settingsDraft.backgroundBlur || 0))}px`,
+    const backgroundStyle = {
+        backgroundImage: backgroundDataURL ? `url(${JSON.stringify(backgroundDataURL)})` : 'none',
+        filter: `blur(${Math.max(0, Math.min(40, settingsDraft.backgroundBlur || 0))}px)`,
     } as CSSProperties;
 
     return (
-        <main className={backgroundDataURL ? 'shell hasBackground' : 'shell'} style={shellStyle}>
+        <main className={backgroundDataURL ? 'shell hasBackground' : 'shell'}>
+            <div className="backgroundLayer" aria-hidden="true" style={backgroundStyle}/>
+            <div className="backgroundOverlay" aria-hidden="true"/>
             <aside className="sidebar">
                 <div className="brand">
                     <Cat size={28}/>

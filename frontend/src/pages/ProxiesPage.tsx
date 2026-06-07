@@ -1,4 +1,5 @@
 import {Check, TimerReset} from 'lucide-react';
+import {useState} from 'react';
 import {SearchBox, StatusPill} from '../components/common';
 import type {Translator} from '../i18n';
 import type {ProxyGroup} from '../types';
@@ -13,8 +14,10 @@ export function ProxiesPage({groups, query, t, testingGroup, onQueryChange, onSe
     onTestGroup: (group: string) => void;
     onTestNode: (group: string, node: string) => void;
 }) {
+    const [menu, setMenu] = useState<{ x: number; y: number; group: string; node: string } | null>(null);
+
     return (
-        <section className="stack proxyPage">
+        <section className="stack proxyPage" onClick={() => setMenu(null)}>
             <SearchBox value={query} onChange={onQueryChange} placeholder={t('searchProxy')}/>
             {groups.map((group) => (
                 <details className="panel proxyGroup" key={group.name}>
@@ -46,7 +49,7 @@ export function ProxiesPage({groups, query, t, testingGroup, onQueryChange, onSe
                                 onClick={() => onSelect(group.name, node.name)}
                                 onContextMenu={(event) => {
                                     event.preventDefault();
-                                    onTestNode(group.name, node.name);
+                                    setMenu({x: event.clientX, y: event.clientY, group: group.name, node: node.name});
                                 }}
                             >
                                 <span>{node.name}</span>
@@ -57,6 +60,16 @@ export function ProxiesPage({groups, query, t, testingGroup, onQueryChange, onSe
                     </div>
                 </details>
             ))}
+            {menu && (
+                <div className="contextMenu" style={{left: menu.x, top: menu.y}} onClick={(event) => event.stopPropagation()}>
+                    <button onClick={() => {
+                        onTestNode(menu.group, menu.node);
+                        setMenu(null);
+                    }}>
+                        <TimerReset size={15}/>{t('testNode')}
+                    </button>
+                </div>
+            )}
         </section>
     );
 }

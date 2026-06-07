@@ -57,6 +57,14 @@ type App struct {
 	trayShowItem         *trayMenuItem
 	trayCoreItem         *trayMenuItem
 	trayStatusItem       *trayMenuItem
+	trayModeMenu         *trayMenuItem
+	trayRuleModeItem     *trayMenuItem
+	trayGlobalModeItem   *trayMenuItem
+	trayDirectModeItem   *trayMenuItem
+	trayAllowLanItem     *trayMenuItem
+	traySystemProxyItem  *trayMenuItem
+	traySubProxyItem     *trayMenuItem
+	trayAutoStartItem    *trayMenuItem
 	trayProfilesMenu     *trayMenuItem
 	trayProfileIDs       []string
 	trayProfileItems     []*trayMenuItem
@@ -611,6 +619,46 @@ func (a *App) SaveSettings(settings Settings) error {
 		a.appendLog("info", "system proxy setting applied: "+systemProxyState())
 	}
 	return nil
+}
+
+func (a *App) SetMode(mode string) error {
+	a.mu.Lock()
+	settings := a.store.Settings
+	a.mu.Unlock()
+	settings.Mode = mode
+	return a.SaveSettings(settings)
+}
+
+func (a *App) SetAllowLan(enabled bool) error {
+	a.mu.Lock()
+	settings := a.store.Settings
+	a.mu.Unlock()
+	settings.AllowLan = enabled
+	return a.SaveSettings(settings)
+}
+
+func (a *App) SetSystemProxy(enabled bool) error {
+	a.mu.Lock()
+	settings := a.store.Settings
+	a.mu.Unlock()
+	settings.SystemProxy = enabled
+	return a.SaveSettings(settings)
+}
+
+func (a *App) SetSubscriptionProxy(enabled bool) error {
+	a.mu.Lock()
+	settings := a.store.Settings
+	a.mu.Unlock()
+	settings.SubscriptionProxy = enabled
+	return a.SaveSettings(settings)
+}
+
+func (a *App) SetAutoStart(enabled bool) error {
+	a.mu.Lock()
+	settings := a.store.Settings
+	a.mu.Unlock()
+	settings.AutoStart = enabled
+	return a.SaveSettings(settings)
 }
 
 func settingsRequireCoreRestart(previous, next Settings) bool {

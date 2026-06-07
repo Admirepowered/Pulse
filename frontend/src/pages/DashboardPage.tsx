@@ -18,6 +18,7 @@ export function DashboardPage({snapshot, connections, t, onRestart, onOpenDir, o
     const [speedPoints, setSpeedPoints] = useState<number[]>([]);
     const uptime = snapshot.startedAt ? Math.max(0, Math.floor(Date.now() / 1000 - snapshot.startedAt)) : 0;
     const totalTraffic = (connections.uploadTotal || 0) + (connections.downloadTotal || 0);
+    const coreLabel = snapshot.settings.coreMode === 'embedded' ? t('embedded') : snapshot.settings.corePath;
 
     useEffect(() => {
         const totalSpeed = Math.max(0, (snapshot.traffic.up || 0) + (snapshot.traffic.down || 0));
@@ -38,7 +39,7 @@ export function DashboardPage({snapshot, connections, t, onRestart, onOpenDir, o
                 <div className="panelHead">
                     <div>
                         <h2>Core</h2>
-                        <span>{snapshot.settings.corePath}</span>
+                        <span>{coreLabel}</span>
                     </div>
                     <StatusPill ok={snapshot.coreFound} label={snapshot.coreFound ? t('found') : t('notFound')}/>
                 </div>

@@ -72,6 +72,64 @@ func (a *App) setupTrayMenu() {
 	a.trayStatusItem.Disable()
 	systray.AddSeparator()
 
+	a.trayModeMenu = systray.AddMenuItem("Mode", "Mode")
+	a.trayRuleModeItem = a.trayModeMenu.AddSubMenuItem("Rule", "Rule")
+	a.trayGlobalModeItem = a.trayModeMenu.AddSubMenuItem("Global", "Global")
+	a.trayDirectModeItem = a.trayModeMenu.AddSubMenuItem("Direct", "Direct")
+	a.watchTrayItem(a.trayRuleModeItem, func() {
+		if err := a.SetMode("rule"); err != nil {
+			a.appendLog("error", "tray set rule mode failed: "+err.Error())
+		}
+	})
+	a.watchTrayItem(a.trayGlobalModeItem, func() {
+		if err := a.SetMode("global"); err != nil {
+			a.appendLog("error", "tray set global mode failed: "+err.Error())
+		}
+	})
+	a.watchTrayItem(a.trayDirectModeItem, func() {
+		if err := a.SetMode("direct"); err != nil {
+			a.appendLog("error", "tray set direct mode failed: "+err.Error())
+		}
+	})
+
+	a.trayAllowLanItem = systray.AddMenuItem("Allow LAN", "Allow LAN")
+	a.watchTrayItem(a.trayAllowLanItem, func() {
+		a.mu.Lock()
+		enabled := !a.store.Settings.AllowLan
+		a.mu.Unlock()
+		if err := a.SetAllowLan(enabled); err != nil {
+			a.appendLog("error", "tray set allow lan failed: "+err.Error())
+		}
+	})
+	a.traySystemProxyItem = systray.AddMenuItem("System Proxy", "System Proxy")
+	a.watchTrayItem(a.traySystemProxyItem, func() {
+		a.mu.Lock()
+		enabled := !a.store.Settings.SystemProxy
+		a.mu.Unlock()
+		if err := a.SetSystemProxy(enabled); err != nil {
+			a.appendLog("error", "tray set system proxy failed: "+err.Error())
+		}
+	})
+	a.traySubProxyItem = systray.AddMenuItem("Proxy Updates", "Proxy Updates")
+	a.watchTrayItem(a.traySubProxyItem, func() {
+		a.mu.Lock()
+		enabled := !a.store.Settings.SubscriptionProxy
+		a.mu.Unlock()
+		if err := a.SetSubscriptionProxy(enabled); err != nil {
+			a.appendLog("error", "tray set subscription proxy failed: "+err.Error())
+		}
+	})
+	a.trayAutoStartItem = systray.AddMenuItem("Auto Start", "Auto Start")
+	a.watchTrayItem(a.trayAutoStartItem, func() {
+		a.mu.Lock()
+		enabled := !a.store.Settings.AutoStart
+		a.mu.Unlock()
+		if err := a.SetAutoStart(enabled); err != nil {
+			a.appendLog("error", "tray set auto start failed: "+err.Error())
+		}
+	})
+	systray.AddSeparator()
+
 	a.trayProfilesMenu = systray.AddMenuItem("Profiles", "Profiles")
 	for i := 0; i < maxTrayProfiles; i++ {
 		item := a.trayProfilesMenu.AddSubMenuItem("Profile", "Profile")
@@ -157,6 +215,7 @@ func (a *App) updateTrayMenuState() {
 	running := a.coreRunningLocked()
 	activeProfileID := a.store.ActiveProfileID
 	profiles := append([]Profile(nil), a.store.Profiles...)
+	settings := a.store.Settings
 	labels := trayLabelsForLanguage(a.store.Settings.Language)
 	activeProfileName := "Direct"
 	for _, profile := range profiles {
@@ -187,6 +246,16 @@ func (a *App) updateTrayMenuState() {
 	if a.trayProfilesMenu != nil {
 		a.trayProfilesMenu.SetTitle(labels.Profiles)
 	}
+	if a.trayModeMenu != nil {
+		a.trayModeMenu.SetTitle(labels.Mode)
+	}
+	setTrayModeTitle(a.trayRuleModeItem, labels.RuleMode, settings.Mode == "rule")
+	setTrayModeTitle(a.trayGlobalModeItem, labels.GlobalMode, settings.Mode == "global")
+	setTrayModeTitle(a.trayDirectModeItem, labels.DirectMode, settings.Mode == "direct")
+	setTrayToggleTitle(a.trayAllowLanItem, labels.AllowLAN, settings.AllowLan)
+	setTrayToggleTitle(a.traySystemProxyItem, labels.SystemProxy, settings.SystemProxy)
+	setTrayToggleTitle(a.traySubProxyItem, labels.SubscriptionProxy, settings.SubscriptionProxy)
+	setTrayToggleTitle(a.trayAutoStartItem, labels.AutoStart, settings.AutoStart)
 	if a.trayNodesMenu != nil {
 		a.trayNodesMenu.SetTitle(labels.Nodes)
 	}
@@ -324,53 +393,99 @@ func truncateTrayLabel(value string, maxRunes int) string {
 	return string(runes[:maxRunes-1]) + "..."
 }
 
+func setTrayModeTitle(item *trayMenuItem, label string, active bool) {
+	if item == nil {
+		return
+	}
+	prefix := "  "
+	if active {
+		prefix = "* "
+	}
+	item.SetTitle(prefix + label)
+}
+
+func setTrayToggleTitle(item *trayMenuItem, label string, enabled bool) {
+	if item == nil {
+		return
+	}
+	prefix := "[ ] "
+	if enabled {
+		prefix = "[x] "
+	}
+	item.SetTitle(prefix + label)
+}
+
 type trayLabels struct {
-	Show          string
-	StartCore     string
-	StopCore      string
-	StatusRunning string
-	StatusStopped string
-	Profiles      string
-	Nodes         string
-	Refresh       string
-	Quit          string
-	CoreStopped   string
-	LoadFailed    string
-	NoGroups      string
-	SelectGroup   string
+	Show              string
+	StartCore         string
+	StopCore          string
+	StatusRunning     string
+	StatusStopped     string
+	Mode              string
+	RuleMode          string
+	GlobalMode        string
+	DirectMode        string
+	AllowLAN          string
+	SystemProxy       string
+	SubscriptionProxy string
+	AutoStart         string
+	Profiles          string
+	Nodes             string
+	Refresh           string
+	Quit              string
+	CoreStopped       string
+	LoadFailed        string
+	NoGroups          string
+	SelectGroup       string
 }
 
 func trayLabelsForLanguage(language string) trayLabels {
 	if language == "en" {
 		return trayLabels{
-			Show:          "Show Pulse",
-			StartCore:     "Start Core",
-			StopCore:      "Stop Core",
-			StatusRunning: "Status: core running",
-			StatusStopped: "Status: core stopped",
-			Profiles:      "Profiles",
-			Nodes:         "Nodes",
-			Refresh:       "Refresh Tray",
-			Quit:          "Quit Pulse",
-			CoreStopped:   "Core stopped",
-			LoadFailed:    "Failed to load nodes",
-			NoGroups:      "No selectable groups",
-			SelectGroup:   "Select group",
+			Show:              "Show Pulse",
+			StartCore:         "Start Core",
+			StopCore:          "Stop Core",
+			StatusRunning:     "Status: core running",
+			StatusStopped:     "Status: core stopped",
+			Mode:              "Mode",
+			RuleMode:          "Rule",
+			GlobalMode:        "Global",
+			DirectMode:        "Direct",
+			AllowLAN:          "Allow LAN",
+			SystemProxy:       "System Proxy",
+			SubscriptionProxy: "Proxy Updates",
+			AutoStart:         "Start on boot",
+			Profiles:          "Profiles",
+			Nodes:             "Nodes",
+			Refresh:           "Refresh Tray",
+			Quit:              "Quit Pulse",
+			CoreStopped:       "Core stopped",
+			LoadFailed:        "Failed to load nodes",
+			NoGroups:          "No selectable groups",
+			SelectGroup:       "Select group",
 		}
 	}
 	return trayLabels{
-		Show:          "显示 Pulse",
-		StartCore:     "启动核心",
-		StopCore:      "停止核心",
-		StatusRunning: "状态：核心运行中",
-		StatusStopped: "状态：核心已停止",
-		Profiles:      "订阅配置",
-		Nodes:         "节点选择",
-		Refresh:       "刷新托盘",
-		Quit:          "退出 Pulse",
-		CoreStopped:   "核心已停止",
-		LoadFailed:    "节点加载失败",
-		NoGroups:      "没有可选分组",
-		SelectGroup:   "选择分组",
+		Show:              "显示 Pulse",
+		StartCore:         "启动核心",
+		StopCore:          "停止核心",
+		StatusRunning:     "状态：核心运行中",
+		StatusStopped:     "状态：核心已停止",
+		Mode:              "模式",
+		RuleMode:          "规则",
+		GlobalMode:        "全局",
+		DirectMode:        "直连",
+		AllowLAN:          "允许局域网",
+		SystemProxy:       "系统代理",
+		SubscriptionProxy: "代理更新订阅",
+		AutoStart:         "开机启动",
+		Profiles:          "订阅配置",
+		Nodes:             "节点选择",
+		Refresh:           "刷新托盘",
+		Quit:              "退出 Pulse",
+		CoreStopped:       "核心已停止",
+		LoadFailed:        "节点加载失败",
+		NoGroups:          "没有可选分组",
+		SelectGroup:       "选择分组",
 	}
 }

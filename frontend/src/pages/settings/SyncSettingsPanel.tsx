@@ -25,6 +25,10 @@ export function SyncSettingsPanel({settings, t, onDraft, onCommit, onApply, onOp
     return (
         <article className="panel formPanel">
             <div className="panelHead"><h2>{t('sync')}</h2></div>
+            <Toggle label="Allow LAN" checked={settings.allowLan} onChange={(value) => onApply({...settings, allowLan: value})}/>
+            <Toggle label={t('systemProxy')} checked={settings.systemProxy} onChange={(value) => onApply({...settings, systemProxy: value})}/>
+            <Toggle label={t('subscriptionProxy')} checked={settings.subscriptionProxy} onChange={(value) => onApply({...settings, subscriptionProxy: value})}/>
+            <Toggle label={t('autoStart')} checked={settings.autoStart} onChange={(value) => onApply({...settings, autoStart: value})}/>
             <Toggle label="WebDAV" checked={settings.webdav.enabled} onChange={(value) => applyWebDAV('enabled', value)}/>
             <AutoSaveField label="URL" value={settings.webdav.url} onDraft={(value) => draftWebDAV('url', value)} onCommit={(value) => commitWebDAV('url', value)}/>
             <AutoSaveField label={t('username')} value={settings.webdav.username} onDraft={(value) => draftWebDAV('username', value)} onCommit={(value) => commitWebDAV('username', value)}/>

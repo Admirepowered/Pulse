@@ -29,7 +29,6 @@ import {
     FetchRules,
     GetLogs,
     GetSnapshot,
-    ImportProfile,
     ImportProfileFromFile,
     MinimizeWindow,
     Models,
@@ -108,8 +107,6 @@ function App() {
     const [busy, setBusy] = useState(false);
     const [profileName, setProfileName] = useState('');
     const [profileURL, setProfileURL] = useState('');
-    const [importName, setImportName] = useState('');
-    const [importContent, setImportContent] = useState('');
     const [editorProfile, setEditorProfile] = useState<Profile | null>(null);
     const [editorContent, setEditorContent] = useState('');
     const [ruleEditorProfile, setRuleEditorProfile] = useState<Profile | null>(null);
@@ -220,7 +217,7 @@ function App() {
             }
             setProfileDropActive(false);
             run(() => ImportProfileFromFile(profilePath), t('profileImported'));
-        }, true);
+        }, false);
         return () => OnFileDropOff();
     }, [run, t, tab]);
 
@@ -442,18 +439,13 @@ function App() {
                         providers={providers}
                         profileName={profileName}
                         profileURL={profileURL}
-                        importName={importName}
-                        importContent={importContent}
                         t={t}
                         onProfileNameChange={setProfileName}
                         onProfileURLChange={setProfileURL}
-                        onImportNameChange={setImportName}
-                        onImportContentChange={setImportContent}
                         dropActive={profileDropActive}
                         onOpenGithub={() => run(() => OpenURL('https://github.com/Admirepowered/Pulse'))}
                         onActivate={(id) => run(() => SetActiveProfile(id), t('switchedProfile'))}
                         onEdit={openEditor}
-                        onEditRules={openRuleEditor}
                         onUpdateProfile={(id) => run(() => UpdateProfile(id), t('profileUpdated'))}
                         onDeleteProfile={(id) => run(() => DeleteProfile(id), t('profileDeleted'))}
                         onUpdateProvider={(name) => run(() => UpdateProvider(name), t('providerUpdated'))}
@@ -462,16 +454,20 @@ function App() {
                             setProfileName('');
                             setProfileURL('');
                         }, t('subscriptionAdded'))}
-                        onImportProfile={() => run(async () => {
-                            await ImportProfile(importName, importContent);
-                            setImportName('');
-                            setImportContent('');
-                        }, t('profileImported'))}
+                        onToggleSubscriptionProxy={(enabled) => applySettings({...settingsDraft, subscriptionProxy: enabled})}
                         onDropActiveChange={setProfileDropActive}
                     />
                 )}
 
-                {tab === 'rules' && <RulesPage rules={rules} t={t}/>}
+                {tab === 'rules' && (
+                    <RulesPage
+                        rules={rules}
+                        profiles={snapshot.profiles}
+                        activeProfile={snapshot.activeProfile}
+                        t={t}
+                        onEditCustomRules={openRuleEditor}
+                    />
+                )}
 
                 {tab === 'connections' && (
                     <ConnectionsPage

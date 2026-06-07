@@ -754,6 +754,24 @@ textarea {
     background: #eefaf6;
 }
 
+.contextMenu {
+    position: fixed;
+    z-index: 60;
+    min-width: 132px;
+    border: 1px solid #d9e1ea;
+    border-radius: 6px;
+    background: #ffffff;
+    box-shadow: 0 14px 36px rgba(15, 23, 42, .18);
+    padding: 5px;
+}
+
+.contextMenu button {
+    width: 100%;
+    justify-content: flex-start;
+    border: 0;
+    background: transparent;
+}
+
 .profileList,
 .connectionList,
 .ruleList,
@@ -774,6 +792,29 @@ textarea {
     border: 1px solid #edf1f5;
     border-radius: 6px;
     padding: 10px;
+}
+
+button.profileRow {
+    width: 100%;
+    text-align: left;
+}
+
+.profileDropPage.active .dropHint {
+    border-color: #0f766e;
+    color: #0f766e;
+    background: #eefaf6;
+}
+
+.dropHint {
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px dashed #b8c5d3;
+    border-radius: 6px;
+    padding: 0 12px;
+    color: #64748b;
+    font-size: 13px;
 }
 
 .profileRow.active {
@@ -815,6 +856,12 @@ textarea {
 
 .rowActions .pill {
     align-self: center;
+}
+
+.activeMark {
+    min-width: 34px;
+    color: #0f766e;
+    font-size: 12px;
 }
 
 .subscriptionUsage {
@@ -964,8 +1011,40 @@ textarea {
 }
 
 .toggle input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.toggle i {
+    position: relative;
+    width: 42px;
+    height: 24px;
+    flex: 0 0 auto;
+    border-radius: 999px;
+    background: #cbd5e1;
+    transition: background .16s ease;
+}
+
+.toggle i::after {
+    content: "";
+    position: absolute;
+    left: 3px;
+    top: 3px;
     width: 18px;
     height: 18px;
+    border-radius: 50%;
+    background: #ffffff;
+    box-shadow: 0 1px 4px rgba(15, 23, 42, .24);
+    transition: transform .16s ease;
+}
+
+.toggle input:checked + i {
+    background: #0f766e;
+}
+
+.toggle input:checked + i::after {
+    transform: translateX(18px);
 }
 
 .segmented {

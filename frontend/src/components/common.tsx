@@ -47,6 +47,7 @@ export function Toggle({label, checked, onChange}: { label: string; checked: boo
         <label className="toggle">
             <span>{label}</span>
             <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)}/>
+            <i aria-hidden="true"/>
         </label>
     );
 }

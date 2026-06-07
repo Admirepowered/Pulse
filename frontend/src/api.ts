@@ -17,6 +17,7 @@ export {
     ReadBackgroundImageDataURL,
     ReadProfileContent,
     ReadProfileCustomRules,
+    ReadProfileRulePolicies,
     RestartCore,
     SaveProfileContent,
     SaveProfileCustomRules,

@@ -40,6 +40,8 @@ export function ReadProfileContent(arg1:string):Promise<string>;
 
 export function ReadProfileCustomRules(arg1:string):Promise<Array<pulse.CustomRule>>;
 
+export function ReadProfileRulePolicies(arg1:string):Promise<Array<string>>;
+
 export function RestartCore():Promise<void>;
 
 export function SaveProfileContent(arg1:string,arg2:string):Promise<void>;

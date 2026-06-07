@@ -78,6 +78,10 @@ export function ReadProfileCustomRules(arg1) {
   return window['go']['pulse']['App']['ReadProfileCustomRules'](arg1);
 }
 
+export function ReadProfileRulePolicies(arg1) {
+  return window['go']['pulse']['App']['ReadProfileRulePolicies'](arg1);
+}
+
 export function RestartCore() {
   return window['go']['pulse']['App']['RestartCore']();
 }

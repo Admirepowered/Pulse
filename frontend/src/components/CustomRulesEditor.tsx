@@ -4,11 +4,13 @@ import type {CustomRule} from '../types';
 
 const ruleTypes = ['DOMAIN', 'DOMAIN-SUFFIX', 'DOMAIN-KEYWORD', 'IP-CIDR', 'IP-CIDR6', 'GEOIP', 'GEOSITE', 'MATCH'];
 
-export function CustomRulesEditor({rules, t, onChange}: {
+export function CustomRulesEditor({rules, policies, t, onChange}: {
     rules: CustomRule[];
+    policies: string[];
     t: Translator;
     onChange: (rules: CustomRule[]) => void;
 }) {
+    const policyOptions = policies.length ? policies : ['DIRECT', 'REJECT'];
     const update = (index: number, patch: Partial<CustomRule>) => {
         onChange(rules.map((rule, current) => current === index ? {...rule, ...patch} : rule));
     };
@@ -45,7 +47,10 @@ export function CustomRulesEditor({rules, t, onChange}: {
                         {ruleTypes.map((type) => <option key={type} value={type}>{type}</option>)}
                     </select>
                     <input disabled={rule.type === 'MATCH'} value={rule.payload} onChange={(event) => update(index, {payload: event.target.value})}/>
-                    <input value={rule.proxy} placeholder="DIRECT / REJECT / group" onChange={(event) => update(index, {proxy: event.target.value})}/>
+                    <select value={policyOptions.includes(rule.proxy) ? rule.proxy : ''} onChange={(event) => update(index, {proxy: event.target.value})}>
+                        {!policyOptions.includes(rule.proxy) && rule.proxy && <option value={rule.proxy}>{rule.proxy}</option>}
+                        {policyOptions.map((policy) => <option key={policy} value={policy}>{policy}</option>)}
+                    </select>
                     <label className="miniToggle">
                         <input type="checkbox" checked={rule.noResolve} onChange={(event) => update(index, {noResolve: event.target.checked})}/>
                         no-resolve
@@ -55,19 +60,19 @@ export function CustomRulesEditor({rules, t, onChange}: {
                     </button>
                 </div>
             ))}
-            <button className="wide" onClick={() => onChange([...rules, newRule()])}>
+            <button className="wide" onClick={() => onChange([...rules, newRule(policyOptions[0])])}>
                 <Plus size={16}/>{t('addRule')}
             </button>
         </div>
     );
 }
 
-export function newRule(): CustomRule {
+export function newRule(policy = 'DIRECT'): CustomRule {
     return {
         id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         type: 'DOMAIN-SUFFIX',
         payload: '',
-        proxy: 'DIRECT',
+        proxy: policy,
         noResolve: false,
     };
 }

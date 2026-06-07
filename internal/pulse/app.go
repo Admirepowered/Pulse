@@ -782,6 +782,16 @@ func (a *App) ReadProfileCustomRules(profileID string) ([]CustomRule, error) {
 	return rules, nil
 }
 
+func (a *App) ReadProfileRulePolicies(profileID string) ([]string, error) {
+	a.mu.Lock()
+	profile, ok := a.profileByIDLocked(profileID)
+	a.mu.Unlock()
+	if !ok {
+		return nil, errors.New("profile not found")
+	}
+	return profileRulePolicies(profile.Path)
+}
+
 func (a *App) SaveProfileCustomRules(profileID string, rules []CustomRule) error {
 	a.mu.Lock()
 	profile, ok := a.profileByIDLocked(profileID)
@@ -830,6 +840,44 @@ func (a *App) writeProfileCustomRules(profileID string, rules []CustomRule) erro
 		return err
 	}
 	return os.WriteFile(a.customRulesPath(profileID), data, 0o644)
+}
+
+func profileRulePolicies(path string) ([]string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var doc yaml.Node
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		return nil, fmt.Errorf("parse profile YAML: %w", err)
+	}
+	root := yamlRootMapping(&doc)
+	if root == nil {
+		return nil, errors.New("profile YAML root must be a mapping")
+	}
+	groups := yamlMappingValue(root, "proxy-groups")
+	if groups == nil || groups.Kind != yaml.SequenceNode {
+		return []string{"DIRECT", "REJECT"}, nil
+	}
+	seen := map[string]bool{}
+	policies := make([]string, 0, len(groups.Content)+2)
+	for _, item := range groups.Content {
+		if item.Kind != yaml.MappingNode {
+			continue
+		}
+		name := strings.TrimSpace(yamlScalarString(yamlMappingValue(item, "name")))
+		if name == "" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		policies = append(policies, name)
+	}
+	for _, name := range []string{"DIRECT", "REJECT"} {
+		if !seen[name] {
+			policies = append(policies, name)
+		}
+	}
+	return policies, nil
 }
 
 func (a *App) StartCore() error {
@@ -1729,6 +1777,13 @@ func yamlMappingValue(mapping *yaml.Node, key string) *yaml.Node {
 		return nil
 	}
 	return mapping.Content[index+1]
+}
+
+func yamlScalarString(node *yaml.Node) string {
+	if node == nil || node.Kind != yaml.ScalarNode {
+		return ""
+	}
+	return node.Value
 }
 
 func setYAMLScalar(mapping *yaml.Node, key string, value any) {

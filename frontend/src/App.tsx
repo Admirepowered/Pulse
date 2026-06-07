@@ -37,6 +37,7 @@ import {
     ReadBackgroundImageDataURL,
     ReadProfileContent,
     ReadProfileCustomRules,
+    ReadProfileRulePolicies,
     RestartCore,
     SaveProfileContent,
     SaveProfileCustomRules,
@@ -110,6 +111,7 @@ function App() {
     const [editorContent, setEditorContent] = useState('');
     const [ruleEditorProfile, setRuleEditorProfile] = useState<Profile | null>(null);
     const [ruleEditorRules, setRuleEditorRules] = useState<CustomRule[]>([]);
+    const [ruleEditorPolicies, setRuleEditorPolicies] = useState<string[]>([]);
     const [settingsDraft, setSettingsDraft] = useState<Settings>(emptySettings);
     const [settingsDirty, setSettingsDirty] = useState(false);
     const [backgroundDataURL, setBackgroundDataURL] = useState('');
@@ -226,7 +228,12 @@ function App() {
 
     const openRuleEditor = async (profile: Profile) => {
         setRuleEditorProfile(profile);
-        setRuleEditorRules(await ReadProfileCustomRules(profile.id) as CustomRule[]);
+        const [rules, policies] = await Promise.all([
+            ReadProfileCustomRules(profile.id),
+            ReadProfileRulePolicies(profile.id),
+        ]);
+        setRuleEditorRules(rules as CustomRule[]);
+        setRuleEditorPolicies(policies as string[]);
     };
 
     const chooseBackground = async () => {
@@ -513,7 +520,7 @@ function App() {
                             </button>
                         </div>
                         <p className="hintText">{t('customRulesHint')}</p>
-                        <CustomRulesEditor rules={ruleEditorRules} t={t} onChange={setRuleEditorRules}/>
+                        <CustomRulesEditor rules={ruleEditorRules} policies={ruleEditorPolicies} t={t} onChange={setRuleEditorRules}/>
                         <div className="modalActions">
                             <button onClick={() => setRuleEditorProfile(null)}>{t('cancel')}</button>
                             <button className="primary" onClick={() => run(async () => {

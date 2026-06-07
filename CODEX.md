@@ -38,6 +38,7 @@ This file is for future Codex sessions working on Pulse.
 - Custom profile rules are stored as structured JSON files under the data directory, not in `store.json` and not in the subscription YAML.
 - Custom rules are edited with typed controls, not a raw textarea.
 - Supported custom rule rows include type, payload, policy, `no-resolve`, and drag ordering.
+- Custom rule policy must be selected from the profile YAML `proxy-groups` plus built-in policies such as `DIRECT` and `REJECT`; do not use free-text policy input.
 - Runtime config generation injects custom rules at the beginning of `rules:` so they win before subscription rules.
 - Subscription updates must not erase custom rules.
 - Subscription updates may optionally use the local mixed proxy when the user enables proxy updates.

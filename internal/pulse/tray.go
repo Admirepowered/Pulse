@@ -1,3 +1,6 @@
+//go:build !darwin
+// +build !darwin
+
 package pulse
 
 import (
@@ -16,8 +19,14 @@ const (
 //go:embed assets/tray.ico
 var trayIcon []byte
 
+type trayMenuItem = systray.MenuItem
+
 func StartTray(app *App) {
 	app.startTray()
+}
+
+func quitTray() {
+	systray.Quit()
 }
 
 func (a *App) startTray() {
@@ -89,7 +98,7 @@ func (a *App) setupTrayMenu() {
 	for groupIndex := 0; groupIndex < maxTrayGroups; groupIndex++ {
 		groupItem := a.trayNodesMenu.AddSubMenuItem("Group", "Group")
 		a.trayNodeGroupItems = append(a.trayNodeGroupItems, groupItem)
-		nodeItems := make([]*systray.MenuItem, 0, maxTrayNodesPerGroup)
+		nodeItems := make([]*trayMenuItem, 0, maxTrayNodesPerGroup)
 		for nodeIndex := 0; nodeIndex < maxTrayNodesPerGroup; nodeIndex++ {
 			item := groupItem.AddSubMenuItem("Node", "Node")
 			item.Hide()

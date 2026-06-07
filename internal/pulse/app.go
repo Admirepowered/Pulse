@@ -25,7 +25,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/getlantern/systray"
 	mihomoObservable "github.com/metacubex/mihomo/common/observable"
 	mihomoConfig "github.com/metacubex/mihomo/config"
 	mihomoConstant "github.com/metacubex/mihomo/constant"
@@ -55,20 +54,20 @@ type App struct {
 	trayOnce             sync.Once
 	trayMu               sync.Mutex
 	trayReady            bool
-	trayShowItem         *systray.MenuItem
-	trayCoreItem         *systray.MenuItem
-	trayStatusItem       *systray.MenuItem
-	trayProfilesMenu     *systray.MenuItem
+	trayShowItem         *trayMenuItem
+	trayCoreItem         *trayMenuItem
+	trayStatusItem       *trayMenuItem
+	trayProfilesMenu     *trayMenuItem
 	trayProfileIDs       []string
-	trayProfileItems     []*systray.MenuItem
-	trayNodesMenu        *systray.MenuItem
-	trayNodeStatusItem   *systray.MenuItem
+	trayProfileItems     []*trayMenuItem
+	trayNodesMenu        *trayMenuItem
+	trayNodeStatusItem   *trayMenuItem
 	trayNodeGroupNames   []string
 	trayNodeNamesByGroup [][]string
-	trayNodeGroupItems   []*systray.MenuItem
-	trayNodeItems        [][]*systray.MenuItem
-	trayRefreshItem      *systray.MenuItem
-	trayQuitItem         *systray.MenuItem
+	trayNodeGroupItems   []*trayMenuItem
+	trayNodeItems        [][]*trayMenuItem
+	trayRefreshItem      *trayMenuItem
+	trayQuitItem         *trayMenuItem
 	trayWndProc          uintptr
 	trayPrevWndProc      uintptr
 	trayLastLeftClick    int64
@@ -83,24 +82,25 @@ type Store struct {
 }
 
 type Settings struct {
-	CorePath       string         `json:"corePath"`
-	CoreMode       string         `json:"coreMode"`
-	ApiBase        string         `json:"apiBase"`
-	Secret         string         `json:"secret"`
-	MixedPort      int            `json:"mixedPort"`
-	AllowLan       bool           `json:"allowLan"`
-	Mode           string         `json:"mode"`
-	LogLevel       string         `json:"logLevel"`
-	TunEnabled     bool           `json:"tunEnabled"`
-	SystemProxy    bool           `json:"systemProxy"`
-	Language       string         `json:"language"`
-	Theme          string         `json:"theme"`
-	AutoStart      bool           `json:"autoStart"`
-	AutoStartCore  bool           `json:"autoStartCore"`
-	CloseBehavior  string         `json:"closeBehavior"`
-	BackgroundPath string         `json:"backgroundPath"`
-	BackgroundBlur int            `json:"backgroundBlur"`
-	WebDAV         WebDAVSettings `json:"webdav"`
+	CorePath          string         `json:"corePath"`
+	CoreMode          string         `json:"coreMode"`
+	ApiBase           string         `json:"apiBase"`
+	Secret            string         `json:"secret"`
+	MixedPort         int            `json:"mixedPort"`
+	AllowLan          bool           `json:"allowLan"`
+	Mode              string         `json:"mode"`
+	LogLevel          string         `json:"logLevel"`
+	TunEnabled        bool           `json:"tunEnabled"`
+	SystemProxy       bool           `json:"systemProxy"`
+	Language          string         `json:"language"`
+	Theme             string         `json:"theme"`
+	AutoStart         bool           `json:"autoStart"`
+	AutoStartCore     bool           `json:"autoStartCore"`
+	CloseBehavior     string         `json:"closeBehavior"`
+	BackgroundPath    string         `json:"backgroundPath"`
+	BackgroundBlur    int            `json:"backgroundBlur"`
+	BackgroundOpacity int            `json:"backgroundOpacity"`
+	WebDAV            WebDAVSettings `json:"webdav"`
 }
 
 type WebDAVSettings struct {
@@ -262,7 +262,7 @@ func (a *App) syncAutoStartPath() {
 
 func (a *App) Shutdown(ctx context.Context) {
 	_ = a.StopCore()
-	systray.Quit()
+	quitTray()
 }
 
 func (a *App) BeforeClose(ctx context.Context) bool {
@@ -330,7 +330,7 @@ func (a *App) quitApplication() {
 	a.mu.Lock()
 	a.forceQuit = true
 	a.mu.Unlock()
-	systray.Quit()
+	quitTray()
 	wailsruntime.Quit(a.ctx)
 }
 
@@ -394,18 +394,19 @@ func defaultSettings() Settings {
 		core = "mihomo.exe"
 	}
 	return Settings{
-		CorePath:      core,
-		CoreMode:      "embedded",
-		ApiBase:       "http://127.0.0.1:9090",
-		Secret:        randomSecret(),
-		MixedPort:     7890,
-		Mode:          "rule",
-		LogLevel:      "info",
-		Language:      "zh",
-		Theme:         "system",
-		TunEnabled:    false,
-		AutoStartCore: true,
-		CloseBehavior: "minimize",
+		CorePath:          core,
+		CoreMode:          "embedded",
+		ApiBase:           "http://127.0.0.1:9090",
+		Secret:            randomSecret(),
+		MixedPort:         7890,
+		Mode:              "rule",
+		LogLevel:          "info",
+		Language:          "zh",
+		Theme:             "system",
+		TunEnabled:        false,
+		AutoStartCore:     true,
+		CloseBehavior:     "minimize",
+		BackgroundOpacity: 62,
 	}
 }
 
@@ -441,6 +442,10 @@ func mergeSettings(current, defaults Settings) Settings {
 		current.CloseBehavior = defaults.CloseBehavior
 	}
 	current.BackgroundBlur = clampBackgroundBlur(current.BackgroundBlur)
+	if current.BackgroundOpacity == 0 {
+		current.BackgroundOpacity = defaults.BackgroundOpacity
+	}
+	current.BackgroundOpacity = clampBackgroundOpacity(current.BackgroundOpacity)
 	return current
 }
 
@@ -469,6 +474,16 @@ func clampBackgroundBlur(value int) int {
 	}
 	if value > 40 {
 		return 40
+	}
+	return value
+}
+
+func clampBackgroundOpacity(value int) int {
+	if value < 15 {
+		return 15
+	}
+	if value > 100 {
+		return 100
 	}
 	return value
 }

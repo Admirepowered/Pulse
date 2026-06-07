@@ -25,6 +25,7 @@ export type Settings = {
     closeBehavior: string;
     backgroundPath: string;
     backgroundBlur: number;
+    backgroundOpacity: number;
     webdav: WebDAVSettings;
 };
 
@@ -164,6 +165,7 @@ export const emptySettings: Settings = {
     closeBehavior: 'minimize',
     backgroundPath: '',
     backgroundBlur: 0,
+    backgroundOpacity: 62,
     webdav: {enabled: false, url: '', username: '', password: ''},
 };
 

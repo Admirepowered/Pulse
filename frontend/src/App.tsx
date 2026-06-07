@@ -106,6 +106,7 @@ function App() {
     const [settingsDraft, setSettingsDraft] = useState<Settings>(emptySettings);
     const [settingsDirty, setSettingsDirty] = useState(false);
     const [backgroundDataURL, setBackgroundDataURL] = useState('');
+    const [sidebarFocused, setSidebarFocused] = useState(false);
     const [testingGroup, setTestingGroup] = useState('');
     const t = useMemo(() => getTranslator(settingsDraft.language || snapshot.settings.language), [settingsDraft.language, snapshot.settings.language]);
 
@@ -254,16 +255,33 @@ function App() {
         backgroundImage: backgroundDataURL ? `url(${JSON.stringify(backgroundDataURL)})` : 'none',
         filter: `blur(${Math.max(0, Math.min(40, settingsDraft.backgroundBlur || 0))}px)`,
     } as CSSProperties;
+    const surfaceAlpha = Math.max(15, Math.min(100, settingsDraft.backgroundOpacity || 62)) / 100;
+    const shellStyle = {
+        '--surface-alpha': `${surfaceAlpha}`,
+        '--surface-soft-alpha': `${Math.max(.15, surfaceAlpha - .04)}`,
+        '--surface-strong-alpha': `${Math.min(1, surfaceAlpha + .08)}`,
+        '--surface-button-alpha': `${Math.max(.12, surfaceAlpha - .20)}`,
+        '--surface-success-alpha': `${Math.min(1, surfaceAlpha + .06)}`,
+        '--surface-danger-alpha': `${Math.min(1, surfaceAlpha + .10)}`,
+    } as CSSProperties;
     const geodataVisible = snapshot.geodata.checking || (!snapshot.geodata.ready && Boolean(snapshot.geodata.message));
     const geodataProgress = snapshot.geodata.total > 0
         ? Math.min(100, Math.max(0, (snapshot.geodata.downloaded / snapshot.geodata.total) * 100))
         : 0;
 
     return (
-        <main className={backgroundDataURL ? 'shell hasBackground' : 'shell'}>
+        <main className={backgroundDataURL ? 'shell hasBackground' : 'shell'} style={shellStyle}>
             <div className="backgroundLayer" aria-hidden="true" style={backgroundStyle}/>
             <div className="backgroundOverlay" aria-hidden="true"/>
-            <aside className="sidebar">
+            <aside
+                className={sidebarFocused ? 'sidebar expanded' : 'sidebar'}
+                onMouseEnter={() => setSidebarFocused(true)}
+                onMouseLeave={() => setSidebarFocused(false)}
+                onFocus={() => setSidebarFocused(true)}
+                onBlur={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setSidebarFocused(false);
+                }}
+            >
                 <div className="brand">
                     <Cat size={28}/>
                     <div>

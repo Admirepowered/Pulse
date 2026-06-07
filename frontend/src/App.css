@@ -1,12 +1,26 @@
 .shell {
+    --surface-alpha: .62;
+    --surface-soft-alpha: .58;
+    --surface-strong-alpha: .70;
+    --surface-button-alpha: .42;
+    --surface-success-alpha: .68;
+    --surface-danger-alpha: .72;
+    --sidebar-width: 72px;
     position: relative;
     overflow: hidden;
     height: 100vh;
     min-height: 0;
     display: grid;
-    grid-template-columns: 232px 1fr;
+    grid-template-columns: var(--sidebar-width) 1fr;
     background: #f4f6f8;
     color: #17202a;
+    transition: grid-template-columns .16s ease;
+}
+
+.shell:has(.sidebar:hover),
+.shell:has(.sidebar:focus-within),
+.shell:has(.sidebar.expanded) {
+    --sidebar-width: 232px;
 }
 
 .backgroundLayer,
@@ -35,6 +49,8 @@
 }
 
 .sidebar {
+    --wails-draggable: drag;
+    -webkit-app-region: drag;
     position: relative;
     z-index: 1;
     height: 100vh;
@@ -46,19 +62,30 @@
     display: flex;
     flex-direction: column;
     gap: 18px;
+    transition: background .16s ease, padding .16s ease;
 }
 
 .hasBackground .sidebar {
-    background: rgba(14, 23, 35, .70);
+    background: rgba(14, 23, 35, var(--surface-strong-alpha));
     backdrop-filter: blur(14px);
 }
 
 .brand {
+    --wails-draggable: drag;
+    -webkit-app-region: drag;
     display: flex;
     align-items: center;
     gap: 10px;
     padding: 8px 10px 14px;
     border-bottom: 1px solid rgba(255, 255, 255, .12);
+}
+
+.brand svg,
+.brand div,
+.sidebar nav,
+.sidebarFooter {
+    --wails-draggable: no-drag;
+    -webkit-app-region: no-drag;
 }
 
 .brand strong,
@@ -74,6 +101,27 @@
 .sidebar nav {
     display: grid;
     gap: 6px;
+}
+
+.sidebar .brand div,
+.sidebar button span,
+.sidebarFooter {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .12s ease;
+}
+
+.sidebar:hover .brand div,
+.sidebar:focus-within .brand div,
+.sidebar.expanded .brand div,
+.sidebar:hover button span,
+.sidebar:focus-within button span,
+.sidebar.expanded button span,
+.sidebar:hover .sidebarFooter,
+.sidebar:focus-within .sidebarFooter,
+.sidebar.expanded .sidebarFooter {
+    opacity: 1;
+    pointer-events: auto;
 }
 
 button {
@@ -106,10 +154,27 @@ button:disabled {
 }
 
 .sidebar button {
+    --wails-draggable: no-drag;
+    -webkit-app-region: no-drag;
     justify-content: flex-start;
     border-color: transparent;
     background: transparent;
     color: #dce5ee;
+}
+
+.shell:not(:has(.sidebar:hover)):not(:has(.sidebar:focus-within)):not(:has(.sidebar.expanded)) .sidebar button {
+    justify-content: center;
+    padding: 0;
+}
+
+.shell:not(:has(.sidebar:hover)):not(:has(.sidebar:focus-within)):not(:has(.sidebar.expanded)) .sidebar button span,
+.shell:not(:has(.sidebar:hover)):not(:has(.sidebar:focus-within)):not(:has(.sidebar.expanded)) .brand div {
+    width: 0;
+    overflow: hidden;
+}
+
+.shell:not(:has(.sidebar:hover)):not(:has(.sidebar:focus-within)):not(:has(.sidebar.expanded)) .sidebarFooter {
+    display: none;
 }
 
 .sidebar button.active,
@@ -136,6 +201,8 @@ button:disabled {
 }
 
 .workspace {
+    --wails-draggable: drag;
+    -webkit-app-region: drag;
     position: relative;
     z-index: 1;
     min-width: 0;
@@ -174,8 +241,9 @@ button,
 input,
 textarea,
 summary,
-.actions,
-.windowControls {
+.panel,
+.metric,
+.noticeStack {
     --wails-draggable: no-drag;
     -webkit-app-region: no-drag;
     user-select: auto;
@@ -322,7 +390,7 @@ h2 {
 .hasBackground .panel,
 .hasBackground .metric,
 .hasBackground .search {
-    background: rgba(255, 255, 255, .62);
+    background: rgba(255, 255, 255, var(--surface-alpha));
     backdrop-filter: blur(10px);
 }
 
@@ -336,7 +404,7 @@ h2 {
 .hasBackground .tableRow,
 .hasBackground .node,
 .hasBackground .pill {
-    background: rgba(255, 255, 255, .58);
+    background: rgba(255, 255, 255, var(--surface-soft-alpha));
     backdrop-filter: blur(8px);
 }
 
@@ -350,24 +418,24 @@ h2 {
 }
 
 .hasBackground .danger {
-    background: rgba(255, 245, 243, .72);
+    background: rgba(255, 245, 243, var(--surface-danger-alpha));
 }
 
 .hasBackground .chromeButton,
 .hasBackground .iconButton {
-    background: rgba(255, 255, 255, .42);
+    background: rgba(255, 255, 255, var(--surface-button-alpha));
 }
 
 .hasBackground .chromeButton:hover,
 .hasBackground .iconButton:hover,
 .hasBackground .proxyGroupHead:hover {
-    background: rgba(255, 255, 255, .62);
+    background: rgba(255, 255, 255, var(--surface-alpha));
 }
 
 .hasBackground .node.selected,
 .hasBackground .segmented button.active,
 .hasBackground .pill.ok {
-    background: rgba(232, 250, 246, .68);
+    background: rgba(232, 250, 246, var(--surface-success-alpha));
 }
 
 .panel {
@@ -864,11 +932,6 @@ textarea {
 @media (max-width: 980px) {
     .shell {
         grid-template-columns: 72px 1fr;
-    }
-
-    .brand div,
-    .sidebar button span {
-        display: none;
     }
 
     .sidebar button {

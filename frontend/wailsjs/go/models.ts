@@ -319,6 +319,7 @@ export namespace pulse {
 	    closeBehavior: string;
 	    backgroundPath: string;
 	    backgroundBlur: number;
+	    backgroundOpacity: number;
 	    webdav: WebDAVSettings;
 
 	    static createFrom(source: any = {}) {
@@ -344,6 +345,7 @@ export namespace pulse {
 	        this.closeBehavior = source["closeBehavior"];
 	        this.backgroundPath = source["backgroundPath"];
 	        this.backgroundBlur = source["backgroundBlur"];
+	        this.backgroundOpacity = source["backgroundOpacity"];
 	        this.webdav = this.convertValues(source["webdav"], WebDAVSettings);
 	    }
 
@@ -424,4 +426,3 @@ export namespace pulse {
 
 
 }
-

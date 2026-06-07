@@ -113,6 +113,17 @@ export function SettingsPage({settings, t, onChange, onApply, onSave, onOpenDir,
                             onChange={(event) => set('backgroundBlur', Number(event.target.value))}
                         />
                     </label>
+                    <label className="rangeField">
+                        <span>透明度 <strong>{settings.backgroundOpacity || 62}%</strong></span>
+                        <input
+                            type="range"
+                            min="15"
+                            max="100"
+                            step="1"
+                            value={settings.backgroundOpacity || 62}
+                            onChange={(event) => set('backgroundOpacity', Number(event.target.value))}
+                        />
+                    </label>
                 </article>
 
                 <article className="panel formPanel">

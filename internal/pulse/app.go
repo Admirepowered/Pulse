@@ -657,7 +657,7 @@ func (a *App) SaveSettings(settings Settings) error {
 	settings = mergeSettings(settings, defaultSettings())
 	settings.LogLevel = normalizeLogLevel(settings.LogLevel)
 	a.appendLog("info", fmt.Sprintf(
-		"save settings requested: store=%s coreMode=%s autoStartCore=%t autoStart=%t systemProxy=%t allowLan=%t mixedPort=%d",
+		"save settings requested: store=%s coreMode=%s autoStartCore=%t autoStart=%t systemProxy=%t allowLan=%t mixedPort=%d tun=%t interface=%s",
 		a.storePath,
 		settings.CoreMode,
 		settings.AutoStartCore,
@@ -665,6 +665,8 @@ func (a *App) SaveSettings(settings Settings) error {
 		settings.SystemProxy,
 		settings.AllowLan,
 		settings.MixedPort,
+		settings.TunEnabled,
+		strings.TrimSpace(settings.TunInterface),
 	))
 	a.mu.Lock()
 	previous := a.store.Settings
@@ -1637,6 +1639,9 @@ func (a *App) applyRuntimeSettings(settings Settings) error {
 		"log-level": normalizeLogLevel(settings.LogLevel),
 		"tun":       tunConfigMap(settings),
 	}
+	if name := strings.TrimSpace(settings.TunInterface); name != "" {
+		body["interface-name"] = name
+	}
 	if err := a.apiRequest(http.MethodPatch, "/configs", body, nil); err != nil {
 		return err
 	}
@@ -1645,15 +1650,11 @@ func (a *App) applyRuntimeSettings(settings Settings) error {
 
 func tunConfigMap(settings Settings) map[string]any {
 	config := map[string]any{
-		"enable":     settings.TunEnabled,
-		"stack":      "mixed",
-		"auto-route": true,
-	}
-	if name := strings.TrimSpace(settings.TunInterface); name != "" {
-		config["interface-name"] = name
-		config["auto-detect-interface"] = false
-	} else {
-		config["auto-detect-interface"] = true
+		"enable":                settings.TunEnabled,
+		"stack":                 "gvisor",
+		"dns-hijack":            []string{"any:53"},
+		"auto-route":            true,
+		"auto-detect-interface": true,
 	}
 	return config
 }
@@ -2110,6 +2111,11 @@ func mergeRuntimeConfig(content []byte, settings Settings, controller string, cu
 	setYAMLScalar(root, "log-level", normalizeLogLevel(settings.LogLevel))
 	setYAMLScalar(root, "external-controller", controller)
 	setYAMLScalar(root, "secret", settings.Secret)
+	if name := strings.TrimSpace(settings.TunInterface); name != "" {
+		setYAMLScalar(root, "interface-name", name)
+	} else {
+		deleteYAMLKey(root, "interface-name")
+	}
 
 	tun := yamlMappingValue(root, "tun")
 	if tun == nil || tun.Kind != yaml.MappingNode {
@@ -2117,15 +2123,11 @@ func mergeRuntimeConfig(content []byte, settings Settings, controller string, cu
 		setYAMLNode(root, "tun", tun)
 	}
 	setYAMLScalar(tun, "enable", settings.TunEnabled)
-	setYAMLScalar(tun, "stack", "mixed")
+	setYAMLScalar(tun, "stack", "gvisor")
+	setYAMLStringSequence(tun, "dns-hijack", []string{"any:53"})
 	setYAMLScalar(tun, "auto-route", true)
-	if name := strings.TrimSpace(settings.TunInterface); name != "" {
-		setYAMLScalar(tun, "interface-name", name)
-		setYAMLScalar(tun, "auto-detect-interface", false)
-	} else {
-		deleteYAMLKey(tun, "interface-name")
-		setYAMLScalar(tun, "auto-detect-interface", true)
-	}
+	setYAMLScalar(tun, "auto-detect-interface", true)
+	deleteYAMLKey(tun, "interface-name")
 	prependRules(root, customRules)
 
 	var output bytes.Buffer
@@ -2220,6 +2222,14 @@ func yamlScalarString(node *yaml.Node) string {
 
 func setYAMLScalar(mapping *yaml.Node, key string, value any) {
 	setYAMLNode(mapping, key, yamlScalar(value))
+}
+
+func setYAMLStringSequence(mapping *yaml.Node, key string, values []string) {
+	node := &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
+	for _, value := range values {
+		node.Content = append(node.Content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: value})
+	}
+	setYAMLNode(mapping, key, node)
 }
 
 func setYAMLNode(mapping *yaml.Node, key string, value *yaml.Node) {

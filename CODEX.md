@@ -18,6 +18,8 @@ This file is for future Codex sessions working on Pulse.
 - Range sliders update the draft UI while dragging and save when the interaction finishes.
 - Node selection should not show a global notice; keep it quiet unless there is an error.
 - Right-clicking a proxy node runs a delay test for that node only.
+- Successful actions should stay quiet. Only failures should show global notices.
+- Disabled controls should use a clear `not-allowed` cursor, not a loading cursor.
 - If a setting needs mihomo restart, let the backend decide and log the restart reason.
 - Keep user-visible notices short and auto-dismissed.
 

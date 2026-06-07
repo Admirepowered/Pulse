@@ -134,7 +134,7 @@ function App() {
         setNotice('');
         try {
             await task();
-            if (message) setNotice(message);
+            void message;
             await refreshSnapshot();
             await refreshPageData(tab);
         } catch (error) {
@@ -239,7 +239,6 @@ function App() {
             setSettingsDirty(false);
             setBackgroundDataURL(dataURL);
             await saveSettings(next);
-            setNotice(t('backgroundUpdated'));
             await refreshSnapshot();
         } catch (error) {
             setNotice(error instanceof Error ? error.message : String(error));

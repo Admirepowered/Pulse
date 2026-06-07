@@ -222,6 +222,7 @@ func (a *App) Startup(ctx context.Context) {
 		return
 	}
 	a.appendLog("info", "Pulse Wails client started")
+	a.syncAutoStartPath()
 	a.updateTrayMenuState()
 	a.startShowSignalWatcher()
 	if a.store.Settings.AutoStartCore {
@@ -232,6 +233,20 @@ func (a *App) Startup(ctx context.Context) {
 			}
 		}()
 	}
+}
+
+func (a *App) syncAutoStartPath() {
+	a.mu.Lock()
+	enabled := a.store.Settings.AutoStart
+	a.mu.Unlock()
+	if !enabled {
+		return
+	}
+	if err := setAutoStart(true); err != nil {
+		a.appendLog("error", "auto-start path sync failed: "+err.Error())
+		return
+	}
+	a.appendLog("info", "auto-start path synced to current executable")
 }
 
 func (a *App) Shutdown(ctx context.Context) {

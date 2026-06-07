@@ -26,7 +26,7 @@
 }
 
 .backgroundOverlay {
-    background: rgba(244, 246, 248, .28);
+    background: rgba(244, 246, 248, .22);
 }
 
 .shell.hasBackground .backgroundLayer,
@@ -46,6 +46,11 @@
     display: flex;
     flex-direction: column;
     gap: 18px;
+}
+
+.hasBackground .sidebar {
+    background: rgba(14, 23, 35, .70);
+    backdrop-filter: blur(14px);
 }
 
 .brand {
@@ -111,6 +116,11 @@ button:disabled {
 .sidebar button:hover {
     background: #263547;
     color: #ffffff;
+}
+
+.hasBackground .sidebar button.active,
+.hasBackground .sidebar button:hover {
+    background: rgba(255, 255, 255, .16);
 }
 
 .sidebarFooter {
@@ -290,8 +300,52 @@ h2 {
 .hasBackground .panel,
 .hasBackground .metric,
 .hasBackground .search {
-    background: rgba(255, 255, 255, .76);
+    background: rgba(255, 255, 255, .62);
     backdrop-filter: blur(10px);
+}
+
+.hasBackground button,
+.hasBackground .field input,
+.hasBackground textarea,
+.hasBackground .pathPreview,
+.hasBackground .profileRow,
+.hasBackground .connectionRow,
+.hasBackground .ruleRow,
+.hasBackground .tableRow,
+.hasBackground .node,
+.hasBackground .pill {
+    background: rgba(255, 255, 255, .58);
+    backdrop-filter: blur(8px);
+}
+
+.hasBackground .sidebar button {
+    background: transparent;
+    backdrop-filter: none;
+}
+
+.hasBackground .primary {
+    background: rgba(15, 118, 110, .88);
+}
+
+.hasBackground .danger {
+    background: rgba(255, 245, 243, .72);
+}
+
+.hasBackground .chromeButton,
+.hasBackground .iconButton {
+    background: rgba(255, 255, 255, .42);
+}
+
+.hasBackground .chromeButton:hover,
+.hasBackground .iconButton:hover,
+.hasBackground .proxyGroupHead:hover {
+    background: rgba(255, 255, 255, .62);
+}
+
+.hasBackground .node.selected,
+.hasBackground .segmented button.active,
+.hasBackground .pill.ok {
+    background: rgba(232, 250, 246, .68);
 }
 
 .panel {

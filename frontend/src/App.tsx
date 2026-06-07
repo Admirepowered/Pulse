@@ -461,7 +461,7 @@ function App() {
                             setSettingsDirty(true);
                         }}
                         onApply={applySettings}
-                        onSave={(settings) => run(() => saveSettings(settings), t('settingsSaved'))}
+                        onCommit={(settings) => run(() => saveSettings(settings), t('settingsSaved'))}
                         onOpenDir={() => run(OpenDataDirectory)}
                         onChooseBackground={chooseBackground}
                         onClearBackground={clearBackground}

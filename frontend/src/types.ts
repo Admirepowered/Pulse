@@ -103,6 +103,9 @@ export type ConnectionRow = {
     id: string;
     network: string;
     address: string;
+    destinationIp: string;
+    source: string;
+    process: string;
     rule: string;
     chains: string;
     upload: number;

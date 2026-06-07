@@ -170,14 +170,17 @@ type ProviderRow struct {
 }
 
 type ConnectionRow struct {
-	ID       string `json:"id"`
-	Network  string `json:"network"`
-	Address  string `json:"address"`
-	Rule     string `json:"rule"`
-	Chains   string `json:"chains"`
-	Upload   int64  `json:"upload"`
-	Download int64  `json:"download"`
-	Start    string `json:"start"`
+	ID            string `json:"id"`
+	Network       string `json:"network"`
+	Address       string `json:"address"`
+	DestinationIP string `json:"destinationIp"`
+	Source        string `json:"source"`
+	Process       string `json:"process"`
+	Rule          string `json:"rule"`
+	Chains        string `json:"chains"`
+	Upload        int64  `json:"upload"`
+	Download      int64  `json:"download"`
+	Start         string `json:"start"`
 }
 
 type ConnectionSnapshot struct {
@@ -949,9 +952,13 @@ func (a *App) FetchConnections() (ConnectionSnapshot, error) {
 			Download int64    `json:"download"`
 			Start    string   `json:"start"`
 			Metadata struct {
-				Host    string `json:"host"`
-				DstIP   string `json:"destinationIP"`
-				DstPort int    `json:"destinationPort"`
+				Host      string `json:"host"`
+				SniffHost string `json:"sniffHost"`
+				DstIP     string `json:"destinationIP"`
+				DstPort   int    `json:"destinationPort,string"`
+				SrcIP     string `json:"sourceIP"`
+				SrcPort   int    `json:"sourcePort,string"`
+				Process   string `json:"process"`
 			} `json:"metadata"`
 		} `json:"connections"`
 	}
@@ -961,22 +968,29 @@ func (a *App) FetchConnections() (ConnectionSnapshot, error) {
 	}
 	rows := make([]ConnectionRow, 0, len(raw.Connections))
 	for _, c := range raw.Connections {
-		address := c.Metadata.Host
+		address := firstNonEmpty(c.Metadata.Host, c.Metadata.SniffHost, c.Metadata.DstIP)
 		if address == "" {
 			address = c.Metadata.DstIP
 		}
 		if c.Metadata.DstPort > 0 {
 			address = fmt.Sprintf("%s:%d", address, c.Metadata.DstPort)
 		}
+		source := c.Metadata.SrcIP
+		if source != "" && c.Metadata.SrcPort > 0 {
+			source = fmt.Sprintf("%s:%d", source, c.Metadata.SrcPort)
+		}
 		rows = append(rows, ConnectionRow{
-			ID:       c.ID,
-			Network:  c.Network,
-			Address:  address,
-			Rule:     c.Rule,
-			Chains:   strings.Join(c.Chains, " / "),
-			Upload:   c.Upload,
-			Download: c.Download,
-			Start:    c.Start,
+			ID:            c.ID,
+			Network:       c.Network,
+			Address:       address,
+			DestinationIP: c.Metadata.DstIP,
+			Source:        source,
+			Process:       c.Metadata.Process,
+			Rule:          c.Rule,
+			Chains:        strings.Join(c.Chains, " / "),
+			Upload:        c.Upload,
+			Download:      c.Download,
+			Start:         c.Start,
 		})
 	}
 	return ConnectionSnapshot{
@@ -1006,6 +1020,10 @@ func (a *App) fetchTraffic() (TrafficSnapshot, bool) {
 }
 
 func (a *App) applyRuntimeSettings(settings Settings) error {
+	if a.isEmbeddedCoreRunning() {
+		a.applyEmbeddedRuntimeSettings(settings)
+		return nil
+	}
 	body := map[string]any{
 		"allow-lan": settings.AllowLan,
 		"mode":      settings.Mode,
@@ -1021,6 +1039,19 @@ func (a *App) applyRuntimeSettings(settings Settings) error {
 		return err
 	}
 	return nil
+}
+
+func (a *App) isEmbeddedCoreRunning() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.embeddedCoreRunning
+}
+
+func (a *App) applyEmbeddedRuntimeSettings(settings Settings) {
+	if level, ok := mihomoLog.LogLevelMapping[normalizeLogLevel(settings.LogLevel)]; ok {
+		mihomoLog.SetLevel(level)
+	}
+	a.appendLog("info", "embedded runtime settings applied locally; restart core if TUN or listener settings do not change immediately")
 }
 
 func (a *App) waitForAPIReady(timeout time.Duration) error {

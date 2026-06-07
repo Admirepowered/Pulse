@@ -203,7 +203,7 @@ function App() {
         const value = query.trim().toLowerCase();
         const connections = connectionSnapshot.connections || [];
         if (!value) return connections;
-        return connections.filter((item) => `${item.address} ${item.rule} ${item.chains}`.toLowerCase().includes(value));
+        return connections.filter((item) => `${item.address} ${item.destinationIp} ${item.source} ${item.process} ${item.rule} ${item.chains}`.toLowerCase().includes(value));
     }, [connectionSnapshot.connections, query]);
 
     const openEditor = async (profile: Profile) => {

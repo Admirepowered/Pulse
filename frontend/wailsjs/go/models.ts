@@ -4,6 +4,9 @@ export namespace pulse {
 	    id: string;
 	    network: string;
 	    address: string;
+	    destinationIp: string;
+	    source: string;
+	    process: string;
 	    rule: string;
 	    chains: string;
 	    upload: number;
@@ -19,6 +22,9 @@ export namespace pulse {
 	        this.id = source["id"];
 	        this.network = source["network"];
 	        this.address = source["address"];
+	        this.destinationIp = source["destinationIp"];
+	        this.source = source["source"];
+	        this.process = source["process"];
 	        this.rule = source["rule"];
 	        this.chains = source["chains"];
 	        this.upload = source["upload"];

@@ -35,7 +35,7 @@ export function ConnectionsPage({snapshot, connections, query, onQueryChange, on
                 </div>
             </div>
             <div className="toolbar">
-                <SearchBox value={query} onChange={onQueryChange} placeholder="搜索域名、规则、链路"/>
+                <SearchBox value={query} onChange={onQueryChange} placeholder="搜索域名、IP、规则、链路"/>
                 <button className="danger" onClick={onCloseAll}>
                     <X size={16}/>全部断开
                 </button>
@@ -48,8 +48,13 @@ export function ConnectionsPage({snapshot, connections, query, onQueryChange, on
                     {connections.map((item) => (
                         <div className="connectionRow" key={item.id}>
                             <div>
-                                <strong>{item.address || item.id}</strong>
-                                <span>{item.network} · {item.rule} · {item.chains}</span>
+                                <strong>{item.address || item.destinationIp || item.id}</strong>
+                                <span>
+                                    {item.destinationIp && item.destinationIp !== item.address ? `目标 ${item.destinationIp} · ` : ''}
+                                    {item.source ? `来源 ${item.source} · ` : ''}
+                                    {item.process ? `${item.process} · ` : ''}
+                                    {item.network} · {item.rule} · {item.chains}
+                                </span>
                             </div>
                             <small>
                                 <ArrowUp size={13}/>{formatBytes(item.upload)}

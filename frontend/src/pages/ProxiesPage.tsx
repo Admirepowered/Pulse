@@ -3,7 +3,7 @@ import {SearchBox, StatusPill} from '../components/common';
 import type {Translator} from '../i18n';
 import type {ProxyGroup} from '../types';
 
-export function ProxiesPage({groups, query, t, testingGroup, onQueryChange, onSelect, onTestGroup}: {
+export function ProxiesPage({groups, query, t, testingGroup, onQueryChange, onSelect, onTestGroup, onTestNode}: {
     groups: ProxyGroup[];
     query: string;
     t: Translator;
@@ -11,6 +11,7 @@ export function ProxiesPage({groups, query, t, testingGroup, onQueryChange, onSe
     onQueryChange: (value: string) => void;
     onSelect: (group: string, node: string) => void;
     onTestGroup: (group: string) => void;
+    onTestNode: (group: string, node: string) => void;
 }) {
     return (
         <section className="stack proxyPage">
@@ -43,6 +44,10 @@ export function ProxiesPage({groups, query, t, testingGroup, onQueryChange, onSe
                                 className={node.name === group.now ? 'node selected' : 'node'}
                                 key={`${group.name}-${node.name}`}
                                 onClick={() => onSelect(group.name, node.name)}
+                                onContextMenu={(event) => {
+                                    event.preventDefault();
+                                    onTestNode(group.name, node.name);
+                                }}
                             >
                                 <span>{node.name}</span>
                                 <small>{node.type || 'proxy'} · {node.delay >= 0 ? `${node.delay}ms` : t('pending')}</small>

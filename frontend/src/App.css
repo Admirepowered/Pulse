@@ -780,6 +780,15 @@ textarea {
     padding: 10px;
 }
 
+.profileRow.active {
+    border-color: #0f766e;
+    background: #eefaf6;
+}
+
+.hasBackground .profileRow.active {
+    background: rgba(232, 250, 246, var(--surface-success-alpha));
+}
+
 .profileRow div:first-child,
 .connectionRow div:first-child {
     min-width: 0;
@@ -801,6 +810,15 @@ textarea {
     width: 32px;
     height: 32px;
     padding: 0;
+}
+
+.rowActions button.ghost {
+    width: auto;
+    padding: 0 12px;
+}
+
+.rowActions .pill {
+    align-self: center;
 }
 
 .subscriptionUsage {

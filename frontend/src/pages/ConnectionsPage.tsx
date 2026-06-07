@@ -1,7 +1,10 @@
 import {Activity, ArrowDown, ArrowUp, Cpu, X} from 'lucide-react';
 import {SearchBox, formatBytes} from '../components/common';
+import {PageButtons, PaginationControls, defaultPageSize, usePagination} from '../components/pagination';
 import type {Translator} from '../i18n';
 import type {ConnectionRow, ConnectionSnapshot} from '../types';
+
+const maxConnections = 500;
 
 export function ConnectionsPage({snapshot, connections, query, t, onQueryChange, onCloseAll, onClose}: {
     snapshot: ConnectionSnapshot;
@@ -12,6 +15,8 @@ export function ConnectionsPage({snapshot, connections, query, t, onQueryChange,
     onCloseAll: () => void;
     onClose: (id: string) => void;
 }) {
+    const pagination = usePagination(connections, defaultPageSize, maxConnections);
+
     return (
         <section className="stack">
             <div className="connectionStats">
@@ -43,11 +48,25 @@ export function ConnectionsPage({snapshot, connections, query, t, onQueryChange,
                 </button>
             </div>
             <article className="panel">
+                <div className="panelHead">
+                    <h2>{t('connections')}</h2>
+                    <div className="rowActions">
+                        <PageButtons page={pagination.safePage} pageCount={pagination.pageCount} onPage={pagination.setPage}/>
+                        <PaginationControls
+                            page={pagination.safePage}
+                            pageCount={pagination.pageCount}
+                            total={pagination.total}
+                            visibleTotal={pagination.visibleTotal}
+                            capped={pagination.capped}
+                            suffix={t('connections')}
+                        />
+                    </div>
+                </div>
                 <div className="connectionList">
-                    {connections.length === 0 && (
+                    {pagination.pageItems.length === 0 && (
                         <div className="emptyState">{t('noConnections')}</div>
                     )}
-                    {connections.map((item) => (
+                    {pagination.pageItems.map((item) => (
                         <div className="connectionRow" key={item.id}>
                             <div>
                                 <strong>{item.address || item.destinationIp || item.id}</strong>

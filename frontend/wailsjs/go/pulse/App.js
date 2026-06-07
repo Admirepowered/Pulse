@@ -122,6 +122,10 @@ export function TestProxyGroup(arg1) {
   return window['go']['pulse']['App']['TestProxyGroup'](arg1);
 }
 
+export function TestProxyNode(arg1, arg2) {
+  return window['go']['pulse']['App']['TestProxyNode'](arg1, arg2);
+}
+
 export function UpdateProfile(arg1) {
   return window['go']['pulse']['App']['UpdateProfile'](arg1);
 }

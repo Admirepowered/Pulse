@@ -16,8 +16,18 @@ This file is for future Codex sessions working on Pulse.
 - Text inputs save on blur and Enter.
 - Toggles, segmented buttons, and direct commands apply immediately.
 - Range sliders update the draft UI while dragging and save when the interaction finishes.
+- Node selection should not show a global notice; keep it quiet unless there is an error.
+- Right-clicking a proxy node runs a delay test for that node only.
 - If a setting needs mihomo restart, let the backend decide and log the restart reason.
 - Keep user-visible notices short and auto-dismissed.
+
+## Lists And Pagination
+
+- Large lists must be paginated with `frontend/src/components/pagination.tsx`.
+- Use 100 items per page by default.
+- Rules, profiles, proxy providers, connections, and logs should not render unbounded lists.
+- Connections and logs should also keep a display cap so long-running sessions do not make the UI sluggish.
+- The active profile must be visibly highlighted in the Profiles page.
 
 ## Profile Rules
 

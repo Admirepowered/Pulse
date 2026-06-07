@@ -47,6 +47,7 @@ import {
     StartCore,
     StopCore,
     TestProxyGroup,
+    TestProxyNode,
     UpdateProfile,
     UpdateProvider,
     WindowToggleMaximise,
@@ -400,8 +401,9 @@ function App() {
                         t={t}
                         testingGroup={testingGroup}
                         onQueryChange={setQuery}
-                        onSelect={(group, node) => run(() => SelectProxy(group, node), `${group} -> ${node}`)}
+                        onSelect={(group, node) => run(() => SelectProxy(group, node))}
                         onTestGroup={(group) => testProxyGroup(group)}
+                        onTestNode={(group, node) => run(() => TestProxyNode(group, node), t('delayTested'))}
                     />
                 )}
 

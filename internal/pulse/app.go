@@ -1071,6 +1071,19 @@ func (a *App) TestProxyGroup(group string) error {
 	return nil
 }
 
+func (a *App) TestProxyNode(group string, node string) error {
+	if strings.TrimSpace(node) == "" {
+		return errors.New("proxy node is empty")
+	}
+	path := "/proxies/" + url.PathEscape(node) + "/delay?timeout=5000&url=" + url.QueryEscape("https://www.gstatic.com/generate_204")
+	if err := a.apiRequest(http.MethodGet, path, nil, nil); err != nil {
+		a.appendLog("warning", fmt.Sprintf("proxy delay test failed: group=%s node=%s error=%s", group, node, err.Error()))
+		return err
+	}
+	a.updateTrayMenuState()
+	return nil
+}
+
 func (a *App) FetchRules() ([]RuleRow, error) {
 	var raw struct {
 		Rules []RuleRow `json:"rules"`

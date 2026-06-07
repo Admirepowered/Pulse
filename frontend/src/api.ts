@@ -27,6 +27,7 @@ export {
     StartCore,
     StopCore,
     TestProxyGroup,
+    TestProxyNode,
     UpdateProfile,
     UpdateProvider,
 } from '../wailsjs/go/pulse/App';

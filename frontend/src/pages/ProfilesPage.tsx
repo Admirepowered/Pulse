@@ -1,5 +1,6 @@
 import {Check, Cloud, Link2, ListPlus, RefreshCcw, SquarePen, Trash2, Upload} from 'lucide-react';
 import {Field, SubscriptionUsage, formatTime} from '../components/common';
+import {PageButtons, PaginationControls, defaultPageSize, usePagination} from '../components/pagination';
 import type {Translator} from '../i18n';
 import type {Profile, ProviderRow, RuntimeState} from '../types';
 
@@ -46,19 +47,26 @@ export function ProfilesPage({
     onAddSubscription: () => void;
     onImportProfile: () => void;
 }) {
+    const profiles = usePagination(snapshot.profiles, defaultPageSize);
+    const providerPages = usePagination(providers, defaultPageSize);
+
     return (
         <section className="split">
             <div className="stack">
                 <article className="panel">
                     <div className="panelHead">
                         <h2>Profiles</h2>
-                        <button className="ghost" onClick={onOpenGithub}>
-                            <Link2 size={16}/>GitHub
-                        </button>
+                        <div className="rowActions">
+                            <PageButtons page={profiles.safePage} pageCount={profiles.pageCount} onPage={profiles.setPage}/>
+                            <PaginationControls page={profiles.safePage} pageCount={profiles.pageCount} total={profiles.total} suffix="profiles"/>
+                            <button className="ghost" onClick={onOpenGithub}>
+                                <Link2 size={16}/>GitHub
+                            </button>
+                        </div>
                     </div>
                     <div className="profileList">
-                        {snapshot.profiles.map((profile) => (
-                            <div className="profileRow" key={profile.id}>
+                        {profiles.pageItems.map((profile) => (
+                            <div className={profile.id === snapshot.activeProfile || profile.name === snapshot.activeProfile ? 'profileRow active' : 'profileRow'} key={profile.id}>
                                 <div>
                                     <strong>{profile.name}</strong>
                                     <span>{profile.type} · {formatTime(profile.updatedAt, t)}</span>
@@ -87,9 +95,15 @@ export function ProfilesPage({
                 </article>
 
                 <article className="panel">
-                    <div className="panelHead"><h2>Proxy Providers</h2></div>
+                    <div className="panelHead">
+                        <h2>Proxy Providers</h2>
+                        <div className="rowActions">
+                            <PageButtons page={providerPages.safePage} pageCount={providerPages.pageCount} onPage={providerPages.setPage}/>
+                            <PaginationControls page={providerPages.safePage} pageCount={providerPages.pageCount} total={providerPages.total} suffix="providers"/>
+                        </div>
+                    </div>
                     <div className="table">
-                        {providers.map((provider) => (
+                        {providerPages.pageItems.map((provider) => (
                             <div className="tableRow" key={provider.name}>
                                 <span>{provider.name}</span>
                                 <span>{provider.vehicle || 'provider'}</span>

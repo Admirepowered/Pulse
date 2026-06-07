@@ -36,6 +36,7 @@ func (a *App) setupTrayMenu() {
 	systray.SetIcon(trayIcon)
 	systray.SetTitle("Pulse")
 	systray.SetTooltip("Pulse mihomo")
+	a.installTrayDoubleClickHandler()
 
 	a.trayShowItem = systray.AddMenuItem("Pulse", "Pulse")
 	a.watchTrayItem(a.trayShowItem, func() {

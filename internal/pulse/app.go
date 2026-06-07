@@ -69,6 +69,9 @@ type App struct {
 	trayNodeItems        [][]*systray.MenuItem
 	trayRefreshItem      *systray.MenuItem
 	trayQuitItem         *systray.MenuItem
+	trayWndProc          uintptr
+	trayPrevWndProc      uintptr
+	trayLastLeftClick    int64
 	showSignalPath       string
 	lastShowSignalTime   time.Time
 }

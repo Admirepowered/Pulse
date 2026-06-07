@@ -1,4 +1,4 @@
-import {Activity, ArrowDown, ArrowUp, Cpu, MoreHorizontal} from 'lucide-react';
+import {Activity, ArrowDown, ArrowUp, Check, ChevronDown, Cpu, MoreHorizontal} from 'lucide-react';
 import {useMemo, useState} from 'react';
 import {SearchBox, formatBytes, formatDuration} from '../components/common';
 import {PageButtons, PaginationControls, defaultPageSize, usePagination} from '../components/pagination';
@@ -28,6 +28,7 @@ export function ConnectionsPage({snapshot, connections, query, t, onQueryChange,
 }) {
     const [tab, setTab] = useState<ConnectionTab>('active');
     const [sort, setSort] = useState<ConnectionSort>('');
+    const [sortOpen, setSortOpen] = useState(false);
     const [menu, setMenu] = useState<{ x: number; y: number; id: string } | null>(null);
     const rows = tab === 'active' ? connections : (snapshot.closed || []);
     const filteredRows = useMemo(() => {
@@ -47,7 +48,10 @@ export function ConnectionsPage({snapshot, connections, query, t, onQueryChange,
     const pagination = usePagination(sortedRows, defaultPageSize, maxConnections);
 
     return (
-        <section className="stack" onClick={() => setMenu(null)}>
+        <section className="stack" onClick={() => {
+            setMenu(null);
+            setSortOpen(false);
+        }}>
             <div className="connectionStats">
                 <div className="metric compact">
                     <Activity size={18}/>
@@ -72,9 +76,25 @@ export function ConnectionsPage({snapshot, connections, query, t, onQueryChange,
             </div>
             <div className="toolbar">
                 <SearchBox value={query} onChange={onQueryChange} placeholder={t('searchConnections')}/>
-                <select className="selectControl" value={sort} onChange={(event) => setSort(event.target.value as ConnectionSort)}>
-                    {sortOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </select>
+                <div className="sortPicker" onClick={(event) => event.stopPropagation()}>
+                    <button className={sortOpen ? 'sortButton active' : 'sortButton'} onClick={() => setSortOpen((open) => !open)}>
+                        {sortOptions.find((option) => option.value === sort)?.label || sortOptions[0].label}
+                        <ChevronDown size={15}/>
+                    </button>
+                    {sortOpen && (
+                        <div className="sortMenu">
+                            {sortOptions.map((option) => (
+                                <button key={option.value} className={sort === option.value ? 'active' : ''} onClick={() => {
+                                    setSort(option.value);
+                                    setSortOpen(false);
+                                }}>
+                                    <span>{option.label}</span>
+                                    {sort === option.value && <Check size={14}/>}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
                 <div className="connectionTabs">
                     <button className={tab === 'active' ? 'active' : ''} onClick={() => setTab('active')}>
                         {t('running')} <span>{connections.length}</span>
@@ -123,10 +143,10 @@ export function ConnectionsPage({snapshot, connections, query, t, onQueryChange,
                                 </span>
                             </div>
                             <div className="connectionTraffic">
-                                <small><ArrowDown size={13}/>下载总量 {formatBytes(item.download)}</small>
-                                <small><ArrowDown size={13}/>下载速度 {formatBytes(item.downloadSpeed || 0)}/s</small>
-                                <small><ArrowUp size={13}/>上传总量 {formatBytes(item.upload)}</small>
-                                <small><ArrowUp size={13}/>上传速度 {formatBytes(item.uploadSpeed || 0)}/s</small>
+                                <small title="下载总量"><ArrowDown size={13}/>{formatBytes(item.download)}</small>
+                                <small title="下载速度"><ArrowDown size={13}/>{formatBytes(item.downloadSpeed || 0)}/s</small>
+                                <small title="上传总量"><ArrowUp size={13}/>{formatBytes(item.upload)}</small>
+                                <small title="上传速度"><ArrowUp size={13}/>{formatBytes(item.uploadSpeed || 0)}/s</small>
                             </div>
                             <div className="connectionMeta">
                                 <small>{tab === 'closed' ? '已断开' : '已连接'} {connectionAge(item, tab)}</small>

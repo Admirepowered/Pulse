@@ -23,6 +23,7 @@ This file is for future Codex sessions working on Pulse.
 - Right-clicking a proxy node runs a delay test for that node only.
 - Proxy delay tests use `settings.delayTestUrl`; keep group and node delay tests on the same configurable URL.
 - Successful actions should stay quiet. Only failures should show global notices.
+- Successful long-running actions should use inline/ambient animated feedback: spinner while running, check mark on success, then fade away. Avoid abrupt success banners.
 - Disabled controls should use a clear `not-allowed` cursor, not a loading cursor.
 - If a setting needs mihomo restart, let the backend decide and log the restart reason.
 - Keep user-visible notices short and auto-dismissed.
@@ -35,6 +36,7 @@ This file is for future Codex sessions working on Pulse.
 - Connections and logs should also keep a display cap so long-running sessions do not make the UI sluggish.
 - Connections should keep the card/list visual style, with Active/Closed tabs and a sort select instead of table header sorting.
 - Connections should sort by total download and download speed in both directions. Download speed must show `/s`.
+- Connection row traffic values should rely on icons and units; avoid repeating labels like "download total" on every row.
 - Active connections are closed from the right-click context menu; do not show inline close buttons on each connection row.
 - The active profile must be visibly highlighted in the Profiles page.
 - Profiles are activated by clicking the whole row. Profile rename/edit/update/delete actions belong in the right-click context menu, not inline row buttons.
@@ -58,6 +60,7 @@ This file is for future Codex sessions working on Pulse.
 - On Windows startup, register the `clash://` URL protocol under `HKCU\Software\Classes\clash` with the current executable path and `"%1"` argument.
 - `clash://install-config?...url=...` launches should decode the `url` parameter twice and import it through the same URL subscription flow so the name is inferred from remote metadata or URL. If another Pulse instance is already running, pass the URL protocol argument through `show.signal`.
 - TUN settings live in a separate settings panel/component. The backend owns interface enumeration and writes the selected interface into the generated runtime YAML.
+- If mihomo returns `memory: 0` from `/connections`, Pulse should provide a process RSS fallback so the UI does not show a misleading zero.
 - Update checks use GitHub latest release through `github_client`. Check once on app open and on manual request only. Updates download the matching executable asset and replace the current executable after exit.
 - Geodata fallback order is: existing data directory file, application directory bundled file, GitHub download, then mihomo's own fallback behavior.
 

@@ -14,6 +14,8 @@ import {
     RefreshCcw,
     Save,
     Settings as SettingsIcon,
+    Check,
+    LoaderCircle,
     X,
 } from 'lucide-react';
 import './App.css';
@@ -114,6 +116,7 @@ function App() {
     const [logs, setLogs] = useState<LogLine[]>([]);
     const [query, setQuery] = useState('');
     const [notice, setNotice] = useState('');
+    const [actionStatus, setActionStatus] = useState<{ id: string; label: string; state: 'running' | 'done' } | null>(null);
     const [busy, setBusy] = useState(false);
     const [profileURL, setProfileURL] = useState('');
     const [editorProfile, setEditorProfile] = useState<Profile | null>(null);
@@ -154,14 +157,20 @@ function App() {
     }, []);
 
     const run = useCallback(async (task: () => Promise<unknown>, message?: string) => {
+        const actionId = `${Date.now()}-${Math.random()}`;
         setBusy(true);
         setNotice('');
+        if (message) setActionStatus({id: actionId, label: message, state: 'running'});
         try {
             await task();
-            void message;
             await refreshSnapshot();
             await refreshPageData(tab);
+            if (message) {
+                setActionStatus({id: actionId, label: message, state: 'done'});
+                window.setTimeout(() => setActionStatus((current) => current?.id === actionId ? null : current), 1100);
+            }
         } catch (error) {
+            setActionStatus(null);
             setNotice(error instanceof Error ? error.message : String(error));
         } finally {
             setBusy(false);
@@ -461,6 +470,13 @@ function App() {
                                 )}
                             </div>
                         )}
+                    </div>
+                )}
+
+                {actionStatus && (
+                    <div className={actionStatus.state === 'done' ? 'actionToast done' : 'actionToast'}>
+                        {actionStatus.state === 'running' ? <LoaderCircle size={16}/> : <Check size={16}/>}
+                        <span>{actionStatus.label}</span>
                     </div>
                 )}
 

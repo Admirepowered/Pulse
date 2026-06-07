@@ -29,6 +29,7 @@ import (
 	"unicode/utf8"
 
 	mihomoObservable "github.com/metacubex/mihomo/common/observable"
+	mihomoMemory "github.com/metacubex/mihomo/component/memory"
 	mihomoConfig "github.com/metacubex/mihomo/config"
 	mihomoConstant "github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/hub"
@@ -1518,6 +1519,9 @@ func (a *App) FetchConnections() (ConnectionSnapshot, error) {
 	if err := a.apiRequest(http.MethodGet, "/connections", nil, &raw); err != nil {
 		return ConnectionSnapshot{}, err
 	}
+	if raw.Memory == 0 {
+		raw.Memory = a.coreMemoryUsage()
+	}
 	now := time.Now()
 	a.mu.Lock()
 	previousSamples := make(map[string]connectionSample, len(a.connectionSamples))
@@ -1590,6 +1594,20 @@ func (a *App) FetchConnections() (ConnectionSnapshot, error) {
 		Connections:   rows,
 		Closed:        closed,
 	}, nil
+}
+
+func (a *App) coreMemoryUsage() uint64 {
+	pid := os.Getpid()
+	a.mu.Lock()
+	if a.coreCmd != nil && a.coreCmd.Process != nil {
+		pid = a.coreCmd.Process.Pid
+	}
+	a.mu.Unlock()
+	stat, err := mihomoMemory.GetMemoryInfo(int32(pid))
+	if err != nil || stat == nil {
+		return 0
+	}
+	return stat.RSS
 }
 
 func (a *App) CloseConnection(id string) error {

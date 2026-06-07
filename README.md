@@ -1,17 +1,42 @@
 # Pulse
 
-Pulse is now a Wails desktop client for the mihomo/Clash.Meta core.
+Pulse is a Wails desktop client for the mihomo/Clash.Meta core. The `main` branch is the Wails + React + Go client, while the `c` branch keeps the previous C/Android implementation.
 
-## Branches
+## Preview
 
-- `c`: preserved C/Android implementation.
-- `main`: Wails + React + Go client.
+### Dashboard
+
+The dashboard shows core status, realtime upload/download speed, total traffic, running time, and current mode in a compact overview.
+
+![Pulse dashboard](img/1.png)
+
+### Proxies
+
+The proxy page lists Clash selector groups, node counts, current selections, and per-group delay testing.
+
+![Pulse proxies](img/2.png)
+
+### Profiles
+
+The profiles page supports subscription import, local YAML drag-and-drop import, subscription usage display, provider updates, and proxy-based subscription updates.
+
+![Pulse profiles](img/3.png)
+
+## Features
+
+- Embedded mihomo core mode and custom external core mode.
+- Profile management for subscription URLs and local YAML files.
+- Proxy group switching, node delay testing, provider updates, rules browsing, and connection management.
+- Runtime settings for mixed port, secret, mode, Allow LAN, system proxy, subscription proxy, TUN, and log level.
+- Custom background images with adjustable component opacity.
+- Tray controls, single-instance handling, and `clash://install-config` URL import on Windows.
+- GitHub release update checks and geodata fallback downloads.
 
 ## Core
 
-Install a mihomo binary from MetaCubeX/mihomo and set its path in `设置 -> mihomo 路径`.
+Embedded mode runs mihomo inside Pulse. Custom mode can use an external mihomo binary path.
 
-The app starts mihomo with the selected profile and writes Pulse runtime overrides for:
+Pulse writes runtime overrides for:
 
 - `mixed-port`
 - `external-controller`
@@ -19,14 +44,7 @@ The app starts mihomo with the selected profile and writes Pulse runtime overrid
 - `mode`
 - `allow-lan`
 - `tun`
-
-## Features
-
-- Dashboard with core state, traffic, uptime, and recent logs.
-- Profile management for subscription URLs and local YAML.
-- Proxy group switching through the Clash REST API.
-- Provider update, rules browsing, connection listing, and connection closing.
-- Core settings, TUN toggle, LAN toggle, system proxy flag, and WebDAV setting storage.
+- custom injected rules
 
 ## Development
 
@@ -35,5 +53,7 @@ wails dev
 ```
 
 ```bash
-wails build
+make build-windows
 ```
+
+Other Makefile targets are available for Linux and macOS workflow builds.

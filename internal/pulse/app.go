@@ -62,6 +62,8 @@ type App struct {
 	trayNodeNamesByGroup [][]string
 	trayNodeGroupItems   []*systray.MenuItem
 	trayNodeItems        [][]*systray.MenuItem
+	showSignalPath       string
+	lastShowSignalTime   time.Time
 }
 
 type Store struct {
@@ -123,6 +125,8 @@ type RuntimeState struct {
 	Running       bool            `json:"running"`
 	ApiReachable  bool            `json:"apiReachable"`
 	CoreFound     bool            `json:"coreFound"`
+	Version       string          `json:"version"`
+	BuildNumber   string          `json:"buildNumber"`
 	StartedAt     int64           `json:"startedAt"`
 	DataDir       string          `json:"dataDir"`
 	ActiveProfile string          `json:"activeProfile"`
@@ -195,6 +199,11 @@ type ConnectionSnapshot struct {
 
 const subscriptionUserAgent = "clash-verge/v2.5.2"
 
+var (
+	AppVersion  = "0.0.0"
+	BuildNumber = "0"
+)
+
 func NewApp() *App {
 	return &App{
 		httpClient: &http.Client{Timeout: 12 * time.Second},
@@ -209,6 +218,7 @@ func (a *App) Startup(ctx context.Context) {
 	}
 	a.appendLog("info", "Pulse Wails client started")
 	a.updateTrayMenuState()
+	a.startShowSignalWatcher()
 	if a.store.Settings.AutoStartCore {
 		go func() {
 			time.Sleep(300 * time.Millisecond)
@@ -251,6 +261,40 @@ func (a *App) MinimizeWindow() {
 	wailsruntime.WindowHide(a.ctx)
 }
 
+func (a *App) ShowWindow() {
+	if a.ctx == nil {
+		return
+	}
+	wailsruntime.WindowUnminimise(a.ctx)
+	wailsruntime.WindowShow(a.ctx)
+}
+
+func (a *App) startShowSignalWatcher() {
+	if a.showSignalPath == "" {
+		return
+	}
+	go func() {
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			a.mu.Lock()
+			forceQuit := a.forceQuit
+			a.mu.Unlock()
+			if forceQuit {
+				return
+			}
+			info, err := os.Stat(a.showSignalPath)
+			if err != nil {
+				continue
+			}
+			if info.ModTime().After(a.lastShowSignalTime) {
+				a.lastShowSignalTime = info.ModTime()
+				a.ShowWindow()
+			}
+		}
+	}()
+}
+
 func (a *App) quitApplication() {
 	a.mu.Lock()
 	a.forceQuit = true
@@ -266,6 +310,7 @@ func (a *App) initStore() error {
 	}
 	a.dataDir = filepath.Join(configDir, "Pulse")
 	a.storePath = filepath.Join(a.dataDir, "store.json")
+	a.showSignalPath = filepath.Join(a.dataDir, "show.signal")
 	if err := os.MkdirAll(filepath.Join(a.dataDir, "profiles"), 0o755); err != nil {
 		return err
 	}
@@ -425,6 +470,8 @@ func (a *App) GetSnapshot() RuntimeState {
 		Running:       running,
 		ApiReachable:  apiOK,
 		CoreFound:     a.coreAvailable(settings),
+		Version:       AppVersion,
+		BuildNumber:   BuildNumber,
 		StartedAt:     startedAt,
 		DataDir:       dataDir,
 		ActiveProfile: active,

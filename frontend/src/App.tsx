@@ -270,6 +270,7 @@ function App() {
                 <div className="sidebarFooter">
                     <StatusPill ok={snapshot.running} label={snapshot.running ? t('coreRunning') : t('coreStopped')}/>
                     <StatusPill ok={snapshot.apiReachable} label={snapshot.apiReachable ? t('apiConnected') : t('apiDisconnected')}/>
+                    <span className="appVersion">v{snapshot.version} ({snapshot.buildNumber})</span>
                 </div>
             </aside>
 

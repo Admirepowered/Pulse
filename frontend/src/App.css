@@ -129,6 +129,12 @@ button:disabled {
     gap: 8px;
 }
 
+.appVersion {
+    color: #8fa0b4;
+    font-size: 11px;
+    padding: 0 2px;
+}
+
 .workspace {
     position: relative;
     z-index: 1;

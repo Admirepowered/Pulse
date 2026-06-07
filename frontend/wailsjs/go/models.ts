@@ -345,6 +345,8 @@ export namespace pulse {
 	    running: boolean;
 	    apiReachable: boolean;
 	    coreFound: boolean;
+	    version: string;
+	    buildNumber: string;
 	    startedAt: number;
 	    dataDir: string;
 	    activeProfile: string;
@@ -362,6 +364,8 @@ export namespace pulse {
 	        this.running = source["running"];
 	        this.apiReachable = source["apiReachable"];
 	        this.coreFound = source["coreFound"];
+	        this.version = source["version"];
+	        this.buildNumber = source["buildNumber"];
 	        this.startedAt = source["startedAt"];
 	        this.dataDir = source["dataDir"];
 	        this.activeProfile = source["activeProfile"];

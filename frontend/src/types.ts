@@ -53,6 +53,8 @@ export type RuntimeState = {
     running: boolean;
     apiReachable: boolean;
     coreFound: boolean;
+    version: string;
+    buildNumber: string;
     startedAt: number;
     dataDir: string;
     activeProfile: string;
@@ -167,6 +169,8 @@ export const emptySnapshot: RuntimeState = {
     running: false,
     apiReachable: false,
     coreFound: false,
+    version: '0.0.0',
+    buildNumber: '0',
     startedAt: 0,
     dataDir: '',
     activeProfile: '',

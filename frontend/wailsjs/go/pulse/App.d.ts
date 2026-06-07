@@ -48,6 +48,8 @@ export function SelectProxy(arg1:string,arg2:string):Promise<void>;
 
 export function SetActiveProfile(arg1:string):Promise<void>;
 
+export function ShowWindow():Promise<void>;
+
 export function StartCore():Promise<void>;
 
 export function StopCore():Promise<void>;

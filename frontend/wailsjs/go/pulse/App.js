@@ -94,6 +94,10 @@ export function SetActiveProfile(arg1) {
   return window['go']['pulse']['App']['SetActiveProfile'](arg1);
 }
 
+export function ShowWindow() {
+  return window['go']['pulse']['App']['ShowWindow']();
+}
+
 export function StartCore() {
   return window['go']['pulse']['App']['StartCore']();
 }

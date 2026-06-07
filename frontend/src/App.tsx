@@ -61,6 +61,7 @@ import {
 import {formatBytes, noticeError, StatusPill} from './components/common';
 import {ConnectionsPage} from './pages/ConnectionsPage';
 import {CustomRulesEditor} from './components/CustomRulesEditor';
+import {YamlEditor} from './components/YamlEditor';
 import {DashboardPage} from './pages/DashboardPage';
 import {LogsPage} from './pages/LogsPage';
 import {ProfilesPage} from './pages/ProfilesPage';
@@ -530,7 +531,7 @@ function App() {
                                 <X size={18}/>
                             </button>
                         </div>
-                        <textarea className="editor" value={editorContent} onChange={(event) => setEditorContent(event.target.value)} spellCheck={false}/>
+                        <YamlEditor value={editorContent} onChange={setEditorContent}/>
                         <div className="modalActions">
                             <button onClick={() => setEditorProfile(null)}>{t('cancel')}</button>
                             <button className="primary" onClick={() => run(async () => {

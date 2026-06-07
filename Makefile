@@ -9,7 +9,7 @@ LINUX_ARTIFACT := Pulse-$(VERSION)-linux-amd64
 MACOS_AMD64_ARTIFACT := Pulse-$(VERSION)-darwin-amd64
 MACOS_ARM64_ARTIFACT := Pulse-$(VERSION)-darwin-arm64
 
-.PHONY: version print-windows-artifact print-linux-artifact print-macos-amd64-artifact print-macos-arm64-artifact build build-windows build-linux build-macos build-macos-amd64 build-macos-arm64 test frontend
+.PHONY: version print-windows-artifact print-linux-artifact print-macos-amd64-artifact print-macos-arm64-artifact clean clean-windows clean-linux clean-macos clean-pulse build build-windows build-linux build-macos build-macos-amd64 build-macos-arm64 test frontend
 
 version:
 	@echo Pulse $(VERSION) build $(COUNT)
@@ -32,15 +32,29 @@ frontend:
 test:
 	go test ./...
 
+clean: clean-pulse
+
+clean-pulse:
+	rm -f build/bin/Pulse-*
+
+clean-windows:
+	rm -f build/bin/Pulse-*-windows-amd64.exe
+
+clean-linux:
+	rm -f build/bin/Pulse-*-linux-amd64
+
+clean-macos:
+	rm -f build/bin/Pulse-*-darwin-amd64 build/bin/Pulse-*-darwin-arm64
+
 build: build-windows
 
-build-windows:
+build-windows: clean-windows
 	wails build -platform windows/amd64 -ldflags "$(LD_FLAGS)" -o $(WINDOWS_ARTIFACT)
 
-build-linux:
+build-linux: clean-linux
 	wails build -platform linux/amd64 -ldflags "$(LD_FLAGS)" -o $(LINUX_ARTIFACT)
 
-build-macos: build-macos-amd64 build-macos-arm64
+build-macos: clean-macos build-macos-amd64 build-macos-arm64
 
 build-macos-amd64:
 	wails build -platform darwin/amd64 -ldflags "$(LD_FLAGS)" -o $(MACOS_AMD64_ARTIFACT)

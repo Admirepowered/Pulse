@@ -62,6 +62,17 @@ export type RuntimeState = {
     settings: Settings;
     traffic: TrafficSnapshot;
     recentLogs: LogLine[];
+    geodata: GeodataStatus;
+};
+
+export type GeodataStatus = {
+    checking: boolean;
+    ready: boolean;
+    file: string;
+    message: string;
+    downloaded: number;
+    total: number;
+    updatedAt: number;
 };
 
 export type TrafficSnapshot = {
@@ -165,6 +176,16 @@ export const emptyConnectionSnapshot: ConnectionSnapshot = {
     connections: [],
 };
 
+export const emptyGeodataStatus: GeodataStatus = {
+    checking: false,
+    ready: false,
+    file: '',
+    message: '',
+    downloaded: 0,
+    total: 0,
+    updatedAt: 0,
+};
+
 export const emptySnapshot: RuntimeState = {
     running: false,
     apiReachable: false,
@@ -178,6 +199,7 @@ export const emptySnapshot: RuntimeState = {
     settings: emptySettings,
     traffic: {up: 0, down: 0},
     recentLogs: [],
+    geodata: emptyGeodataStatus,
 };
 
 export function normalizeSettings(settings?: Partial<Settings>): Settings {
@@ -190,12 +212,13 @@ export function normalizeSettings(settings?: Partial<Settings>): Settings {
     };
 }
 
-export function normalizeSnapshot(snapshot: RuntimeState): RuntimeState {
+export function normalizeSnapshot(snapshot: Partial<RuntimeState>): RuntimeState {
     return {
         ...emptySnapshot,
         ...snapshot,
         settings: normalizeSettings(snapshot.settings),
         traffic: snapshot.traffic || {up: 0, down: 0},
+        geodata: {...emptyGeodataStatus, ...(snapshot.geodata || {})},
         profiles: (snapshot.profiles || []).map((profile) => ({
             ...profile,
             subscription: {...emptySubscriptionInfo, ...(profile.subscription || {})},

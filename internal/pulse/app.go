@@ -48,6 +48,8 @@ type App struct {
 	mihomoLogSub         mihomoObservable.Subscription[mihomoLog.Event]
 	startedAt            int64
 	logLines             []LogLine
+	geodataStatus        GeodataStatus
+	geodataRunning       bool
 	httpClient           *http.Client
 	forceQuit            bool
 	trayOnce             sync.Once
@@ -139,6 +141,7 @@ type RuntimeState struct {
 	Settings      Settings        `json:"settings"`
 	Traffic       TrafficSnapshot `json:"traffic"`
 	RecentLogs    []LogLine       `json:"recentLogs"`
+	Geodata       GeodataStatus   `json:"geodata"`
 }
 
 type LogLine struct {
@@ -225,6 +228,11 @@ func (a *App) Startup(ctx context.Context) {
 	a.syncAutoStartPath()
 	a.updateTrayMenuState()
 	a.startShowSignalWatcher()
+	go func() {
+		if err := a.EnsureGeodata(); err != nil {
+			a.appendLog("error", "geodata download failed: "+err.Error())
+		}
+	}()
 	if a.store.Settings.AutoStartCore {
 		go func() {
 			time.Sleep(300 * time.Millisecond)
@@ -483,6 +491,7 @@ func (a *App) GetSnapshot() RuntimeState {
 	startedAt := a.startedAt
 	logs := a.recentLogsLocked(80)
 	dataDir := a.dataDir
+	geodata := a.geodataStatus
 	a.mu.Unlock()
 
 	traffic, apiOK := a.fetchTraffic()
@@ -499,6 +508,7 @@ func (a *App) GetSnapshot() RuntimeState {
 		Settings:      settings,
 		Traffic:       traffic,
 		RecentLogs:    logs,
+		Geodata:       geodata,
 	}
 }
 
@@ -740,6 +750,9 @@ func (a *App) StartCore() error {
 	a.mu.Unlock()
 	if !ok {
 		return errors.New("no active profile")
+	}
+	if err := a.EnsureGeodata(); err != nil {
+		return err
 	}
 	runtimeConfig, err := a.buildRuntimeConfig(profile.Path, settings)
 	if err != nil {
@@ -1253,6 +1266,21 @@ func (a *App) ReadBackgroundImageDataURL(path string) (string, error) {
 }
 
 func (a *App) downloadProfile(source string) ([]byte, http.Header, error) {
+	if parsed, err := url.Parse(source); err == nil && isGithubDownloadHost(parsed.Hostname()) {
+		resp, err := a.githubRequest(http.MethodGet, source, nil, map[string]string{"Accept": "text/yaml, text/plain, application/octet-stream, */*"})
+		if err != nil {
+			return nil, nil, err
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode >= 300 {
+			return nil, resp.Header, fmt.Errorf("subscription returned HTTP %d", resp.StatusCode)
+		}
+		body, err := io.ReadAll(io.LimitReader(resp.Body, 12*1024*1024))
+		if err != nil {
+			return nil, resp.Header, err
+		}
+		return body, resp.Header, nil
+	}
 	req, err := http.NewRequest(http.MethodGet, source, nil)
 	if err != nil {
 		return nil, nil, err

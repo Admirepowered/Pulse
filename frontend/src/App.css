@@ -265,8 +265,13 @@ h2 {
     padding: 0;
 }
 
-.notice {
+.noticeStack {
     grid-row: 2;
+    display: grid;
+    gap: 8px;
+}
+
+.notice {
     border: 1px solid #c8e6d8;
     background: #f0fbf5;
     color: #0f6b42;
@@ -278,6 +283,17 @@ h2 {
     border-color: #f3b7ad;
     background: #fff6f4;
     color: #a73527;
+}
+
+.geodataNotice {
+    display: grid;
+    gap: 8px;
+}
+
+.geodataNotice > div:first-child {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
 }
 
 .stack {

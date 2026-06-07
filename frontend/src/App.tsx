@@ -49,7 +49,7 @@ import {
     UpdateProvider,
     WindowToggleMaximise,
 } from './api';
-import {noticeError, StatusPill} from './components/common';
+import {formatBytes, noticeError, StatusPill} from './components/common';
 import {ConnectionsPage} from './pages/ConnectionsPage';
 import {DashboardPage} from './pages/DashboardPage';
 import {LogsPage} from './pages/LogsPage';
@@ -110,8 +110,8 @@ function App() {
     const t = useMemo(() => getTranslator(settingsDraft.language || snapshot.settings.language), [settingsDraft.language, snapshot.settings.language]);
 
     const refreshSnapshot = useCallback(async () => {
-        const next = await GetSnapshot() as RuntimeState;
-        setSnapshot(normalizeSnapshot(next));
+        const next = await GetSnapshot();
+        setSnapshot(normalizeSnapshot(next as unknown as Partial<RuntimeState>));
     }, []);
 
     const refreshPageData = useCallback(async (activeTab: TabId) => {
@@ -254,6 +254,10 @@ function App() {
         backgroundImage: backgroundDataURL ? `url(${JSON.stringify(backgroundDataURL)})` : 'none',
         filter: `blur(${Math.max(0, Math.min(40, settingsDraft.backgroundBlur || 0))}px)`,
     } as CSSProperties;
+    const geodataVisible = snapshot.geodata.checking || (!snapshot.geodata.ready && Boolean(snapshot.geodata.message));
+    const geodataProgress = snapshot.geodata.total > 0
+        ? Math.min(100, Math.max(0, (snapshot.geodata.downloaded / snapshot.geodata.total) * 100))
+        : 0;
 
     return (
         <main className={backgroundDataURL ? 'shell hasBackground' : 'shell'}>
@@ -318,7 +322,28 @@ function App() {
                     </div>
                 </header>
 
-                {notice && <div className={noticeError(notice) ? 'notice error' : 'notice'}>{notice}</div>}
+                {(notice || geodataVisible) && (
+                    <div className="noticeStack">
+                        {notice && <div className={noticeError(notice) ? 'notice error' : 'notice'}>{notice}</div>}
+                        {geodataVisible && (
+                            <div className={snapshot.geodata.checking ? 'notice geodataNotice' : 'notice geodataNotice error'}>
+                                <div>
+                                    <strong>{snapshot.geodata.file || 'Geodata'}</strong>
+                                    <span>
+                                        {snapshot.geodata.total > 0
+                                            ? `${formatBytes(snapshot.geodata.downloaded)} / ${formatBytes(snapshot.geodata.total)}`
+                                            : snapshot.geodata.message}
+                                    </span>
+                                </div>
+                                {snapshot.geodata.total > 0 && (
+                                    <div className="usageBar">
+                                        <span style={{width: `${geodataProgress}%`}}/>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {tab === 'dashboard' && (
                     <DashboardPage

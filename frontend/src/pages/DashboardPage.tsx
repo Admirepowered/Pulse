@@ -1,4 +1,4 @@
-import {Activity, FolderOpen, GitBranch, Globe2, PlugZap, RotateCcw, Wifi} from 'lucide-react';
+import {Activity, GitBranch, Globe2, PlugZap, RotateCcw, Wifi} from 'lucide-react';
 import {useEffect, useState} from 'react';
 import {Metric, formatBytes, formatDuration, StatusPill} from '../components/common';
 import type {Translator} from '../i18n';
@@ -7,12 +7,11 @@ import {NetworkSpeedCard} from './dashboard/NetworkSpeedCard';
 
 const maxSpeedPoints = 32;
 
-export function DashboardPage({snapshot, connections, t, onRestart, onOpenDir, onOpenMihomo}: {
+export function DashboardPage({snapshot, connections, t, onRestart, onOpenMihomo}: {
     snapshot: RuntimeState;
     connections: ConnectionSnapshot;
     t: Translator;
     onRestart: () => void;
-    onOpenDir: () => void;
     onOpenMihomo: () => void;
 }) {
     const [speedPoints, setSpeedPoints] = useState<number[]>([]);
@@ -45,7 +44,6 @@ export function DashboardPage({snapshot, connections, t, onRestart, onOpenDir, o
                 </div>
                 <div className="quickGrid">
                     <button onClick={onRestart}><RotateCcw size={17}/>{t('restartCore')}</button>
-                    <button onClick={onOpenDir}><FolderOpen size={17}/>{t('dataDirectory')}</button>
                     <button onClick={onOpenMihomo}><GitBranch size={17}/>mihomo Meta</button>
                 </div>
             </article>

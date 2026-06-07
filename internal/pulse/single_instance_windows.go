@@ -25,7 +25,7 @@ func AcquireSingleInstance() (func(), bool, error) {
 	const errorAlreadyExists = 183
 	if callErr == syscall.Errno(errorAlreadyExists) {
 		closeHandle.Call(handle)
-		signalRunningInstance()
+		signalRunningInstance(os.Args[1:])
 		return func() {}, false, nil
 	}
 	return func() {
@@ -41,8 +41,15 @@ func singleInstanceDataDir() string {
 	return filepath.Join(configDir, "Pulse")
 }
 
-func signalRunningInstance() {
+func signalRunningInstance(args []string) {
 	dir := singleInstanceDataDir()
 	_ = os.MkdirAll(dir, 0o755)
-	_ = os.WriteFile(filepath.Join(dir, "show.signal"), []byte(time.Now().Format(time.RFC3339Nano)), 0o644)
+	value := time.Now().Format(time.RFC3339Nano)
+	for _, arg := range args {
+		if arg != "" {
+			value = arg
+			break
+		}
+	}
+	_ = os.WriteFile(filepath.Join(dir, "show.signal"), []byte(value), 0o644)
 }

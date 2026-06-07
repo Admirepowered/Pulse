@@ -31,6 +31,11 @@ export type Settings = {
     webdav: WebDAVSettings;
 };
 
+export type BackgroundImage = {
+    id: string;
+    name: string;
+};
+
 export type SubscriptionInfo = {
     upload: number;
     download: number;

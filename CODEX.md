@@ -18,6 +18,7 @@ This file is for future Codex sessions working on Pulse.
 - Toggles, segmented buttons, and direct commands apply immediately.
 - Range sliders update the draft UI while dragging and save when the interaction finishes.
 - Background opacity controls component transparency only. Do not add frosted-glass blur to components for this setting.
+- Background images must be copied into the data directory `backgrounds/` and selected by internal id; do not persist or display external image paths.
 - Node selection should not show a global notice; keep it quiet unless there is an error.
 - Right-clicking a proxy node runs a delay test for that node only.
 - Proxy delay tests use `settings.delayTestUrl`; keep group and node delay tests on the same configurable URL.
@@ -33,6 +34,7 @@ This file is for future Codex sessions working on Pulse.
 - Rules, profiles, proxy providers, connections, and logs should not render unbounded lists.
 - Connections and logs should also keep a display cap so long-running sessions do not make the UI sluggish.
 - The active profile must be visibly highlighted in the Profiles page.
+- Profiles are activated by clicking the whole row. Profile rename/edit/update/delete actions belong in the right-click context menu, not inline row buttons.
 
 ## Profile Rules
 
@@ -44,10 +46,12 @@ This file is for future Codex sessions working on Pulse.
 - Subscription updates must not erase custom rules.
 - Subscription updates may optionally use the local mixed proxy when the user enables proxy updates.
 - Local YAML profiles can be imported by dropping `.yaml` or `.yml` files onto the local profile import panel.
+- Subscription names are inferred automatically. Adding a subscription from URL should not require a separate name field.
 
 ## Platform Integration
 
 - On Windows startup, register the `clash://` URL protocol under `HKCU\Software\Classes\clash` with the current executable path and `"%1"` argument.
+- `clash://install-config?...url=...` launches should decode the `url` parameter twice and import it as a subscription named `ClashFromWeb-<random>`. If another Pulse instance is already running, pass the URL protocol argument through `show.signal`.
 
 ## Build And Verification
 

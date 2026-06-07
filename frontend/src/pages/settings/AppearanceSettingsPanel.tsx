@@ -1,14 +1,17 @@
 import {Image as ImageIcon, X} from 'lucide-react';
 import type {Translator} from '../../i18n';
-import type {Settings} from '../../types';
+import type {BackgroundImage, Settings} from '../../types';
 
-export function AppearanceSettingsPanel({settings, t, onDraft, onCommit, onChooseBackground, onClearBackground}: {
+export function AppearanceSettingsPanel({settings, backgrounds, t, onDraft, onCommit, onChooseBackground, onClearBackground, onSelectBackground, onDeleteBackground}: {
     settings: Settings;
+    backgrounds: BackgroundImage[];
     t: Translator;
     onDraft: (settings: Settings) => void;
     onCommit: (settings: Settings) => void;
     onChooseBackground: () => void;
     onClearBackground: () => void;
+    onSelectBackground: (id: string) => void;
+    onDeleteBackground: (id: string) => void;
 }) {
     const draft = <K extends keyof Settings>(key: K, value: Settings[K]) => onDraft({...settings, [key]: value});
     const commit = <K extends keyof Settings>(key: K, value: Settings[K]) => onCommit({...settings, [key]: value});
@@ -17,9 +20,19 @@ export function AppearanceSettingsPanel({settings, t, onDraft, onCommit, onChoos
         <article className="panel formPanel">
             <div className="panelHead"><h2>{t('appearance')}</h2></div>
             <div className="backgroundPicker">
-                <div className="pathPreview" title={settings.backgroundPath || t('noBackground')}>
+                <div className="pathPreview">
                     <ImageIcon size={17}/>
-                    <span>{settings.backgroundPath || t('noBackground')}</span>
+                    <span>{backgrounds.find((item) => item.id === settings.backgroundPath)?.name || t('noBackground')}</span>
+                </div>
+                <div className="backgroundList">
+                    {backgrounds.map((item) => (
+                        <div className={item.id === settings.backgroundPath ? 'backgroundItem active' : 'backgroundItem'} key={item.id}>
+                            <button onClick={() => onSelectBackground(item.id)}>{item.name}</button>
+                            <button className="iconButton" title={t('delete')} onClick={() => onDeleteBackground(item.id)}>
+                                <X size={14}/>
+                            </button>
+                        </div>
+                    ))}
                 </div>
                 <div className="modalActions inline">
                     <button onClick={onChooseBackground}><ImageIcon size={17}/>{t('chooseImage')}</button>

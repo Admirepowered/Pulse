@@ -12,6 +12,8 @@ export function CloseWindow():Promise<void>;
 
 export function DeleteProfile(arg1:string):Promise<void>;
 
+export function DeleteBackgroundImage(arg1:string):Promise<void>;
+
 export function EnsureGeodata():Promise<void>;
 
 export function FetchConnections():Promise<pulse.ConnectionSnapshot>;
@@ -30,6 +32,8 @@ export function ImportProfile(arg1:string,arg2:string):Promise<pulse.Profile>;
 
 export function ImportProfileFromFile(arg1:string):Promise<pulse.Profile>;
 
+export function ListBackgroundImages():Promise<Array<pulse.BackgroundImage>>;
+
 export function MinimizeWindow():Promise<void>;
 
 export function OpenDataDirectory():Promise<void>;
@@ -43,6 +47,8 @@ export function ReadProfileContent(arg1:string):Promise<string>;
 export function ReadProfileCustomRules(arg1:string):Promise<Array<pulse.CustomRule>>;
 
 export function ReadProfileRulePolicies(arg1:string):Promise<Array<string>>;
+
+export function RenameProfile(arg1:string,arg2:string):Promise<void>;
 
 export function RestartCore():Promise<void>;
 

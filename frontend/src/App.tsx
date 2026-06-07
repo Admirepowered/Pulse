@@ -23,6 +23,7 @@ import {
     CloseConnection,
     CloseWindow,
     DeleteProfile,
+    DeleteBackgroundImage,
     FetchConnections,
     FetchProviders,
     FetchProxyGroups,
@@ -30,6 +31,7 @@ import {
     GetLogs,
     GetSnapshot,
     ImportProfileFromFile,
+    ListBackgroundImages,
     MinimizeWindow,
     Models,
     OnFileDrop,
@@ -40,6 +42,7 @@ import {
     ReadProfileContent,
     ReadProfileCustomRules,
     ReadProfileRulePolicies,
+    RenameProfile,
     RestartCore,
     SaveProfileContent,
     SaveProfileCustomRules,
@@ -73,6 +76,7 @@ import {
     normalizeSnapshot,
     type ConnectionSnapshot,
     type CustomRule,
+    type BackgroundImage,
     type ConnectionRow,
     type LogLine,
     type Profile,
@@ -105,7 +109,6 @@ function App() {
     const [query, setQuery] = useState('');
     const [notice, setNotice] = useState('');
     const [busy, setBusy] = useState(false);
-    const [profileName, setProfileName] = useState('');
     const [profileURL, setProfileURL] = useState('');
     const [editorProfile, setEditorProfile] = useState<Profile | null>(null);
     const [editorContent, setEditorContent] = useState('');
@@ -115,6 +118,7 @@ function App() {
     const [settingsDraft, setSettingsDraft] = useState<Settings>(emptySettings);
     const [settingsDirty, setSettingsDirty] = useState(false);
     const [backgroundDataURL, setBackgroundDataURL] = useState('');
+    const [backgrounds, setBackgrounds] = useState<BackgroundImage[]>([]);
     const [sidebarFocused, setSidebarFocused] = useState(false);
     const [testingGroup, setTestingGroup] = useState('');
     const [profileDropActive, setProfileDropActive] = useState(false);
@@ -130,6 +134,7 @@ function App() {
         if (activeTab === 'proxies') setGroups(await FetchProxyGroups() as ProxyGroup[]);
         if (activeTab === 'rules') setRules(await FetchRules() as RuleRow[]);
         if (activeTab === 'profiles') setProviders(await FetchProviders() as ProviderRow[]);
+        if (activeTab === 'settings') setBackgrounds(await ListBackgroundImages() as BackgroundImage[]);
         if (activeTab === 'connections') setConnectionSnapshot(await FetchConnections() as ConnectionSnapshot);
         if (activeTab === 'logs') setLogs(await GetLogs() as LogLine[]);
     }, []);
@@ -179,13 +184,13 @@ function App() {
     }, [settingsDirty, snapshot.settings]);
 
     useEffect(() => {
-        const path = settingsDraft.backgroundPath;
-        if (!path) {
+        const id = settingsDraft.backgroundPath;
+        if (!id) {
             setBackgroundDataURL('');
             return;
         }
         let active = true;
-        ReadBackgroundImageDataURL(path)
+        ReadBackgroundImageDataURL(id)
             .then((value) => {
                 if (active) setBackgroundDataURL(value as string);
             })
@@ -265,6 +270,7 @@ function App() {
             setSettingsDraft(next);
             setSettingsDirty(false);
             setBackgroundDataURL(dataURL);
+            setBackgrounds(await ListBackgroundImages() as BackgroundImage[]);
             await saveSettings(next);
             await refreshSnapshot();
         } catch (error) {
@@ -277,6 +283,18 @@ function App() {
     const clearBackground = () => {
         setBackgroundDataURL('');
         applySettings({...settingsDraft, backgroundPath: ''});
+    };
+
+    const deleteBackground = async (id: string) => {
+        await run(async () => {
+            await DeleteBackgroundImage(id);
+            const next = settingsDraft.backgroundPath === id ? normalizeSettings({...settingsDraft, backgroundPath: ''}) : settingsDraft;
+            if (next.backgroundPath !== settingsDraft.backgroundPath) {
+                await saveSettings(next);
+                setBackgroundDataURL('');
+            }
+            setBackgrounds(await ListBackgroundImages() as BackgroundImage[]);
+        });
     };
 
     const testProxyGroup = async (group: string) => {
@@ -415,7 +433,6 @@ function App() {
                         connections={connectionSnapshot}
                         t={t}
                         onRestart={() => run(RestartCore, t('coreRestarted'))}
-                        onOpenDir={() => run(OpenDataDirectory)}
                         onOpenMihomo={() => run(() => OpenURL('https://github.com/MetaCubeX/mihomo/tree/Meta'))}
                     />
                 )}
@@ -437,21 +454,24 @@ function App() {
                     <ProfilesPage
                         snapshot={snapshot}
                         providers={providers}
-                        profileName={profileName}
                         profileURL={profileURL}
                         t={t}
-                        onProfileNameChange={setProfileName}
                         onProfileURLChange={setProfileURL}
                         dropActive={profileDropActive}
                         onOpenGithub={() => run(() => OpenURL('https://github.com/Admirepowered/Pulse'))}
                         onActivate={(id) => run(() => SetActiveProfile(id), t('switchedProfile'))}
                         onEdit={openEditor}
+                        onRename={(profile) => {
+                            const nextName = window.prompt(t('renameProfile'), profile.name);
+                            if (nextName && nextName.trim() && nextName.trim() !== profile.name) {
+                                run(() => RenameProfile(profile.id, nextName.trim()));
+                            }
+                        }}
                         onUpdateProfile={(id) => run(() => UpdateProfile(id), t('profileUpdated'))}
                         onDeleteProfile={(id) => run(() => DeleteProfile(id), t('profileDeleted'))}
                         onUpdateProvider={(name) => run(() => UpdateProvider(name), t('providerUpdated'))}
                         onAddSubscription={() => run(async () => {
-                            await AddProfileFromURL(profileName, profileURL);
-                            setProfileName('');
+                            await AddProfileFromURL('', profileURL);
                             setProfileURL('');
                         }, t('subscriptionAdded'))}
                         onToggleSubscriptionProxy={(enabled) => applySettings({...settingsDraft, subscriptionProxy: enabled})}
@@ -486,6 +506,7 @@ function App() {
                 {tab === 'settings' && (
                     <SettingsPage
                         settings={settingsDraft}
+                        backgrounds={backgrounds}
                         t={t}
                         onChange={(settings) => {
                             setSettingsDraft(settings);
@@ -496,6 +517,8 @@ function App() {
                         onOpenDir={() => run(OpenDataDirectory)}
                         onChooseBackground={chooseBackground}
                         onClearBackground={clearBackground}
+                        onSelectBackground={(id) => applySettings({...settingsDraft, backgroundPath: id})}
+                        onDeleteBackground={(id) => deleteBackground(id)}
                     />
                 )}
             </section>

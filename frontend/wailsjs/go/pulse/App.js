@@ -22,6 +22,10 @@ export function DeleteProfile(arg1) {
   return window['go']['pulse']['App']['DeleteProfile'](arg1);
 }
 
+export function DeleteBackgroundImage(arg1) {
+  return window['go']['pulse']['App']['DeleteBackgroundImage'](arg1);
+}
+
 export function EnsureGeodata() {
   return window['go']['pulse']['App']['EnsureGeodata']();
 }
@@ -58,6 +62,10 @@ export function ImportProfileFromFile(arg1) {
   return window['go']['pulse']['App']['ImportProfileFromFile'](arg1);
 }
 
+export function ListBackgroundImages() {
+  return window['go']['pulse']['App']['ListBackgroundImages']();
+}
+
 export function MinimizeWindow() {
   return window['go']['pulse']['App']['MinimizeWindow']();
 }
@@ -84,6 +92,10 @@ export function ReadProfileCustomRules(arg1) {
 
 export function ReadProfileRulePolicies(arg1) {
   return window['go']['pulse']['App']['ReadProfileRulePolicies'](arg1);
+}
+
+export function RenameProfile(arg1, arg2) {
+  return window['go']['pulse']['App']['RenameProfile'](arg1, arg2);
 }
 
 export function RestartCore() {

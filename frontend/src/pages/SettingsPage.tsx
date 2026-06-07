@@ -2,10 +2,11 @@ import {AppearanceSettingsPanel} from './settings/AppearanceSettingsPanel';
 import {CoreSettingsPanel} from './settings/CoreSettingsPanel';
 import {SyncSettingsPanel} from './settings/SyncSettingsPanel';
 import type {Translator} from '../i18n';
-import type {Settings} from '../types';
+import type {BackgroundImage, Settings} from '../types';
 
-export function SettingsPage({settings, t, onChange, onApply, onCommit, onOpenDir, onChooseBackground, onClearBackground}: {
+export function SettingsPage({settings, backgrounds, t, onChange, onApply, onCommit, onOpenDir, onChooseBackground, onClearBackground, onSelectBackground, onDeleteBackground}: {
     settings: Settings;
+    backgrounds: BackgroundImage[];
     t: Translator;
     onChange: (settings: Settings) => void;
     onApply: (settings: Settings) => void;
@@ -13,6 +14,8 @@ export function SettingsPage({settings, t, onChange, onApply, onCommit, onOpenDi
     onOpenDir: () => void;
     onChooseBackground: () => void;
     onClearBackground: () => void;
+    onSelectBackground: (id: string) => void;
+    onDeleteBackground: (id: string) => void;
 }) {
     return (
         <section className="split">
@@ -27,11 +30,14 @@ export function SettingsPage({settings, t, onChange, onApply, onCommit, onOpenDi
             <div className="stack">
                 <AppearanceSettingsPanel
                     settings={settings}
+                    backgrounds={backgrounds}
                     t={t}
                     onDraft={onChange}
                     onCommit={onCommit}
                     onChooseBackground={onChooseBackground}
                     onClearBackground={onClearBackground}
+                    onSelectBackground={onSelectBackground}
+                    onDeleteBackground={onDeleteBackground}
                 />
                 <SyncSettingsPanel
                     settings={settings}

@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	goruntime "runtime"
 	"sort"
 	"strconv"
@@ -111,6 +112,11 @@ type Settings struct {
 	BackgroundBlur    int            `json:"backgroundBlur"`
 	BackgroundOpacity int            `json:"backgroundOpacity"`
 	WebDAV            WebDAVSettings `json:"webdav"`
+}
+
+type BackgroundImage struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 type WebDAVSettings struct {
@@ -253,6 +259,7 @@ func (a *App) Startup(ctx context.Context) {
 	if err := registerURLProtocol(); err != nil {
 		a.appendLog("error", "register clash URL protocol failed: "+err.Error())
 	}
+	a.handleLaunchArgs(os.Args[1:])
 	a.updateTrayMenuState()
 	a.startShowSignalWatcher()
 	go func() {
@@ -324,6 +331,28 @@ func (a *App) ShowWindow() {
 	wailsruntime.WindowShow(a.ctx)
 }
 
+func (a *App) handleLaunchArgs(args []string) {
+	for _, arg := range args {
+		if strings.Contains(arg, "install-config") {
+			if err := a.ProcessInstallConfigURL(arg); err != nil {
+				a.appendLog("error", "install config import failed: "+err.Error())
+			}
+		}
+	}
+}
+
+func (a *App) ProcessInstallConfigURL(raw string) error {
+	subscriptionURL, err := extractInstallConfigURL(raw)
+	if err != nil {
+		return err
+	}
+	_, err = a.AddProfileFromURL("ClashFromWeb-"+randomShortText(6), subscriptionURL)
+	if err == nil {
+		a.appendLog("info", "subscription imported from URL protocol")
+	}
+	return err
+}
+
 func (a *App) startShowSignalWatcher() {
 	if a.showSignalPath == "" {
 		return
@@ -344,6 +373,14 @@ func (a *App) startShowSignalWatcher() {
 			}
 			if info.ModTime().After(a.lastShowSignalTime) {
 				a.lastShowSignalTime = info.ModTime()
+				if data, err := os.ReadFile(a.showSignalPath); err == nil {
+					value := strings.TrimSpace(string(data))
+					if strings.Contains(value, "install-config") {
+						if err := a.ProcessInstallConfigURL(value); err != nil {
+							a.appendLog("error", "install config import failed: "+err.Error())
+						}
+					}
+				}
 				a.ShowWindow()
 			}
 		}
@@ -367,6 +404,9 @@ func (a *App) initStore() error {
 	a.storePath = filepath.Join(a.dataDir, "store.json")
 	a.showSignalPath = filepath.Join(a.dataDir, "show.signal")
 	if err := os.MkdirAll(filepath.Join(a.dataDir, "profiles"), 0o755); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Join(a.dataDir, "backgrounds"), 0o755); err != nil {
 		return err
 	}
 	if err := os.MkdirAll(filepath.Join(a.dataDir, "logs"), 0o755); err != nil {
@@ -496,6 +536,52 @@ func randomSecret() string {
 		return fmt.Sprintf("%d", time.Now().UnixNano())
 	}
 	return hex.EncodeToString(token)
+}
+
+func randomShortText(length int) string {
+	const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	if length <= 0 {
+		return ""
+	}
+	data := make([]byte, length)
+	if _, err := rand.Read(data); err != nil {
+		return fmt.Sprintf("%d", time.Now().UnixNano())[:length]
+	}
+	for i := range data {
+		data[i] = alphabet[int(data[i])%len(alphabet)]
+	}
+	return string(data)
+}
+
+func extractInstallConfigURL(raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", errors.New("install config URL is empty")
+	}
+	value := ""
+	if parsed, err := url.Parse(raw); err == nil {
+		value = parsed.Query().Get("url")
+	}
+	if value == "" {
+		matches := regexp.MustCompile(`(?i)(?:^|[?&])url=([^&]+)`).FindStringSubmatch(raw)
+		if len(matches) > 1 {
+			value = matches[1]
+		}
+	}
+	if value == "" {
+		return "", errors.New("install config URL has no url parameter")
+	}
+	for i := 0; i < 2; i++ {
+		decoded, err := url.QueryUnescape(value)
+		if err != nil || decoded == value {
+			break
+		}
+		value = decoded
+	}
+	if parsed, err := url.Parse(value); err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return "", errors.New("install config URL parameter is not a valid remote URL")
+	}
+	return value, nil
 }
 
 func clampBackgroundBlur(value int) int {
@@ -758,6 +844,26 @@ func (a *App) UpdateProfile(profileID string) (Profile, error) {
 		a.appendLog("info", "subscription updated: "+profile.Name)
 	}
 	return profile, err
+}
+
+func (a *App) RenameProfile(profileID string, name string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return errors.New("profile name is empty")
+	}
+	a.mu.Lock()
+	for i := range a.store.Profiles {
+		if a.store.Profiles[i].ID == profileID {
+			a.store.Profiles[i].Name = name
+			a.store.Profiles[i].UpdatedAt = time.Now().Unix()
+			err := a.saveStoreLocked()
+			a.mu.Unlock()
+			a.updateTrayMenuState()
+			return err
+		}
+	}
+	a.mu.Unlock()
+	return errors.New("profile not found")
 }
 
 func (a *App) SetActiveProfile(profileID string) error {
@@ -1468,43 +1574,126 @@ func (a *App) SelectBackgroundImage() (string, error) {
 	if a.ctx == nil {
 		return "", errors.New("app not ready")
 	}
-	return wailsruntime.OpenFileDialog(a.ctx, wailsruntime.OpenDialogOptions{
+	path, err := wailsruntime.OpenFileDialog(a.ctx, wailsruntime.OpenDialogOptions{
 		Title: "选择背景图片",
 		Filters: []wailsruntime.FileFilter{
 			{DisplayName: "Images", Pattern: "*.png;*.jpg;*.jpeg;*.webp;*.bmp;*.gif"},
 		},
 	})
+	if err != nil || strings.TrimSpace(path) == "" {
+		return path, err
+	}
+	return a.ImportBackgroundImage(path)
 }
 
-func (a *App) ReadBackgroundImageDataURL(path string) (string, error) {
+func (a *App) ImportBackgroundImage(path string) (string, error) {
 	path = strings.TrimSpace(path)
 	if path == "" {
 		return "", nil
 	}
-	info, err := os.Stat(path)
+	data, contentType, err := readBackgroundImage(path)
 	if err != nil {
 		return "", err
 	}
+	exts, _ := mime.ExtensionsByType(contentType)
+	ext := strings.ToLower(filepath.Ext(path))
+	if ext == "" && len(exts) > 0 {
+		ext = exts[0]
+	}
+	if ext == "" {
+		ext = ".img"
+	}
+	id := sanitizeFilename(fmt.Sprintf("%d%s", time.Now().UnixNano(), ext))
+	target := filepath.Join(a.dataDir, "backgrounds", id)
+	if err := os.WriteFile(target, data, 0o644); err != nil {
+		return "", err
+	}
+	return filepath.Base(target), nil
+}
+
+func (a *App) ListBackgroundImages() ([]BackgroundImage, error) {
+	entries, err := os.ReadDir(filepath.Join(a.dataDir, "backgrounds"))
+	if err != nil {
+		return nil, err
+	}
+	type item struct {
+		entry os.DirEntry
+		mod   time.Time
+	}
+	items := make([]item, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+		items = append(items, item{entry: entry, mod: info.ModTime()})
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].mod.Before(items[j].mod) })
+	backgrounds := make([]BackgroundImage, 0, len(items))
+	for _, item := range items {
+		backgrounds = append(backgrounds, BackgroundImage{ID: item.entry.Name(), Name: fmt.Sprintf("背景%d", len(backgrounds)+1)})
+	}
+	return backgrounds, nil
+}
+
+func (a *App) DeleteBackgroundImage(id string) error {
+	id = sanitizeFilename(strings.TrimSpace(id))
+	if id == "" {
+		return nil
+	}
+	if err := os.Remove(filepath.Join(a.dataDir, "backgrounds", id)); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	a.mu.Lock()
+	if a.store.Settings.BackgroundPath == id {
+		a.store.Settings.BackgroundPath = ""
+		err := a.saveStoreLocked()
+		a.mu.Unlock()
+		return err
+	}
+	a.mu.Unlock()
+	return nil
+}
+
+func (a *App) ReadBackgroundImageDataURL(id string) (string, error) {
+	id = sanitizeFilename(strings.TrimSpace(id))
+	if id == "" {
+		return "", nil
+	}
+	data, contentType, err := readBackgroundImage(filepath.Join(a.dataDir, "backgrounds", id))
+	if err != nil {
+		return "", err
+	}
+	return "data:" + contentType + ";base64," + base64.StdEncoding.EncodeToString(data), nil
+}
+
+func readBackgroundImage(path string) ([]byte, string, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, "", err
+	}
 	if info.IsDir() {
-		return "", errors.New("background image path is a directory")
+		return nil, "", errors.New("background image path is a directory")
 	}
 	if info.Size() > 20*1024*1024 {
-		return "", errors.New("background image must be 20MB or smaller")
+		return nil, "", errors.New("background image must be 20MB or smaller")
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return "", err
+		return nil, "", err
 	}
 	contentType := mime.TypeByExtension(strings.ToLower(filepath.Ext(path)))
 	if !strings.HasPrefix(contentType, "image/") {
 		contentType = http.DetectContentType(data)
 	}
 	if !strings.HasPrefix(contentType, "image/") {
-		return "", errors.New("background file is not an image")
+		return nil, "", errors.New("background file is not an image")
 	}
-	return "data:" + contentType + ";base64," + base64.StdEncoding.EncodeToString(data), nil
+	return data, contentType, nil
 }
-
 func (a *App) downloadProfile(source string) ([]byte, http.Header, error) {
 	a.mu.Lock()
 	settings := a.store.Settings

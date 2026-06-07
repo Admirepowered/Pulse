@@ -1,4 +1,4 @@
-import {GripVertical, Plus, Trash2} from 'lucide-react';
+import {ArrowDown, ArrowUp, GripVertical, Plus, Trash2} from 'lucide-react';
 import type {Translator} from '../i18n';
 import type {CustomRule} from '../types';
 
@@ -51,13 +51,21 @@ export function CustomRulesEditor({rules, policies, t, onChange}: {
                         {!policyOptions.includes(rule.proxy) && rule.proxy && <option value={rule.proxy}>{rule.proxy}</option>}
                         {policyOptions.map((policy) => <option key={policy} value={policy}>{policy}</option>)}
                     </select>
-                    <label className="miniToggle">
-                        <input type="checkbox" checked={rule.noResolve} onChange={(event) => update(index, {noResolve: event.target.checked})}/>
-                        no-resolve
-                    </label>
-                    <button className="iconButton" onClick={() => onChange(rules.filter((_, current) => current !== index))}>
-                        <Trash2 size={15}/>
-                    </button>
+                    <div className="customRuleActions">
+                        <label className="miniToggle">
+                            <input type="checkbox" checked={rule.noResolve} onChange={(event) => update(index, {noResolve: event.target.checked})}/>
+                            no-resolve
+                        </label>
+                        <button className="iconButton" disabled={index === 0} onClick={() => move(index, index - 1)}>
+                            <ArrowUp size={15}/>
+                        </button>
+                        <button className="iconButton" disabled={index === rules.length - 1} onClick={() => move(index, index + 1)}>
+                            <ArrowDown size={15}/>
+                        </button>
+                        <button className="iconButton" onClick={() => onChange(rules.filter((_, current) => current !== index))}>
+                            <Trash2 size={15}/>
+                        </button>
+                    </div>
                 </div>
             ))}
             <button className="wide" onClick={() => onChange([...rules, newRule(policyOptions[0])])}>

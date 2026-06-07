@@ -1085,6 +1085,27 @@ button.profileRow {
     white-space: nowrap;
 }
 
+.backgroundList {
+    display: grid;
+    gap: 6px;
+}
+
+.backgroundItem {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 34px;
+    gap: 6px;
+}
+
+.backgroundItem > button:first-child {
+    justify-content: flex-start;
+}
+
+.backgroundItem.active > button:first-child {
+    border-color: #0f766e;
+    background: #eefaf6;
+    color: #0f766e;
+}
+
 .rangeField span {
     display: flex;
     justify-content: space-between;
@@ -1126,7 +1147,7 @@ button.profileRow {
 }
 
 .compactModal {
-    width: min(760px, calc(100vw - 40px));
+    width: min(1040px, calc(100vw - 40px));
 }
 
 .hintText {
@@ -1152,8 +1173,8 @@ button.profileRow {
 .customRuleHeader,
 .customRuleRow {
     display: grid;
-    grid-template-columns: 24px minmax(130px, .7fr) minmax(150px, 1fr) minmax(140px, .8fr) 110px 36px;
-    gap: 8px;
+    grid-template-columns: 22px minmax(150px, .8fr) minmax(220px, 1.4fr) minmax(170px, 1fr) minmax(220px, auto);
+    gap: 10px;
     align-items: center;
 }
 
@@ -1169,7 +1190,7 @@ button.profileRow {
 .customRuleRow {
     border: 1px solid #e1e7ef;
     border-radius: 6px;
-    padding: 8px;
+    padding: 9px;
     background: #fbfcfe;
 }
 
@@ -1196,6 +1217,14 @@ button.profileRow {
     gap: 5px;
     font-size: 12px;
     color: #526071;
+    white-space: nowrap;
+}
+
+.customRuleActions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
 }
 
 .modalActions {
@@ -1257,5 +1286,23 @@ button.profileRow {
     .ruleRow,
     .connectionRow {
         grid-template-columns: 1fr;
+    }
+
+    .customRuleHeader {
+        display: none;
+    }
+
+    .customRuleRow {
+        grid-template-columns: 22px 1fr;
+    }
+
+    .customRuleRow input,
+    .customRuleRow select,
+    .customRuleActions {
+        grid-column: 2;
+    }
+
+    .customRuleActions {
+        justify-content: flex-start;
     }
 }

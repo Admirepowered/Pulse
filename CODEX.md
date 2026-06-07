@@ -33,6 +33,7 @@ This file is for future Codex sessions working on Pulse.
 - Use 100 items per page by default.
 - Rules, profiles, proxy providers, connections, and logs should not render unbounded lists.
 - Connections and logs should also keep a display cap so long-running sessions do not make the UI sluggish.
+- Connections should support sorting by total upload, total download, upload speed, and download speed in both directions.
 - The active profile must be visibly highlighted in the Profiles page.
 - Profiles are activated by clicking the whole row. Profile rename/edit/update/delete actions belong in the right-click context menu, not inline row buttons.
 

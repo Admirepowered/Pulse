@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"mime"
 	"net/http"
 	"net/url"
@@ -82,6 +83,13 @@ type App struct {
 	trayLastLeftClick    int64
 	showSignalPath       string
 	lastShowSignalTime   time.Time
+	connectionSamples    map[string]connectionSample
+}
+
+type connectionSample struct {
+	Upload   int64
+	Download int64
+	At       time.Time
 }
 
 type Store struct {
@@ -220,6 +228,8 @@ type ConnectionRow struct {
 	Chains        string `json:"chains"`
 	Upload        int64  `json:"upload"`
 	Download      int64  `json:"download"`
+	UploadSpeed   int64  `json:"uploadSpeed"`
+	DownloadSpeed int64  `json:"downloadSpeed"`
 	Start         string `json:"start"`
 }
 
@@ -244,7 +254,8 @@ var (
 
 func NewApp() *App {
 	return &App{
-		httpClient: &http.Client{Timeout: 12 * time.Second},
+		httpClient:        &http.Client{Timeout: 12 * time.Second},
+		connectionSamples: map[string]connectionSample{},
 	}
 }
 
@@ -1439,6 +1450,14 @@ func (a *App) FetchConnections() (ConnectionSnapshot, error) {
 	if err := a.apiRequest(http.MethodGet, "/connections", nil, &raw); err != nil {
 		return ConnectionSnapshot{}, err
 	}
+	now := time.Now()
+	a.mu.Lock()
+	previousSamples := make(map[string]connectionSample, len(a.connectionSamples))
+	for id, sample := range a.connectionSamples {
+		previousSamples[id] = sample
+	}
+	nextSamples := make(map[string]connectionSample, len(raw.Connections))
+	a.mu.Unlock()
 	rows := make([]ConnectionRow, 0, len(raw.Connections))
 	for _, c := range raw.Connections {
 		address := firstNonEmpty(c.Metadata.Host, c.Metadata.SniffHost, c.Metadata.DstIP)
@@ -1452,6 +1471,16 @@ func (a *App) FetchConnections() (ConnectionSnapshot, error) {
 		if source != "" && c.Metadata.SrcPort > 0 {
 			source = fmt.Sprintf("%s:%d", source, c.Metadata.SrcPort)
 		}
+		var uploadSpeed int64
+		var downloadSpeed int64
+		if previous, ok := previousSamples[c.ID]; ok {
+			elapsed := now.Sub(previous.At).Seconds()
+			if elapsed > 0 {
+				uploadSpeed = int64(math.Max(0, float64(c.Upload-previous.Upload)/elapsed))
+				downloadSpeed = int64(math.Max(0, float64(c.Download-previous.Download)/elapsed))
+			}
+		}
+		nextSamples[c.ID] = connectionSample{Upload: c.Upload, Download: c.Download, At: now}
 		rows = append(rows, ConnectionRow{
 			ID:            c.ID,
 			Network:       c.Network,
@@ -1463,9 +1492,14 @@ func (a *App) FetchConnections() (ConnectionSnapshot, error) {
 			Chains:        strings.Join(c.Chains, " / "),
 			Upload:        c.Upload,
 			Download:      c.Download,
+			UploadSpeed:   uploadSpeed,
+			DownloadSpeed: downloadSpeed,
 			Start:         c.Start,
 		})
 	}
+	a.mu.Lock()
+	a.connectionSamples = nextSamples
+	a.mu.Unlock()
 	return ConnectionSnapshot{
 		UploadTotal:   raw.UploadTotal,
 		DownloadTotal: raw.DownloadTotal,

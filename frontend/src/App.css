@@ -969,10 +969,16 @@ textarea {
 }
 
 .connectionRow {
-    grid-template-columns: minmax(0, 1fr) 150px auto;
+    grid-template-columns: minmax(0, 1fr) 190px auto;
 }
 
-.connectionRow small {
+.connectionTraffic {
+    display: grid;
+    gap: 4px;
+    justify-items: end;
+}
+
+.connectionTraffic small {
     display: inline-flex;
     align-items: center;
     justify-content: flex-end;
@@ -981,8 +987,16 @@ textarea {
     white-space: nowrap;
 }
 
-.connectionRow small svg {
+.connectionTraffic small svg {
     color: #0f766e;
+}
+
+.sortControls {
+    flex-wrap: wrap;
+}
+
+.sortControls button {
+    gap: 5px;
 }
 
 .emptyState {

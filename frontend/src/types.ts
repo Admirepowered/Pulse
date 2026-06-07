@@ -140,6 +140,8 @@ export type ConnectionRow = {
     chains: string;
     upload: number;
     download: number;
+    uploadSpeed: number;
+    downloadSpeed: number;
     start: string;
 };
 

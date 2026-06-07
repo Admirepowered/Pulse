@@ -25,6 +25,8 @@ export namespace pulse {
 	    chains: string;
 	    upload: number;
 	    download: number;
+	    uploadSpeed: number;
+	    downloadSpeed: number;
 	    start: string;
 
 	    static createFrom(source: any = {}) {
@@ -43,6 +45,8 @@ export namespace pulse {
 	        this.chains = source["chains"];
 	        this.upload = source["upload"];
 	        this.download = source["download"];
+	        this.uploadSpeed = source["uploadSpeed"];
+	        this.downloadSpeed = source["downloadSpeed"];
 	        this.start = source["start"];
 	    }
 	}

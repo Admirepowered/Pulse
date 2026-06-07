@@ -1,10 +1,20 @@
 import {Activity, ArrowDown, ArrowUp, Cpu, X} from 'lucide-react';
+import {useMemo, useState} from 'react';
 import {SearchBox, formatBytes} from '../components/common';
 import {PageButtons, PaginationControls, defaultPageSize, usePagination} from '../components/pagination';
 import type {Translator} from '../i18n';
 import type {ConnectionRow, ConnectionSnapshot} from '../types';
 
 const maxConnections = 500;
+type ConnectionSortKey = 'upload' | 'download' | 'uploadSpeed' | 'downloadSpeed';
+type SortDirection = 'asc' | 'desc';
+
+const sortOptions: { key: ConnectionSortKey; labelKey: 'upload' | 'download' | 'uploadSpeed' | 'downloadSpeed' }[] = [
+    {key: 'upload', labelKey: 'upload'},
+    {key: 'download', labelKey: 'download'},
+    {key: 'uploadSpeed', labelKey: 'uploadSpeed'},
+    {key: 'downloadSpeed', labelKey: 'downloadSpeed'},
+];
 
 export function ConnectionsPage({snapshot, connections, query, t, onQueryChange, onCloseAll, onClose}: {
     snapshot: ConnectionSnapshot;
@@ -15,7 +25,21 @@ export function ConnectionsPage({snapshot, connections, query, t, onQueryChange,
     onCloseAll: () => void;
     onClose: (id: string) => void;
 }) {
-    const pagination = usePagination(connections, defaultPageSize, maxConnections);
+    const [sortKey, setSortKey] = useState<ConnectionSortKey>('downloadSpeed');
+    const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+    const sortedConnections = useMemo(() => {
+        const direction = sortDirection === 'asc' ? 1 : -1;
+        return [...connections].sort((left, right) => ((left[sortKey] || 0) - (right[sortKey] || 0)) * direction);
+    }, [connections, sortDirection, sortKey]);
+    const pagination = usePagination(sortedConnections, defaultPageSize, maxConnections);
+    const updateSort = (key: ConnectionSortKey) => {
+        if (key === sortKey) {
+            setSortDirection((current) => current === 'asc' ? 'desc' : 'asc');
+            return;
+        }
+        setSortKey(key);
+        setSortDirection('desc');
+    };
 
     return (
         <section className="stack">
@@ -43,6 +67,14 @@ export function ConnectionsPage({snapshot, connections, query, t, onQueryChange,
             </div>
             <div className="toolbar">
                 <SearchBox value={query} onChange={onQueryChange} placeholder={t('searchConnections')}/>
+                <div className="segmented sortControls">
+                    {sortOptions.map((option) => (
+                        <button className={sortKey === option.key ? 'active' : ''} key={option.key} onClick={() => updateSort(option.key)}>
+                            {t(option.labelKey)}
+                            {sortKey === option.key && (sortDirection === 'asc' ? <ArrowUp size={13}/> : <ArrowDown size={13}/>)}
+                        </button>
+                    ))}
+                </div>
                 <button className="danger" onClick={onCloseAll}>
                     <X size={16}/>{t('closeAll')}
                 </button>
@@ -77,10 +109,16 @@ export function ConnectionsPage({snapshot, connections, query, t, onQueryChange,
                                     {item.network} · {item.rule} · {item.chains}
                                 </span>
                             </div>
-                            <small>
-                                <ArrowUp size={13}/>{formatBytes(item.upload)}
-                                <ArrowDown size={13}/>{formatBytes(item.download)}
-                            </small>
+                            <div className="connectionTraffic">
+                                <small>
+                                    <ArrowUp size={13}/>{formatBytes(item.upload)}
+                                    <ArrowDown size={13}/>{formatBytes(item.download)}
+                                </small>
+                                <small>
+                                    <ArrowUp size={13}/>{formatBytes(item.uploadSpeed || 0)}/s
+                                    <ArrowDown size={13}/>{formatBytes(item.downloadSpeed || 0)}/s
+                                </small>
+                            </div>
                             <button onClick={() => onClose(item.id)}>
                                 <X size={16}/>
                             </button>

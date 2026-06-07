@@ -276,7 +276,12 @@ function App() {
             <aside
                 className={sidebarFocused ? 'sidebar expanded' : 'sidebar'}
                 onMouseEnter={() => setSidebarFocused(true)}
-                onMouseLeave={() => setSidebarFocused(false)}
+                onMouseLeave={(event) => {
+                    if (event.currentTarget.contains(document.activeElement)) {
+                        (document.activeElement as HTMLElement | null)?.blur();
+                    }
+                    setSidebarFocused(false);
+                }}
                 onFocus={() => setSidebarFocused(true)}
                 onBlur={(event) => {
                     if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setSidebarFocused(false);
@@ -293,7 +298,11 @@ function App() {
                     {tabs.map((item) => {
                         const Icon = item.icon;
                         return (
-                            <button className={tab === item.id ? 'active' : ''} key={item.id} onClick={() => setTab(item.id)}>
+                            <button className={tab === item.id ? 'active' : ''} key={item.id} onClick={(event) => {
+                                setTab(item.id);
+                                event.currentTarget.blur();
+                                setSidebarFocused(false);
+                            }}>
                                 <Icon size={18}/>
                                 <span>{t(item.labelKey)}</span>
                             </button>

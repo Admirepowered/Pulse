@@ -15,9 +15,33 @@ on:
   workflow_dispatch:
 
 jobs:
-  windows:
-    name: Windows
-    runs-on: windows-latest
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64
+            os: windows-latest
+            target: build-windows
+            print: print-windows-artifact
+            kind: windows
+          - name: Linux x64
+            os: ubuntu-22.04
+            target: build-linux
+            print: print-linux-artifact
+            kind: linux
+          - name: macOS x64
+            os: macos-13
+            target: build-macos-amd64
+            print: print-macos-amd64-artifact
+            kind: macos
+          - name: macOS ARM64
+            os: macos-14
+            target: build-macos-arm64
+            print: print-macos-arm64-artifact
+            kind: macos
 
     steps:
       - name: Checkout
@@ -39,55 +63,107 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
+      - name: Install Linux Dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            libgtk-3-dev \
+            libwebkit2gtk-4.0-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+
       - name: Install Wails
-        shell: pwsh
+        shell: bash
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
 
       - name: Install Make
+        if: runner.os == 'Windows'
         shell: pwsh
         run: choco install make -y --no-progress
+
+      - name: Setup UPX
+        if: runner.os == 'Windows'
+        uses: crazy-max/ghaction-upx@v3
+        with:
+          install-only: true
 
       - name: Install Frontend Dependencies
         working-directory: frontend
         run: npm ci
 
       - name: Audit Frontend Dependencies
+        if: runner.os == 'Windows'
         working-directory: frontend
         run: npm audit --audit-level=moderate
 
-      - name: Build Frontend
-        working-directory: frontend
-        run: npm run build
-
       - name: Test Go
+        if: runner.os == 'Windows'
         run: go test ./...
 
-      - name: Build Wails App
-        shell: pwsh
+      - name: Resolve Artifact Name
+        id: artifact
+        shell: bash
         run: |
-          $name = (make print-windows-artifact).Trim()
-          make build-windows
-          "artifact_name=$name" >> $env:GITHUB_ENV
+          name="$(make ${{ matrix.print }})"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
 
-      - name: Setup UPX
-        uses: crazy-max/ghaction-upx@v3
-        with:
-          install-only: true
+      - name: Build Wails App
+        shell: bash
+        run: make ${{ matrix.target }}
 
-      - name: Compress Windows Executable
-        shell: pwsh
-        run: upx --best --lzma "build/bin/$env:artifact_name"
+      - name: Package Artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          name="${{ steps.artifact.outputs.name }}"
+          case "${{ matrix.kind }}" in
+            windows)
+              cp "build/bin/$name" "release/$name"
+              ;;
+            linux)
+              chmod +x "build/bin/$name"
+              tar -C build/bin -czf "release/$name.tar.gz" "$name"
+              ;;
+            macos)
+              app_dir="$(find build/bin -maxdepth 1 -name '*.app' -type d | head -n 1)"
+              if [ -n "$app_dir" ]; then
+                (cd build/bin && zip -qry "../../release/$name.zip" "$(basename "$app_dir")")
+              else
+                cp "build/bin/$name" "release/$name"
+              fi
+              ;;
+          esac
 
-      - name: Upload Windows Artifact
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.artifact_name }}
-          path: build/bin/${{ env.artifact_name }}
+          name: ${{ steps.artifact.outputs.name }}
+          path: release/*
           if-no-files-found: error
 
+  release:
+    name: Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+
+      - name: List Release Files
+        run: ls -la release
+
       - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: build/bin/${{ env.artifact_name }}
+          files: release/*
           generate_release_notes: true

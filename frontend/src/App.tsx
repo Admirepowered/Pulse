@@ -120,6 +120,7 @@ function App() {
     }, []);
 
     const refreshPageData = useCallback(async (activeTab: TabId) => {
+        if (activeTab === 'dashboard') setConnectionSnapshot(await FetchConnections() as ConnectionSnapshot);
         if (activeTab === 'proxies') setGroups(await FetchProxyGroups() as ProxyGroup[]);
         if (activeTab === 'rules') setRules(await FetchRules() as RuleRow[]);
         if (activeTab === 'profiles') setProviders(await FetchProviders() as ProviderRow[]);
@@ -193,7 +194,7 @@ function App() {
         const timer = window.setInterval(() => {
             refreshSnapshot().catch(() => undefined);
             refreshPageData(tab).catch(() => undefined);
-        }, tab === 'logs' || tab === 'connections' ? 2000 : 4500);
+        }, tab === 'logs' || tab === 'connections' || tab === 'dashboard' ? 2000 : 4500);
         return () => window.clearInterval(timer);
     }, [refreshPageData, refreshSnapshot, tab]);
 
@@ -384,6 +385,7 @@ function App() {
                 {tab === 'dashboard' && (
                     <DashboardPage
                         snapshot={snapshot}
+                        connections={connectionSnapshot}
                         t={t}
                         onRestart={() => run(RestartCore, t('coreRestarted'))}
                         onOpenDir={() => run(OpenDataDirectory)}

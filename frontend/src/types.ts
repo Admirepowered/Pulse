@@ -18,6 +18,7 @@ export type Settings = {
     logLevel: string;
     tunEnabled: boolean;
     systemProxy: boolean;
+    language: string;
     theme: string;
     autoStart: boolean;
     autoStartCore: boolean;
@@ -143,6 +144,7 @@ export const emptySettings: Settings = {
     logLevel: 'info',
     tunEnabled: false,
     systemProxy: false,
+    language: 'zh',
     theme: 'light',
     autoStart: false,
     autoStartCore: true,
@@ -179,6 +181,7 @@ export function normalizeSettings(settings?: Partial<Settings>): Settings {
         ...emptySettings,
         ...(settings || {}),
         logLevel: settings?.logLevel || 'info',
+        language: settings?.language || 'zh',
         webdav: {...emptySettings.webdav, ...(settings?.webdav || {})},
     };
 }

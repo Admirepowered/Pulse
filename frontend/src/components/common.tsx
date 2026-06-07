@@ -1,5 +1,6 @@
 import type {LucideIcon} from 'lucide-react';
 import {Search} from 'lucide-react';
+import type {Translator} from '../i18n';
 import type {SubscriptionInfo} from '../types';
 
 export function Metric({icon: Icon, label, value}: { icon: LucideIcon; label: string; value: string }) {
@@ -49,7 +50,7 @@ export function StatusPill({ok, label}: { ok: boolean; label: string }) {
     return <span className={ok ? 'pill ok' : 'pill'}>{label}</span>;
 }
 
-export function SubscriptionUsage({info}: { info?: SubscriptionInfo }) {
+export function SubscriptionUsage({info, t}: { info?: SubscriptionInfo; t: Translator }) {
     if (!info || !info.total) return null;
     const used = Math.max(0, (info.upload || 0) + (info.download || 0));
     const percent = Math.min(100, Math.max(0, (used / info.total) * 100));
@@ -57,7 +58,7 @@ export function SubscriptionUsage({info}: { info?: SubscriptionInfo }) {
         <div className="subscriptionUsage">
             <div>
                 <span>{formatBytes(used)} / {formatBytes(info.total)}</span>
-                <span>{info.expire ? `到期 ${formatDate(info.expire)}` : '未提供到期时间'}</span>
+                <span>{info.expire ? `${t('expires')} ${formatDate(info.expire)}` : t('noExpire')}</span>
             </div>
             <div className="usageBar" title={`${percent.toFixed(1)}%`}>
                 <span style={{width: `${percent}%`}}/>
@@ -92,13 +93,13 @@ export function formatDuration(seconds: number) {
     return `${rest}s`;
 }
 
-export function formatTime(seconds: number) {
-    if (!seconds) return '未更新';
+export function formatTime(seconds: number, t?: Translator) {
+    if (!seconds) return t ? t('neverUpdated') : 'Never updated';
     return new Date(seconds * 1000).toLocaleString();
 }
 
 export function formatDate(seconds: number) {
-    if (!seconds) return '未知';
+    if (!seconds) return 'Unknown';
     return new Date(seconds * 1000).toLocaleDateString();
 }
 

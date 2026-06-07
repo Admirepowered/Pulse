@@ -1,5 +1,6 @@
 import {Check, Cloud, Link2, RefreshCcw, SquarePen, Trash2, Upload} from 'lucide-react';
 import {Field, SubscriptionUsage, formatTime} from '../components/common';
+import type {Translator} from '../i18n';
 import type {Profile, ProviderRow, RuntimeState} from '../types';
 
 export function ProfilesPage({
@@ -9,6 +10,7 @@ export function ProfilesPage({
     profileURL,
     importName,
     importContent,
+    t,
     onProfileNameChange,
     onProfileURLChange,
     onImportNameChange,
@@ -28,6 +30,7 @@ export function ProfilesPage({
     profileURL: string;
     importName: string;
     importContent: string;
+    t: Translator;
     onProfileNameChange: (value: string) => void;
     onProfileURLChange: (value: string) => void;
     onImportNameChange: (value: string) => void;
@@ -56,20 +59,20 @@ export function ProfilesPage({
                             <div className="profileRow" key={profile.id}>
                                 <div>
                                     <strong>{profile.name}</strong>
-                                    <span>{profile.type} · {formatTime(profile.updatedAt)}</span>
-                                    <SubscriptionUsage info={profile.subscription}/>
+                                    <span>{profile.type} · {formatTime(profile.updatedAt, t)}</span>
+                                    <SubscriptionUsage info={profile.subscription} t={t}/>
                                 </div>
                                 <div className="rowActions">
-                                    <button title="启用" onClick={() => onActivate(profile.id)}>
+                                    <button title={t('enable')} onClick={() => onActivate(profile.id)}>
                                         <Check size={16}/>
                                     </button>
-                                    <button title="编辑" onClick={() => onEdit(profile)}>
+                                    <button title={t('edit')} onClick={() => onEdit(profile)}>
                                         <SquarePen size={16}/>
                                     </button>
-                                    <button title="更新" onClick={() => onUpdateProfile(profile.id)}>
+                                    <button title={t('update')} onClick={() => onUpdateProfile(profile.id)}>
                                         <RefreshCcw size={16}/>
                                     </button>
-                                    <button title="删除" onClick={() => onDeleteProfile(profile.id)}>
+                                    <button title={t('delete')} onClick={() => onDeleteProfile(profile.id)}>
                                         <Trash2 size={16}/>
                                     </button>
                                 </div>
@@ -85,9 +88,9 @@ export function ProfilesPage({
                             <div className="tableRow" key={provider.name}>
                                 <span>{provider.name}</span>
                                 <span>{provider.vehicle || 'provider'}</span>
-                                <span>{provider.proxies} 节点</span>
+                                <span>{provider.proxies} {t('nodes')}</span>
                                 <button onClick={() => onUpdateProvider(provider.name)}>
-                                    <RefreshCcw size={15}/>更新
+                                    <RefreshCcw size={15}/>{t('update')}
                                 </button>
                             </div>
                         ))}
@@ -97,20 +100,20 @@ export function ProfilesPage({
 
             <div className="stack">
                 <article className="panel">
-                    <div className="panelHead"><h2>订阅</h2></div>
-                    <Field label="名称（可选）" value={profileName} onChange={onProfileNameChange} placeholder="留空时自动从远程订阅推断"/>
+                    <div className="panelHead"><h2>{t('subscription')}</h2></div>
+                    <Field label={t('optionalName')} value={profileName} onChange={onProfileNameChange} placeholder={t('inferRemoteName')}/>
                     <Field label="URL" value={profileURL} onChange={onProfileURLChange} placeholder="https://example.com/profile.yaml"/>
                     <button className="primary wide" onClick={onAddSubscription}>
-                        <Cloud size={17}/>添加订阅
+                        <Cloud size={17}/>{t('addSubscription')}
                     </button>
                 </article>
 
                 <article className="panel">
-                    <div className="panelHead"><h2>本地 YAML</h2></div>
-                    <Field label="名称" value={importName} onChange={onImportNameChange}/>
+                    <div className="panelHead"><h2>{t('localYaml')}</h2></div>
+                    <Field label={t('name')} value={importName} onChange={onImportNameChange}/>
                     <textarea value={importContent} onChange={(event) => onImportContentChange(event.target.value)} spellCheck={false}/>
                     <button className="wide" onClick={onImportProfile}>
-                        <Upload size={17}/>导入
+                        <Upload size={17}/>{t('import')}
                     </button>
                 </article>
             </div>

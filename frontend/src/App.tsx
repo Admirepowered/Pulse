@@ -56,6 +56,7 @@ import {ProfilesPage} from './pages/ProfilesPage';
 import {ProxiesPage} from './pages/ProxiesPage';
 import {RulesPage} from './pages/RulesPage';
 import {SettingsPage} from './pages/SettingsPage';
+import {getTranslator} from './i18n';
 import {
     emptySettings,
     emptySnapshot,
@@ -74,14 +75,14 @@ import {
     type TabId,
 } from './types';
 
-const tabs: { id: TabId; label: string; icon: typeof Gauge }[] = [
-    {id: 'dashboard', label: '总览', icon: Gauge},
-    {id: 'proxies', label: '代理', icon: Network},
-    {id: 'profiles', label: '配置', icon: Cloud},
-    {id: 'rules', label: '规则', icon: ListChecks},
-    {id: 'connections', label: '连接', icon: Activity},
-    {id: 'logs', label: '日志', icon: Bug},
-    {id: 'settings', label: '设置', icon: SettingsIcon},
+const tabs: { id: TabId; labelKey: Parameters<ReturnType<typeof getTranslator>>[0]; icon: typeof Gauge }[] = [
+    {id: 'dashboard', labelKey: 'dashboard', icon: Gauge},
+    {id: 'proxies', labelKey: 'proxies', icon: Network},
+    {id: 'profiles', labelKey: 'profiles', icon: Cloud},
+    {id: 'rules', labelKey: 'rules', icon: ListChecks},
+    {id: 'connections', labelKey: 'connections', icon: Activity},
+    {id: 'logs', labelKey: 'logs', icon: Bug},
+    {id: 'settings', labelKey: 'settings', icon: SettingsIcon},
 ];
 
 function App() {
@@ -104,6 +105,7 @@ function App() {
     const [settingsDraft, setSettingsDraft] = useState<Settings>(emptySettings);
     const [settingsDirty, setSettingsDirty] = useState(false);
     const [backgroundDataURL, setBackgroundDataURL] = useState('');
+    const t = useMemo(() => getTranslator(settingsDraft.language || snapshot.settings.language), [settingsDraft.language, snapshot.settings.language]);
 
     const refreshSnapshot = useCallback(async () => {
         const next = await GetSnapshot() as RuntimeState;
@@ -145,8 +147,8 @@ function App() {
         const next = normalizeSettings(settings);
         setSettingsDraft(next);
         setSettingsDirty(false);
-        run(() => saveSettings(next), '设置已生效');
-    }, [run, saveSettings]);
+        run(() => saveSettings(next), t('settingsApplied'));
+    }, [run, saveSettings, t]);
 
     useEffect(() => {
         refreshSnapshot().catch((error) => setNotice(String(error)));
@@ -223,7 +225,7 @@ function App() {
             setSettingsDirty(false);
             setBackgroundDataURL(dataURL);
             await saveSettings(next);
-            setNotice('背景已更新');
+            setNotice(t('backgroundUpdated'));
             await refreshSnapshot();
         } catch (error) {
             setNotice(error instanceof Error ? error.message : String(error));
@@ -260,44 +262,44 @@ function App() {
                         return (
                             <button className={tab === item.id ? 'active' : ''} key={item.id} onClick={() => setTab(item.id)}>
                                 <Icon size={18}/>
-                                <span>{item.label}</span>
+                                <span>{t(item.labelKey)}</span>
                             </button>
                         );
                     })}
                 </nav>
                 <div className="sidebarFooter">
-                    <StatusPill ok={snapshot.running} label={snapshot.running ? '核心运行中' : '核心已停止'}/>
-                    <StatusPill ok={snapshot.apiReachable} label={snapshot.apiReachable ? 'API 已连接' : 'API 未连接'}/>
+                    <StatusPill ok={snapshot.running} label={snapshot.running ? t('coreRunning') : t('coreStopped')}/>
+                    <StatusPill ok={snapshot.apiReachable} label={snapshot.apiReachable ? t('apiConnected') : t('apiDisconnected')}/>
                 </div>
             </aside>
 
             <section className="workspace">
                 <header className="topbar">
                     <div className="topbarTitle">
-                        <h1>{tabs.find((item) => item.id === tab)?.label}</h1>
+                        <h1>{t(tabs.find((item) => item.id === tab)?.labelKey || 'dashboard')}</h1>
                         <p>{snapshot.activeProfile || 'Direct'}</p>
                     </div>
                     <div className="actions">
-                        <button className="iconButton" title="刷新" disabled={busy} onClick={() => run(async () => refreshPageData(tab))}>
+                        <button className="iconButton" title={t('refresh')} disabled={busy} onClick={() => run(async () => refreshPageData(tab))}>
                             <RefreshCcw size={18}/>
                         </button>
                         {snapshot.running ? (
-                            <button className="danger" disabled={busy} onClick={() => run(StopCore, '核心已停止')}>
-                                <CircleStop size={17}/>停止
+                            <button className="danger" disabled={busy} onClick={() => run(StopCore, t('coreStopped'))}>
+                                <CircleStop size={17}/>{t('stopped')}
                             </button>
                         ) : (
-                            <button className="primary" disabled={busy} onClick={() => run(StartCore, '核心已启动')}>
-                                <Play size={17}/>启动
+                            <button className="primary" disabled={busy} onClick={() => run(StartCore, t('coreStarted'))}>
+                                <Play size={17}/>{t('start')}
                             </button>
                         )}
-                        <div className="windowControls" aria-label="窗口控制">
-                            <button className="chromeButton" title="最小化" onClick={() => run(MinimizeWindow)}>
+                        <div className="windowControls" aria-label="window controls">
+                            <button className="chromeButton" title={t('minimize')} onClick={() => run(MinimizeWindow)}>
                                 <Minus size={15}/>
                             </button>
-                            <button className="chromeButton" title="最大化" onClick={WindowToggleMaximise}>
+                            <button className="chromeButton" title={t('maximize')} onClick={WindowToggleMaximise}>
                                 <Maximize2 size={14}/>
                             </button>
-                            <button className="chromeButton close" title={snapshot.settings.closeBehavior === 'exit' ? '退出' : '隐藏到托盘'} onClick={() => run(CloseWindow)}>
+                            <button className="chromeButton close" title={snapshot.settings.closeBehavior === 'exit' ? t('exit') : t('hideToTray')} onClick={() => run(CloseWindow)}>
                                 <X size={15}/>
                             </button>
                         </div>
@@ -309,7 +311,8 @@ function App() {
                 {tab === 'dashboard' && (
                     <DashboardPage
                         snapshot={snapshot}
-                        onRestart={() => run(RestartCore, '核心已重启')}
+                        t={t}
+                        onRestart={() => run(RestartCore, t('coreRestarted'))}
                         onOpenDir={() => run(OpenDataDirectory)}
                         onOpenMihomo={() => run(() => OpenURL('https://github.com/MetaCubeX/mihomo/tree/Meta'))}
                     />
@@ -319,6 +322,7 @@ function App() {
                     <ProxiesPage
                         groups={filteredGroups}
                         query={query}
+                        t={t}
                         onQueryChange={setQuery}
                         onSelect={(group, node) => run(() => SelectProxy(group, node), `${group} -> ${node}`)}
                     />
@@ -332,39 +336,41 @@ function App() {
                         profileURL={profileURL}
                         importName={importName}
                         importContent={importContent}
+                        t={t}
                         onProfileNameChange={setProfileName}
                         onProfileURLChange={setProfileURL}
                         onImportNameChange={setImportName}
                         onImportContentChange={setImportContent}
                         onOpenGithub={() => run(() => OpenURL('https://github.com/Admirepowered/Pulse'))}
-                        onActivate={(id) => run(() => SetActiveProfile(id), '已切换 Profile')}
+                        onActivate={(id) => run(() => SetActiveProfile(id), t('switchedProfile'))}
                         onEdit={openEditor}
-                        onUpdateProfile={(id) => run(() => UpdateProfile(id), 'Profile 已更新')}
-                        onDeleteProfile={(id) => run(() => DeleteProfile(id), 'Profile 已删除')}
-                        onUpdateProvider={(name) => run(() => UpdateProvider(name), 'Provider 已更新')}
+                        onUpdateProfile={(id) => run(() => UpdateProfile(id), t('profileUpdated'))}
+                        onDeleteProfile={(id) => run(() => DeleteProfile(id), t('profileDeleted'))}
+                        onUpdateProvider={(name) => run(() => UpdateProvider(name), t('providerUpdated'))}
                         onAddSubscription={() => run(async () => {
                             await AddProfileFromURL(profileName, profileURL);
                             setProfileName('');
                             setProfileURL('');
-                        }, '订阅已添加')}
+                        }, t('subscriptionAdded'))}
                         onImportProfile={() => run(async () => {
                             await ImportProfile(importName, importContent);
                             setImportName('');
                             setImportContent('');
-                        }, 'Profile 已导入')}
+                        }, t('profileImported'))}
                     />
                 )}
 
-                {tab === 'rules' && <RulesPage rules={rules}/>}
+                {tab === 'rules' && <RulesPage rules={rules} t={t}/>}
 
                 {tab === 'connections' && (
                     <ConnectionsPage
                         snapshot={connectionSnapshot}
                         connections={filteredConnections}
                         query={query}
+                        t={t}
                         onQueryChange={setQuery}
-                        onCloseAll={() => run(CloseAllConnections, '连接已清空')}
-                        onClose={(id) => run(() => CloseConnection(id), '连接已断开')}
+                        onCloseAll={() => run(CloseAllConnections, t('connectionCleared'))}
+                        onClose={(id) => run(() => CloseConnection(id), t('connectionClosed'))}
                     />
                 )}
 
@@ -373,12 +379,13 @@ function App() {
                 {tab === 'settings' && (
                     <SettingsPage
                         settings={settingsDraft}
+                        t={t}
                         onChange={(settings) => {
                             setSettingsDraft(settings);
                             setSettingsDirty(true);
                         }}
                         onApply={applySettings}
-                        onSave={() => run(() => saveSettings(), '设置已保存')}
+                        onSave={() => run(() => saveSettings(), t('settingsSaved'))}
                         onOpenDir={() => run(OpenDataDirectory)}
                         onChooseBackground={chooseBackground}
                         onClearBackground={clearBackground}
@@ -400,12 +407,12 @@ function App() {
                         </div>
                         <textarea className="editor" value={editorContent} onChange={(event) => setEditorContent(event.target.value)} spellCheck={false}/>
                         <div className="modalActions">
-                            <button onClick={() => setEditorProfile(null)}>取消</button>
+                            <button onClick={() => setEditorProfile(null)}>{t('cancel')}</button>
                             <button className="primary" onClick={() => run(async () => {
                                 await SaveProfileContent(editorProfile.id, editorContent);
                                 setEditorProfile(null);
-                            }, 'Profile 已保存')}>
-                                <Save size={17}/>保存
+                            }, t('profileSaved'))}>
+                                <Save size={17}/>{t('save')}
                             </button>
                         </div>
                     </div>

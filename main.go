@@ -14,12 +14,22 @@ import (
 var assets embed.FS
 
 func main() {
+	releaseInstance, acquired, err := pulse.AcquireSingleInstance()
+	if err != nil {
+		println("Error:", err.Error())
+		return
+	}
+	if !acquired {
+		return
+	}
+	defer releaseInstance()
+
 	// Create an instance of the app structure
 	app := pulse.NewApp()
 	pulse.StartTray(app)
 
 	// Create application with options
-	err := wails.Run(&options.App{
+	err = wails.Run(&options.App{
 		Title:     "Pulse",
 		Width:     1280,
 		Height:    820,

@@ -81,6 +81,7 @@ type Settings struct {
 	LogLevel       string         `json:"logLevel"`
 	TunEnabled     bool           `json:"tunEnabled"`
 	SystemProxy    bool           `json:"systemProxy"`
+	Language       string         `json:"language"`
 	Theme          string         `json:"theme"`
 	AutoStart      bool           `json:"autoStart"`
 	AutoStartCore  bool           `json:"autoStartCore"`
@@ -324,6 +325,7 @@ func defaultSettings() Settings {
 		MixedPort:     7890,
 		Mode:          "rule",
 		LogLevel:      "info",
+		Language:      "zh",
 		Theme:         "system",
 		TunEnabled:    false,
 		AutoStartCore: true,
@@ -352,6 +354,9 @@ func mergeSettings(current, defaults Settings) Settings {
 	}
 	if current.LogLevel == "" {
 		current.LogLevel = defaults.LogLevel
+	}
+	if current.Language == "" {
+		current.Language = defaults.Language
 	}
 	if current.Theme == "" {
 		current.Theme = defaults.Theme

@@ -288,6 +288,7 @@ export namespace pulse {
 	    logLevel: string;
 	    tunEnabled: boolean;
 	    systemProxy: boolean;
+	    language: string;
 	    theme: string;
 	    autoStart: boolean;
 	    autoStartCore: boolean;
@@ -312,6 +313,7 @@ export namespace pulse {
 	        this.logLevel = source["logLevel"];
 	        this.tunEnabled = source["tunEnabled"];
 	        this.systemProxy = source["systemProxy"];
+	        this.language = source["language"];
 	        this.theme = source["theme"];
 	        this.autoStart = source["autoStart"];
 	        this.autoStartCore = source["autoStartCore"];

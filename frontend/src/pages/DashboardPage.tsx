@@ -1,9 +1,11 @@
 import {Activity, FolderOpen, GitBranch, Globe2, PlugZap, RotateCcw, Wifi} from 'lucide-react';
 import {Metric, formatBytes, formatDuration, StatusPill} from '../components/common';
+import type {Translator} from '../i18n';
 import type {RuntimeState} from '../types';
 
-export function DashboardPage({snapshot, onRestart, onOpenDir, onOpenMihomo}: {
+export function DashboardPage({snapshot, t, onRestart, onOpenDir, onOpenMihomo}: {
     snapshot: RuntimeState;
+    t: Translator;
     onRestart: () => void;
     onOpenDir: () => void;
     onOpenMihomo: () => void;
@@ -12,10 +14,10 @@ export function DashboardPage({snapshot, onRestart, onOpenDir, onOpenMihomo}: {
     return (
         <section className="stack">
             <div className="metricGrid">
-                <Metric icon={Activity} label="上行" value={formatBytes(snapshot.traffic.up)}/>
-                <Metric icon={Wifi} label="下行" value={formatBytes(snapshot.traffic.down)}/>
-                <Metric icon={PlugZap} label="运行" value={snapshot.running ? formatDuration(uptime) : '停止'}/>
-                <Metric icon={Globe2} label="模式" value={snapshot.settings.mode.toUpperCase()}/>
+                <Metric icon={Activity} label={t('upload')} value={formatBytes(snapshot.traffic.up)}/>
+                <Metric icon={Wifi} label={t('download')} value={formatBytes(snapshot.traffic.down)}/>
+                <Metric icon={PlugZap} label={t('running')} value={snapshot.running ? formatDuration(uptime) : t('stopped')}/>
+                <Metric icon={Globe2} label={t('mode')} value={snapshot.settings.mode.toUpperCase()}/>
             </div>
             <article className="panel">
                 <div className="panelHead">
@@ -23,11 +25,11 @@ export function DashboardPage({snapshot, onRestart, onOpenDir, onOpenMihomo}: {
                         <h2>Core</h2>
                         <span>{snapshot.settings.corePath}</span>
                     </div>
-                    <StatusPill ok={snapshot.coreFound} label={snapshot.coreFound ? '已找到' : '未找到'}/>
+                    <StatusPill ok={snapshot.coreFound} label={snapshot.coreFound ? t('found') : t('notFound')}/>
                 </div>
                 <div className="quickGrid">
-                    <button onClick={onRestart}><RotateCcw size={17}/>重启核心</button>
-                    <button onClick={onOpenDir}><FolderOpen size={17}/>数据目录</button>
+                    <button onClick={onRestart}><RotateCcw size={17}/>{t('restartCore')}</button>
+                    <button onClick={onOpenDir}><FolderOpen size={17}/>{t('dataDirectory')}</button>
                     <button onClick={onOpenMihomo}><GitBranch size={17}/>mihomo Meta</button>
                 </div>
             </article>

@@ -877,7 +877,11 @@ func (a *App) SetActiveProfile(profileID string) error {
 	}
 	a.updateTrayMenuState()
 	if running {
-		return a.RestartCore()
+		if err := a.reloadActiveRuntimeConfig(); err != nil {
+			a.appendLog("warn", "reload profile config failed, restarting core: "+err.Error())
+			return a.RestartCore()
+		}
+		a.appendLog("info", "profile config reloaded without core restart")
 	}
 	return nil
 }
@@ -983,7 +987,10 @@ func (a *App) SaveProfileCustomRules(profileID string, rules []CustomRule) error
 		return err
 	}
 	if running && activeProfileID == profileID {
-		return a.RestartCore()
+		if err := a.reloadActiveRuntimeConfig(); err != nil {
+			a.appendLog("warn", "reload custom rules failed, restarting core: "+err.Error())
+			return a.RestartCore()
+		}
 	}
 	return nil
 }
@@ -1181,6 +1188,30 @@ func (a *App) RestartCore() error {
 	}
 	time.Sleep(400 * time.Millisecond)
 	return a.StartCore()
+}
+
+func (a *App) reloadActiveRuntimeConfig() error {
+	a.mu.Lock()
+	settings := a.store.Settings
+	profile, ok := a.activeProfileLocked()
+	running := a.coreRunningLocked()
+	a.mu.Unlock()
+	if !running {
+		return nil
+	}
+	if !ok {
+		return errors.New("no active profile")
+	}
+	runtimeConfig, err := a.buildRuntimeConfig(profile, settings)
+	if err != nil {
+		return err
+	}
+	body := map[string]any{"path": runtimeConfig}
+	if err := a.apiRequest(http.MethodPut, "/configs?force=true", body, nil); err != nil {
+		return err
+	}
+	a.updateTrayMenuState()
+	return nil
 }
 
 func (a *App) startEmbeddedCore(runtimeConfig string, settings Settings) error {

@@ -36,6 +36,7 @@ This file is for future Codex sessions working on Pulse.
 - Connections should support sorting by total upload, total download, upload speed, and download speed in both directions.
 - The active profile must be visibly highlighted in the Profiles page.
 - Profiles are activated by clicking the whole row. Profile rename/edit/update/delete actions belong in the right-click context menu, not inline row buttons.
+- Switching profiles while the core is running should hot-reload the generated runtime config through mihomo `/configs?force=true`; restart only as a fallback.
 
 ## Profile Rules
 

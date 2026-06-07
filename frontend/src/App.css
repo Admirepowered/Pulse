@@ -794,9 +794,10 @@ textarea {
     padding: 10px;
 }
 
-button.profileRow {
+.profileRow {
     width: 100%;
     text-align: left;
+    cursor: pointer;
 }
 
 .profileDropPage.active .dropHint {
@@ -826,11 +827,11 @@ button.profileRow {
     background: rgba(232, 250, 246, var(--surface-success-alpha));
 }
 
-.profileRow div:first-child,
+.profileSummary,
 .connectionRow div:first-child {
     min-width: 0;
     display: grid;
-    gap: 3px;
+    gap: 4px;
 }
 
 .profileRow strong,
@@ -840,6 +841,34 @@ button.profileRow {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.profileNameInput {
+    width: 100%;
+    min-width: 0;
+    height: 34px;
+    border: 1px solid #0f766e;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, .82);
+    color: #17202a;
+    font: inherit;
+    font-weight: 700;
+    padding: 0 8px;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.profileMeta {
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.profileMeta span + span::before {
+    content: "/";
+    margin-right: 6px;
+    color: #a1aab6;
 }
 
 .rowActions button,
@@ -868,6 +897,7 @@ button.profileRow {
     display: grid;
     gap: 5px;
     margin-top: 4px;
+    min-width: 0;
 }
 
 .localProfileDrop {
@@ -898,6 +928,11 @@ button.profileRow {
     display: flex;
     justify-content: space-between;
     gap: 10px;
+    min-width: 0;
+}
+
+.subscriptionUsage > div:first-child span {
+    min-width: 0;
 }
 
 .usageBar {

@@ -346,7 +346,7 @@ func (a *App) ProcessInstallConfigURL(raw string) error {
 	if err != nil {
 		return err
 	}
-	_, err = a.AddProfileFromURL("ClashFromWeb-"+randomShortText(6), subscriptionURL)
+	_, err = a.AddProfileFromURL("", subscriptionURL)
 	if err == nil {
 		a.appendLog("info", "subscription imported from URL protocol")
 	}
@@ -536,21 +536,6 @@ func randomSecret() string {
 		return fmt.Sprintf("%d", time.Now().UnixNano())
 	}
 	return hex.EncodeToString(token)
-}
-
-func randomShortText(length int) string {
-	const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	if length <= 0 {
-		return ""
-	}
-	data := make([]byte, length)
-	if _, err := rand.Read(data); err != nil {
-		return fmt.Sprintf("%d", time.Now().UnixNano())[:length]
-	}
-	for i := range data {
-		data[i] = alphabet[int(data[i])%len(alphabet)]
-	}
-	return string(data)
 }
 
 func extractInstallConfigURL(raw string) (string, error) {

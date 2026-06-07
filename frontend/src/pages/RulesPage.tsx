@@ -1,4 +1,4 @@
-import {ListPlus} from 'lucide-react';
+import {Plus} from 'lucide-react';
 import {PageButtons, PaginationControls, defaultPageSize, usePagination} from '../components/pagination';
 import type {Translator} from '../i18n';
 import type {Profile, RuleRow} from '../types';
@@ -18,8 +18,8 @@ export function RulesPage({rules, profiles, activeProfile, t, onEditCustomRules}
             <div className="panelHead">
                 <h2>Rules</h2>
                 <div className="rowActions">
-                    <button disabled={!selectedProfile} onClick={() => selectedProfile && onEditCustomRules(selectedProfile)}>
-                        <ListPlus size={16}/>{t('customRules')}
+                    <button className="iconButton" title={t('customRules')} disabled={!selectedProfile} onClick={() => selectedProfile && onEditCustomRules(selectedProfile)}>
+                        <Plus size={16}/>
                     </button>
                     <PageButtons page={pagination.safePage} pageCount={pagination.pageCount} onPage={pagination.setPage}/>
                     <PaginationControls

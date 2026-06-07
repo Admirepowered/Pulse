@@ -45,13 +45,13 @@ This file is for future Codex sessions working on Pulse.
 - Runtime config generation injects custom rules at the beginning of `rules:` so they win before subscription rules.
 - Subscription updates must not erase custom rules.
 - Subscription updates may optionally use the local mixed proxy when the user enables proxy updates.
-- Local YAML profiles can be imported by dropping `.yaml` or `.yml` files onto the local profile import panel.
+- Local YAML profiles can be imported by dropping `.yaml` or `.yml` files onto the Profiles page. Keep Wails `DragAndDrop.EnableFileDrop` enabled.
 - Subscription names are inferred automatically. Adding a subscription from URL should not require a separate name field.
 
 ## Platform Integration
 
 - On Windows startup, register the `clash://` URL protocol under `HKCU\Software\Classes\clash` with the current executable path and `"%1"` argument.
-- `clash://install-config?...url=...` launches should decode the `url` parameter twice and import it as a subscription named `ClashFromWeb-<random>`. If another Pulse instance is already running, pass the URL protocol argument through `show.signal`.
+- `clash://install-config?...url=...` launches should decode the `url` parameter twice and import it through the same URL subscription flow so the name is inferred from remote metadata or URL. If another Pulse instance is already running, pass the URL protocol argument through `show.signal`.
 
 ## Build And Verification
 

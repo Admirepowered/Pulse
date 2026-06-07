@@ -461,12 +461,7 @@ function App() {
                         onOpenGithub={() => run(() => OpenURL('https://github.com/Admirepowered/Pulse'))}
                         onActivate={(id) => run(() => SetActiveProfile(id), t('switchedProfile'))}
                         onEdit={openEditor}
-                        onRename={(profile) => {
-                            const nextName = window.prompt(t('renameProfile'), profile.name);
-                            if (nextName && nextName.trim() && nextName.trim() !== profile.name) {
-                                run(() => RenameProfile(profile.id, nextName.trim()));
-                            }
-                        }}
+                        onRename={(profile, name) => run(() => RenameProfile(profile.id, name))}
                         onUpdateProfile={(id) => run(() => UpdateProfile(id), t('profileUpdated'))}
                         onDeleteProfile={(id) => run(() => DeleteProfile(id), t('profileDeleted'))}
                         onUpdateProvider={(name) => run(() => UpdateProvider(name), t('providerUpdated'))}

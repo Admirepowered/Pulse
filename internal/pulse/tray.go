@@ -9,8 +9,9 @@ import (
 )
 
 const (
-	maxTrayProfiles = 24
-	maxTrayNodes    = 48
+	maxTrayProfiles      = 24
+	maxTrayGroups        = 18
+	maxTrayNodesPerGroup = 36
 )
 
 //go:embed assets/tray.ico
@@ -37,12 +38,12 @@ func (a *App) setupTrayMenu() {
 	systray.SetTitle("Pulse")
 	systray.SetTooltip("Pulse mihomo")
 
-	showItem := systray.AddMenuItem("显示 Pulse", "显示主窗口")
+	showItem := systray.AddMenuItem("Show Pulse", "Show main window")
 	a.watchTrayItem(showItem, func() {
 		wailsruntime.WindowShow(a.ctx)
 	})
 
-	a.trayCoreItem = systray.AddMenuItem("启动核心", "启动或停止 mihomo 核心")
+	a.trayCoreItem = systray.AddMenuItem("Start Core", "Start or stop mihomo core")
 	a.watchTrayItem(a.trayCoreItem, func() {
 		a.mu.Lock()
 		running := a.coreRunningLocked()
@@ -58,13 +59,13 @@ func (a *App) setupTrayMenu() {
 		}
 	})
 
-	a.trayStatusItem = systray.AddMenuItem("状态：读取中", "当前运行状态")
+	a.trayStatusItem = systray.AddMenuItem("Status: loading", "Current runtime status")
 	a.trayStatusItem.Disable()
 	systray.AddSeparator()
 
-	profilesMenu := systray.AddMenuItem("订阅配置", "切换当前 Profile")
+	profilesMenu := systray.AddMenuItem("Profiles", "Switch active profile")
 	for i := 0; i < maxTrayProfiles; i++ {
-		item := profilesMenu.AddSubMenuItem("Profile", "切换 Profile")
+		item := profilesMenu.AddSubMenuItem("Profile", "Switch profile")
 		item.Hide()
 		a.trayProfileItems = append(a.trayProfileItems, item)
 		index := i
@@ -82,34 +83,41 @@ func (a *App) setupTrayMenu() {
 		})
 	}
 
-	nodesMenu := systray.AddMenuItem("节点 Selector", "切换当前策略组节点")
-	a.trayNodeStatusItem = nodesMenu.AddSubMenuItem("核心未运行", "当前节点组状态")
+	nodesMenu := systray.AddMenuItem("Nodes", "Select proxy group node")
+	a.trayNodeStatusItem = nodesMenu.AddSubMenuItem("Core stopped", "Current node group status")
 	a.trayNodeStatusItem.Disable()
-	for i := 0; i < maxTrayNodes; i++ {
-		item := nodesMenu.AddSubMenuItem("Node", "切换节点")
-		item.Hide()
-		a.trayNodeItems = append(a.trayNodeItems, item)
-		index := i
-		a.watchTrayItem(item, func() {
-			a.trayMu.Lock()
-			if index >= len(a.trayNodeNames) {
+	for groupIndex := 0; groupIndex < maxTrayGroups; groupIndex++ {
+		groupItem := nodesMenu.AddSubMenuItem("Group", "Select proxy group")
+		a.trayNodeGroupItems = append(a.trayNodeGroupItems, groupItem)
+		nodeItems := make([]*systray.MenuItem, 0, maxTrayNodesPerGroup)
+		for nodeIndex := 0; nodeIndex < maxTrayNodesPerGroup; nodeIndex++ {
+			item := groupItem.AddSubMenuItem("Node", "Switch node")
+			item.Hide()
+			nodeItems = append(nodeItems, item)
+			gi, ni := groupIndex, nodeIndex
+			a.watchTrayItem(item, func() {
+				a.trayMu.Lock()
+				if gi >= len(a.trayNodeGroupNames) || gi >= len(a.trayNodeNamesByGroup) || ni >= len(a.trayNodeNamesByGroup[gi]) {
+					a.trayMu.Unlock()
+					return
+				}
+				group := a.trayNodeGroupNames[gi]
+				node := a.trayNodeNamesByGroup[gi][ni]
 				a.trayMu.Unlock()
-				return
-			}
-			group := a.trayNodeGroup
-			node := a.trayNodeNames[index]
-			a.trayMu.Unlock()
-			if err := a.SelectProxy(group, node); err != nil {
-				a.appendLog("error", "tray select node failed: "+err.Error())
-			}
-		})
+				if err := a.SelectProxy(group, node); err != nil {
+					a.appendLog("error", "tray select node failed: "+err.Error())
+				}
+			})
+		}
+		groupItem.Hide()
+		a.trayNodeItems = append(a.trayNodeItems, nodeItems)
 	}
 
-	refreshItem := systray.AddMenuItem("刷新托盘菜单", "刷新 Profile 和节点列表")
+	refreshItem := systray.AddMenuItem("Refresh Tray", "Refresh profiles and nodes")
 	a.watchTrayItem(refreshItem, func() {})
 
 	systray.AddSeparator()
-	quitItem := systray.AddMenuItem("退出 Pulse", "退出应用")
+	quitItem := systray.AddMenuItem("Quit Pulse", "Quit application")
 	a.watchTrayItem(quitItem, func() {
 		a.quitApplication()
 	})
@@ -151,16 +159,16 @@ func (a *App) updateTrayMenuState() {
 
 	if a.trayCoreItem != nil {
 		if running {
-			a.trayCoreItem.SetTitle("停止核心")
+			a.trayCoreItem.SetTitle("Stop Core")
 		} else {
-			a.trayCoreItem.SetTitle("启动核心")
+			a.trayCoreItem.SetTitle("Start Core")
 		}
 	}
 	if a.trayStatusItem != nil {
 		if running {
-			a.trayStatusItem.SetTitle("状态：核心运行中 · " + activeProfileName)
+			a.trayStatusItem.SetTitle("Status: core running - " + activeProfileName)
 		} else {
-			a.trayStatusItem.SetTitle("状态：核心已停止 · " + activeProfileName)
+			a.trayStatusItem.SetTitle("Status: core stopped - " + activeProfileName)
 		}
 	}
 
@@ -191,24 +199,24 @@ func (a *App) updateTrayProfiles(profiles []Profile, activeProfileID string) {
 
 func (a *App) updateTrayNodes(running bool) {
 	if !running {
-		a.setTrayNodeStatus("核心未运行")
-		a.setTrayNodeChoices("", nil, "")
+		a.setTrayNodeStatus("Core stopped")
+		a.setTrayNodeGroups(nil)
 		return
 	}
 	groups, err := a.FetchProxyGroups()
 	if err != nil {
-		a.setTrayNodeStatus("节点读取失败")
-		a.setTrayNodeChoices("", nil, "")
+		a.setTrayNodeStatus("Failed to load nodes")
+		a.setTrayNodeGroups(nil)
 		return
 	}
-	group, ok := chooseTrayProxyGroup(groups)
-	if !ok {
-		a.setTrayNodeStatus("没有可选择的策略组")
-		a.setTrayNodeChoices("", nil, "")
+	groups = selectableTrayProxyGroups(groups)
+	if len(groups) == 0 {
+		a.setTrayNodeStatus("No selectable groups")
+		a.setTrayNodeGroups(nil)
 		return
 	}
-	a.setTrayNodeStatus("当前组：" + truncateTrayLabel(group.Name, 34))
-	a.setTrayNodeChoices(group.Name, group.Nodes, group.Now)
+	a.setTrayNodeStatus("Select group")
+	a.setTrayNodeGroups(groups)
 }
 
 func (a *App) setTrayNodeStatus(title string) {
@@ -217,49 +225,70 @@ func (a *App) setTrayNodeStatus(title string) {
 	}
 }
 
-func (a *App) setTrayNodeChoices(groupName string, nodes []ProxyNode, current string) {
-	names := make([]string, 0, min(len(nodes), maxTrayNodes))
-	for i, item := range a.trayNodeItems {
-		if i >= len(nodes) {
-			item.Hide()
+func (a *App) setTrayNodeGroups(groups []ProxyGroup) {
+	groupNames := make([]string, 0, min(len(groups), maxTrayGroups))
+	nodeNamesByGroup := make([][]string, 0, min(len(groups), maxTrayGroups))
+	for groupIndex, groupItem := range a.trayNodeGroupItems {
+		if groupIndex >= len(groups) {
+			groupItem.Hide()
+			for _, item := range a.trayNodeItems[groupIndex] {
+				item.Hide()
+			}
 			continue
 		}
-		node := nodes[i]
-		names = append(names, node.Name)
-		prefix := "  "
-		if node.Name == current {
-			prefix = "✓ "
+		group := groups[groupIndex]
+		groupNames = append(groupNames, group.Name)
+		groupItem.SetTitle(truncateTrayLabel(group.Name, 32) + " -> " + truncateTrayLabel(group.Now, 28))
+		groupItem.Show()
+
+		nodeNames := make([]string, 0, min(len(group.Nodes), maxTrayNodesPerGroup))
+		for nodeIndex, item := range a.trayNodeItems[groupIndex] {
+			if nodeIndex >= len(group.Nodes) {
+				item.Hide()
+				continue
+			}
+			node := group.Nodes[nodeIndex]
+			nodeNames = append(nodeNames, node.Name)
+			prefix := "  "
+			if node.Name == group.Now {
+				prefix = "✓ "
+			}
+			item.SetTitle(prefix + truncateTrayLabel(node.Name, 44))
+			item.Show()
 		}
-		item.SetTitle(prefix + truncateTrayLabel(node.Name, 44))
-		item.Show()
+		nodeNamesByGroup = append(nodeNamesByGroup, nodeNames)
 	}
 	a.trayMu.Lock()
-	a.trayNodeGroup = groupName
-	a.trayNodeNames = names
+	a.trayNodeGroupNames = groupNames
+	a.trayNodeNamesByGroup = nodeNamesByGroup
 	a.trayMu.Unlock()
 }
 
-func chooseTrayProxyGroup(groups []ProxyGroup) (ProxyGroup, bool) {
-	if len(groups) == 0 {
-		return ProxyGroup{}, false
-	}
-	preferred := []string{"global", "selector", "proxy", "节点", "选择"}
-	for _, needle := range preferred {
-		for _, group := range groups {
-			if len(group.Nodes) == 0 {
-				continue
-			}
-			if strings.Contains(strings.ToLower(group.Name), needle) || strings.Contains(group.Name, needle) {
-				return group, true
-			}
+func selectableTrayProxyGroups(groups []ProxyGroup) []ProxyGroup {
+	result := make([]ProxyGroup, 0, len(groups))
+	for _, group := range groups {
+		if len(group.Nodes) == 0 {
+			continue
 		}
+		if isSelectorGroup(group) {
+			result = append(result, group)
+		}
+	}
+	if len(result) > 0 {
+		return result
 	}
 	for _, group := range groups {
 		if len(group.Nodes) > 0 {
-			return group, true
+			result = append(result, group)
 		}
 	}
-	return ProxyGroup{}, false
+	return result
+}
+
+func isSelectorGroup(group ProxyGroup) bool {
+	kind := strings.ToLower(strings.TrimSpace(group.Type))
+	name := strings.ToLower(group.Name)
+	return strings.Contains(kind, "select") || strings.Contains(kind, "selector") || strings.Contains(name, "selector")
 }
 
 func truncateTrayLabel(value string, maxRunes int) string {
@@ -267,5 +296,5 @@ func truncateTrayLabel(value string, maxRunes int) string {
 	if len(runes) <= maxRunes {
 		return value
 	}
-	return string(runes[:maxRunes-1]) + "…"
+	return string(runes[:maxRunes-1]) + "..."
 }

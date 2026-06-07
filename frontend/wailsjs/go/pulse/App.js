@@ -50,6 +50,10 @@ export function ImportProfile(arg1, arg2) {
   return window['go']['pulse']['App']['ImportProfile'](arg1, arg2);
 }
 
+export function MinimizeWindow() {
+  return window['go']['pulse']['App']['MinimizeWindow']();
+}
+
 export function OpenDataDirectory() {
   return window['go']['pulse']['App']['OpenDataDirectory']();
 }

@@ -38,29 +38,30 @@ import (
 )
 
 type App struct {
-	ctx                 context.Context
-	mu                  sync.Mutex
-	dataDir             string
-	storePath           string
-	store               Store
-	coreCmd             *exec.Cmd
-	embeddedCoreRunning bool
-	mihomoLogSub        mihomoObservable.Subscription[mihomoLog.Event]
-	startedAt           int64
-	logLines            []LogLine
-	httpClient          *http.Client
-	forceQuit           bool
-	trayOnce            sync.Once
-	trayMu              sync.Mutex
-	trayReady           bool
-	trayCoreItem        *systray.MenuItem
-	trayStatusItem      *systray.MenuItem
-	trayProfileIDs      []string
-	trayProfileItems    []*systray.MenuItem
-	trayNodeGroup       string
-	trayNodeNames       []string
-	trayNodeStatusItem  *systray.MenuItem
-	trayNodeItems       []*systray.MenuItem
+	ctx                  context.Context
+	mu                   sync.Mutex
+	dataDir              string
+	storePath            string
+	store                Store
+	coreCmd              *exec.Cmd
+	embeddedCoreRunning  bool
+	mihomoLogSub         mihomoObservable.Subscription[mihomoLog.Event]
+	startedAt            int64
+	logLines             []LogLine
+	httpClient           *http.Client
+	forceQuit            bool
+	trayOnce             sync.Once
+	trayMu               sync.Mutex
+	trayReady            bool
+	trayCoreItem         *systray.MenuItem
+	trayStatusItem       *systray.MenuItem
+	trayProfileIDs       []string
+	trayProfileItems     []*systray.MenuItem
+	trayNodeStatusItem   *systray.MenuItem
+	trayNodeGroupNames   []string
+	trayNodeNamesByGroup [][]string
+	trayNodeGroupItems   []*systray.MenuItem
+	trayNodeItems        [][]*systray.MenuItem
 }
 
 type Store struct {
@@ -77,6 +78,7 @@ type Settings struct {
 	MixedPort      int            `json:"mixedPort"`
 	AllowLan       bool           `json:"allowLan"`
 	Mode           string         `json:"mode"`
+	LogLevel       string         `json:"logLevel"`
 	TunEnabled     bool           `json:"tunEnabled"`
 	SystemProxy    bool           `json:"systemProxy"`
 	Theme          string         `json:"theme"`
@@ -178,6 +180,15 @@ type ConnectionRow struct {
 	Start    string `json:"start"`
 }
 
+type ConnectionSnapshot struct {
+	UploadTotal   int64           `json:"uploadTotal"`
+	DownloadTotal int64           `json:"downloadTotal"`
+	Memory        uint64          `json:"memory"`
+	UploadSpeed   int64           `json:"uploadSpeed"`
+	DownloadSpeed int64           `json:"downloadSpeed"`
+	Connections   []ConnectionRow `json:"connections"`
+}
+
 const subscriptionUserAgent = "clash-verge/v2.5.2"
 
 func NewApp() *App {
@@ -229,6 +240,10 @@ func (a *App) CloseWindow() {
 		a.quitApplication()
 		return
 	}
+	wailsruntime.WindowHide(a.ctx)
+}
+
+func (a *App) MinimizeWindow() {
 	wailsruntime.WindowHide(a.ctx)
 }
 
@@ -305,6 +320,7 @@ func defaultSettings() Settings {
 		Secret:        randomSecret(),
 		MixedPort:     7890,
 		Mode:          "rule",
+		LogLevel:      "info",
 		Theme:         "system",
 		TunEnabled:    false,
 		AutoStartCore: true,
@@ -330,6 +346,9 @@ func mergeSettings(current, defaults Settings) Settings {
 	}
 	if current.Mode == "" {
 		current.Mode = defaults.Mode
+	}
+	if current.LogLevel == "" {
+		current.LogLevel = defaults.LogLevel
 	}
 	if current.Theme == "" {
 		current.Theme = defaults.Theme
@@ -370,6 +389,18 @@ func clampBackgroundBlur(value int) int {
 	return value
 }
 
+func normalizeLogLevel(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "debug", "info", "warning", "warn", "error", "silent":
+		if strings.ToLower(strings.TrimSpace(value)) == "warn" {
+			return "warning"
+		}
+		return strings.ToLower(strings.TrimSpace(value))
+	default:
+		return "info"
+	}
+}
+
 func (a *App) GetSnapshot() RuntimeState {
 	a.mu.Lock()
 	settings := a.store.Settings
@@ -398,6 +429,7 @@ func (a *App) GetSnapshot() RuntimeState {
 
 func (a *App) SaveSettings(settings Settings) error {
 	settings = mergeSettings(settings, defaultSettings())
+	settings.LogLevel = normalizeLogLevel(settings.LogLevel)
 	a.appendLog("info", fmt.Sprintf(
 		"save settings requested: store=%s coreMode=%s autoStartCore=%t autoStart=%t systemProxy=%t allowLan=%t mixedPort=%d",
 		a.storePath,
@@ -461,14 +493,14 @@ func settingsRequireCoreRestart(previous, next Settings) bool {
 		previous.CorePath != next.CorePath ||
 		previous.ApiBase != next.ApiBase ||
 		previous.Secret != next.Secret ||
-		previous.MixedPort != next.MixedPort ||
-		previous.TunEnabled != next.TunEnabled ||
-		(next.CoreMode == "embedded" && settingsRequireRuntimeApply(previous, next))
+		previous.MixedPort != next.MixedPort
 }
 
 func settingsRequireRuntimeApply(previous, next Settings) bool {
 	return previous.AllowLan != next.AllowLan ||
-		previous.Mode != next.Mode
+		previous.Mode != next.Mode ||
+		previous.LogLevel != next.LogLevel ||
+		previous.TunEnabled != next.TunEnabled
 }
 
 func (a *App) AddProfileFromURL(name string, source string) (Profile, error) {
@@ -903,9 +935,12 @@ func (a *App) UpdateProvider(name string) error {
 	return a.apiRequest(http.MethodPut, "/providers/proxies/"+url.PathEscape(name), nil, nil)
 }
 
-func (a *App) FetchConnections() ([]ConnectionRow, error) {
+func (a *App) FetchConnections() (ConnectionSnapshot, error) {
 	var raw struct {
-		Connections []struct {
+		DownloadTotal int64  `json:"downloadTotal"`
+		UploadTotal   int64  `json:"uploadTotal"`
+		Memory        uint64 `json:"memory"`
+		Connections   []struct {
 			ID       string   `json:"id"`
 			Network  string   `json:"network"`
 			Chains   []string `json:"chains"`
@@ -920,8 +955,9 @@ func (a *App) FetchConnections() ([]ConnectionRow, error) {
 			} `json:"metadata"`
 		} `json:"connections"`
 	}
+	traffic, _ := a.fetchTraffic()
 	if err := a.apiRequest(http.MethodGet, "/connections", nil, &raw); err != nil {
-		return nil, err
+		return ConnectionSnapshot{}, err
 	}
 	rows := make([]ConnectionRow, 0, len(raw.Connections))
 	for _, c := range raw.Connections {
@@ -943,7 +979,14 @@ func (a *App) FetchConnections() ([]ConnectionRow, error) {
 			Start:    c.Start,
 		})
 	}
-	return rows, nil
+	return ConnectionSnapshot{
+		UploadTotal:   raw.UploadTotal,
+		DownloadTotal: raw.DownloadTotal,
+		Memory:        raw.Memory,
+		UploadSpeed:   traffic.Up,
+		DownloadSpeed: traffic.Down,
+		Connections:   rows,
+	}, nil
 }
 
 func (a *App) CloseConnection(id string) error {
@@ -966,6 +1009,13 @@ func (a *App) applyRuntimeSettings(settings Settings) error {
 	body := map[string]any{
 		"allow-lan": settings.AllowLan,
 		"mode":      settings.Mode,
+		"log-level": normalizeLogLevel(settings.LogLevel),
+		"tun": map[string]any{
+			"enable":                settings.TunEnabled,
+			"stack":                 "mixed",
+			"auto-route":            true,
+			"auto-detect-interface": true,
+		},
 	}
 	if err := a.apiRequest(http.MethodPatch, "/configs", body, nil); err != nil {
 		return err
@@ -1294,6 +1344,7 @@ func mergeRuntimeConfig(content []byte, settings Settings, controller string) ([
 	setYAMLScalar(root, "mixed-port", settings.MixedPort)
 	setYAMLScalar(root, "allow-lan", settings.AllowLan)
 	setYAMLScalar(root, "mode", settings.Mode)
+	setYAMLScalar(root, "log-level", normalizeLogLevel(settings.LogLevel))
 	setYAMLScalar(root, "external-controller", controller)
 	setYAMLScalar(root, "secret", settings.Secret)
 

@@ -12,7 +12,7 @@ export function CloseWindow():Promise<void>;
 
 export function DeleteProfile(arg1:string):Promise<void>;
 
-export function FetchConnections():Promise<Array<pulse.ConnectionRow>>;
+export function FetchConnections():Promise<pulse.ConnectionSnapshot>;
 
 export function FetchProviders():Promise<Array<pulse.ProviderRow>>;
 
@@ -25,6 +25,8 @@ export function GetLogs():Promise<Array<pulse.LogLine>>;
 export function GetSnapshot():Promise<pulse.RuntimeState>;
 
 export function ImportProfile(arg1:string,arg2:string):Promise<pulse.Profile>;
+
+export function MinimizeWindow():Promise<void>;
 
 export function OpenDataDirectory():Promise<void>;
 

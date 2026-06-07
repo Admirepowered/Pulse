@@ -15,6 +15,7 @@ export type Settings = {
     mixedPort: number;
     allowLan: boolean;
     mode: string;
+    logLevel: string;
     tunEnabled: boolean;
     systemProxy: boolean;
     theme: string;
@@ -109,6 +110,15 @@ export type ConnectionRow = {
     start: string;
 };
 
+export type ConnectionSnapshot = {
+    uploadTotal: number;
+    downloadTotal: number;
+    memory: number;
+    uploadSpeed: number;
+    downloadSpeed: number;
+    connections: ConnectionRow[];
+};
+
 export const emptySubscriptionInfo: SubscriptionInfo = {
     upload: 0,
     download: 0,
@@ -127,6 +137,7 @@ export const emptySettings: Settings = {
     mixedPort: 7890,
     allowLan: false,
     mode: 'rule',
+    logLevel: 'info',
     tunEnabled: false,
     systemProxy: false,
     theme: 'light',
@@ -136,6 +147,15 @@ export const emptySettings: Settings = {
     backgroundPath: '',
     backgroundBlur: 0,
     webdav: {enabled: false, url: '', username: '', password: ''},
+};
+
+export const emptyConnectionSnapshot: ConnectionSnapshot = {
+    uploadTotal: 0,
+    downloadTotal: 0,
+    memory: 0,
+    uploadSpeed: 0,
+    downloadSpeed: 0,
+    connections: [],
 };
 
 export const emptySnapshot: RuntimeState = {
@@ -155,6 +175,7 @@ export function normalizeSettings(settings?: Partial<Settings>): Settings {
     return {
         ...emptySettings,
         ...(settings || {}),
+        logLevel: settings?.logLevel || 'info',
         webdav: {...emptySettings.webdav, ...(settings?.webdav || {})},
     };
 }

@@ -30,6 +30,7 @@ import {
     GetLogs,
     GetSnapshot,
     ImportProfile,
+    MinimizeWindow,
     Models,
     OpenDataDirectory,
     OpenURL,
@@ -45,7 +46,6 @@ import {
     StopCore,
     UpdateProfile,
     UpdateProvider,
-    WindowMinimise,
     WindowToggleMaximise,
 } from './api';
 import {noticeError, StatusPill} from './components/common';
@@ -59,8 +59,10 @@ import {SettingsPage} from './pages/SettingsPage';
 import {
     emptySettings,
     emptySnapshot,
+    emptyConnectionSnapshot,
     normalizeSettings,
     normalizeSnapshot,
+    type ConnectionSnapshot,
     type ConnectionRow,
     type LogLine,
     type Profile,
@@ -88,7 +90,7 @@ function App() {
     const [groups, setGroups] = useState<ProxyGroup[]>([]);
     const [rules, setRules] = useState<RuleRow[]>([]);
     const [providers, setProviders] = useState<ProviderRow[]>([]);
-    const [connections, setConnections] = useState<ConnectionRow[]>([]);
+    const [connectionSnapshot, setConnectionSnapshot] = useState<ConnectionSnapshot>(emptyConnectionSnapshot);
     const [logs, setLogs] = useState<LogLine[]>([]);
     const [query, setQuery] = useState('');
     const [notice, setNotice] = useState('');
@@ -112,7 +114,7 @@ function App() {
         if (activeTab === 'proxies') setGroups(await FetchProxyGroups() as ProxyGroup[]);
         if (activeTab === 'rules') setRules(await FetchRules() as RuleRow[]);
         if (activeTab === 'profiles') setProviders(await FetchProviders() as ProviderRow[]);
-        if (activeTab === 'connections') setConnections(await FetchConnections() as ConnectionRow[]);
+        if (activeTab === 'connections') setConnectionSnapshot(await FetchConnections() as ConnectionSnapshot);
         if (activeTab === 'logs') setLogs(await GetLogs() as LogLine[]);
     }, []);
 
@@ -199,9 +201,10 @@ function App() {
 
     const filteredConnections = useMemo(() => {
         const value = query.trim().toLowerCase();
+        const connections = connectionSnapshot.connections || [];
         if (!value) return connections;
         return connections.filter((item) => `${item.address} ${item.rule} ${item.chains}`.toLowerCase().includes(value));
-    }, [connections, query]);
+    }, [connectionSnapshot.connections, query]);
 
     const openEditor = async (profile: Profile) => {
         setEditorProfile(profile);
@@ -288,7 +291,7 @@ function App() {
                             </button>
                         )}
                         <div className="windowControls" aria-label="窗口控制">
-                            <button className="chromeButton" title="最小化" onClick={WindowMinimise}>
+                            <button className="chromeButton" title="最小化" onClick={() => run(MinimizeWindow)}>
                                 <Minus size={15}/>
                             </button>
                             <button className="chromeButton" title="最大化" onClick={WindowToggleMaximise}>
@@ -356,6 +359,7 @@ function App() {
 
                 {tab === 'connections' && (
                     <ConnectionsPage
+                        snapshot={connectionSnapshot}
                         connections={filteredConnections}
                         query={query}
                         onQueryChange={setQuery}

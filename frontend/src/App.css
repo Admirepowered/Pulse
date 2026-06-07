@@ -375,6 +375,12 @@ h2 {
     gap: 12px;
 }
 
+.connectionStats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+}
+
 .metric {
     padding: 14px;
     display: grid;
@@ -387,6 +393,25 @@ h2 {
 
 .metric strong {
     font-size: 22px;
+}
+
+.metric.compact {
+    min-height: 76px;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+}
+
+.metric.compact span {
+    min-width: 0;
+}
+
+.metric.compact strong {
+    grid-column: 1 / -1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 17px;
 }
 
 .pill {
@@ -651,6 +676,28 @@ textarea {
     grid-template-columns: minmax(0, 1fr) 150px auto;
 }
 
+.connectionRow small {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 5px;
+    color: #526071;
+    white-space: nowrap;
+}
+
+.connectionRow small svg {
+    color: #0f766e;
+}
+
+.emptyState {
+    min-height: 96px;
+    display: grid;
+    place-items: center;
+    color: #6b7280;
+    border: 1px dashed #d9e1ea;
+    border-radius: 6px;
+}
+
 .logs {
     overflow: auto;
     max-height: calc(100vh - 132px);
@@ -803,7 +850,8 @@ textarea {
     }
 
     .split,
-    .metricGrid {
+    .metricGrid,
+    .connectionStats {
         grid-template-columns: 1fr;
     }
 }

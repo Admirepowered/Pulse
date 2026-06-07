@@ -26,6 +26,46 @@ export namespace pulse {
 	        this.start = source["start"];
 	    }
 	}
+	export class ConnectionSnapshot {
+	    uploadTotal: number;
+	    downloadTotal: number;
+	    memory: number;
+	    uploadSpeed: number;
+	    downloadSpeed: number;
+	    connections: ConnectionRow[];
+
+	    static createFrom(source: any = {}) {
+	        return new ConnectionSnapshot(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.uploadTotal = source["uploadTotal"];
+	        this.downloadTotal = source["downloadTotal"];
+	        this.memory = source["memory"];
+	        this.uploadSpeed = source["uploadSpeed"];
+	        this.downloadSpeed = source["downloadSpeed"];
+	        this.connections = this.convertValues(source["connections"], ConnectionRow);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class LogLine {
 	    time: number;
 	    level: string;
@@ -239,6 +279,7 @@ export namespace pulse {
 	    mixedPort: number;
 	    allowLan: boolean;
 	    mode: string;
+	    logLevel: string;
 	    tunEnabled: boolean;
 	    systemProxy: boolean;
 	    theme: string;
@@ -262,6 +303,7 @@ export namespace pulse {
 	        this.mixedPort = source["mixedPort"];
 	        this.allowLan = source["allowLan"];
 	        this.mode = source["mode"];
+	        this.logLevel = source["logLevel"];
 	        this.tunEnabled = source["tunEnabled"];
 	        this.systemProxy = source["systemProxy"];
 	        this.theme = source["theme"];

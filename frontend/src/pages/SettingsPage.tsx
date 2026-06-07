@@ -53,6 +53,13 @@ export function SettingsPage({settings, onChange, onApply, onSave, onOpenDir, on
                         </button>
                     ))}
                 </div>
+                <div className="segmented">
+                    {['debug', 'info', 'warning', 'error', 'silent'].map((level) => (
+                        <button className={settings.logLevel === level ? 'active' : ''} key={level} onClick={() => set('logLevel', level, true)}>
+                            {level}
+                        </button>
+                    ))}
+                </div>
                 <Toggle label="Allow LAN" checked={settings.allowLan} onChange={(value) => set('allowLan', value, true)}/>
                 <Toggle label="TUN" checked={settings.tunEnabled} onChange={(value) => set('tunEnabled', value, true)}/>
                 <Toggle label="系统代理" checked={settings.systemProxy} onChange={(value) => set('systemProxy', value, true)}/>

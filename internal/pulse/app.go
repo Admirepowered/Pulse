@@ -92,6 +92,7 @@ type Settings struct {
 	LogLevel          string         `json:"logLevel"`
 	TunEnabled        bool           `json:"tunEnabled"`
 	SystemProxy       bool           `json:"systemProxy"`
+	DelayTestURL      string         `json:"delayTestUrl"`
 	Language          string         `json:"language"`
 	Theme             string         `json:"theme"`
 	AutoStart         bool           `json:"autoStart"`
@@ -217,7 +218,10 @@ type ConnectionSnapshot struct {
 	Connections   []ConnectionRow `json:"connections"`
 }
 
-const subscriptionUserAgent = "clash-verge/v2.5.2"
+const (
+	subscriptionUserAgent = "clash-verge/v2.5.2"
+	defaultDelayTestURL   = "https://www.gstatic.com/generate_204"
+)
 
 var (
 	AppVersion  = "P0"
@@ -238,6 +242,9 @@ func (a *App) Startup(ctx context.Context) {
 	}
 	a.appendLog("info", "Pulse Wails client started")
 	a.syncAutoStartPath()
+	if err := registerURLProtocol(); err != nil {
+		a.appendLog("error", "register clash URL protocol failed: "+err.Error())
+	}
 	a.updateTrayMenuState()
 	a.startShowSignalWatcher()
 	go func() {
@@ -417,6 +424,7 @@ func defaultSettings() Settings {
 		Language:          "zh",
 		Theme:             "system",
 		TunEnabled:        false,
+		DelayTestURL:      defaultDelayTestURL,
 		AutoStartCore:     true,
 		CloseBehavior:     "minimize",
 		SubscriptionProxy: false,
@@ -448,6 +456,9 @@ func mergeSettings(current, defaults Settings) Settings {
 	}
 	if current.Language == "" {
 		current.Language = defaults.Language
+	}
+	if strings.TrimSpace(current.DelayTestURL) == "" {
+		current.DelayTestURL = defaults.DelayTestURL
 	}
 	if current.Theme == "" {
 		current.Theme = defaults.Theme
@@ -644,6 +655,22 @@ func (a *App) ImportProfile(name string, content string) (Profile, error) {
 		return Profile{}, errors.New("profile content is empty")
 	}
 	return a.writeProfile(name, "local", "", []byte(content), SubscriptionInfo{})
+}
+
+func (a *App) ImportProfileFromFile(path string) (Profile, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return Profile{}, errors.New("profile file path is empty")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return Profile{}, err
+	}
+	name := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+	if name == "" {
+		name = "Local Profile"
+	}
+	return a.writeProfile(name, "local", "", data, SubscriptionInfo{})
 }
 
 func (a *App) UpdateProfile(profileID string) (Profile, error) {
@@ -1126,6 +1153,7 @@ func (a *App) TestProxyGroup(group string) error {
 	if err != nil {
 		return err
 	}
+	testURL := a.delayTestURL()
 	var target *ProxyGroup
 	for i := range groups {
 		if groups[i].Name == group {
@@ -1145,7 +1173,7 @@ func (a *App) TestProxyGroup(group string) error {
 			defer wg.Done()
 			limit <- struct{}{}
 			defer func() { <-limit }()
-			path := "/proxies/" + url.PathEscape(nodeName) + "/delay?timeout=5000&url=" + url.QueryEscape("https://www.gstatic.com/generate_204")
+			path := "/proxies/" + url.PathEscape(nodeName) + "/delay?timeout=5000&url=" + url.QueryEscape(testURL)
 			if err := a.apiRequest(http.MethodGet, path, nil, nil); err != nil {
 				a.appendLog("warning", fmt.Sprintf("proxy delay test failed: group=%s node=%s error=%s", group, nodeName, err.Error()))
 			}
@@ -1160,13 +1188,23 @@ func (a *App) TestProxyNode(group string, node string) error {
 	if strings.TrimSpace(node) == "" {
 		return errors.New("proxy node is empty")
 	}
-	path := "/proxies/" + url.PathEscape(node) + "/delay?timeout=5000&url=" + url.QueryEscape("https://www.gstatic.com/generate_204")
+	path := "/proxies/" + url.PathEscape(node) + "/delay?timeout=5000&url=" + url.QueryEscape(a.delayTestURL())
 	if err := a.apiRequest(http.MethodGet, path, nil, nil); err != nil {
 		a.appendLog("warning", fmt.Sprintf("proxy delay test failed: group=%s node=%s error=%s", group, node, err.Error()))
 		return err
 	}
 	a.updateTrayMenuState()
 	return nil
+}
+
+func (a *App) delayTestURL() string {
+	a.mu.Lock()
+	value := strings.TrimSpace(a.store.Settings.DelayTestURL)
+	a.mu.Unlock()
+	if value == "" {
+		return defaultDelayTestURL
+	}
+	return value
 }
 
 func (a *App) FetchRules() ([]RuleRow, error) {

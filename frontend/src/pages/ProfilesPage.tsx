@@ -11,6 +11,7 @@ export function ProfilesPage({
     profileURL,
     importName,
     importContent,
+    dropActive,
     t,
     onProfileNameChange,
     onProfileURLChange,
@@ -25,6 +26,7 @@ export function ProfilesPage({
     onUpdateProvider,
     onAddSubscription,
     onImportProfile,
+    onDropActiveChange,
 }: {
     snapshot: RuntimeState;
     providers: ProviderRow[];
@@ -32,6 +34,7 @@ export function ProfilesPage({
     profileURL: string;
     importName: string;
     importContent: string;
+    dropActive: boolean;
     t: Translator;
     onProfileNameChange: (value: string) => void;
     onProfileURLChange: (value: string) => void;
@@ -46,6 +49,7 @@ export function ProfilesPage({
     onUpdateProvider: (name: string) => void;
     onAddSubscription: () => void;
     onImportProfile: () => void;
+    onDropActiveChange: (active: boolean) => void;
 }) {
     const profiles = usePagination(snapshot.profiles, defaultPageSize);
     const providerPages = usePagination(providers, defaultPageSize);
@@ -127,8 +131,15 @@ export function ProfilesPage({
                     </button>
                 </article>
 
-                <article className="panel">
+                <article
+                    className={dropActive ? 'panel localProfileDrop active' : 'panel localProfileDrop'}
+                    onDragEnter={() => onDropActiveChange(true)}
+                    onDragLeave={() => onDropActiveChange(false)}
+                >
                     <div className="panelHead"><h2>{t('localYaml')}</h2></div>
+                    <div className="dropTarget" data-wails-drop-target>
+                        {t('dropYamlHint')}
+                    </div>
                     <Field label={t('name')} value={importName} onChange={onImportNameChange}/>
                     <textarea value={importContent} onChange={(event) => onImportContentChange(event.target.value)} spellCheck={false}/>
                     <button className="wide" onClick={onImportProfile}>

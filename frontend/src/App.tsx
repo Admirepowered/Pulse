@@ -30,8 +30,11 @@ import {
     GetLogs,
     GetSnapshot,
     ImportProfile,
+    ImportProfileFromFile,
     MinimizeWindow,
     Models,
+    OnFileDrop,
+    OnFileDropOff,
     OpenDataDirectory,
     OpenURL,
     ReadBackgroundImageDataURL,
@@ -117,6 +120,7 @@ function App() {
     const [backgroundDataURL, setBackgroundDataURL] = useState('');
     const [sidebarFocused, setSidebarFocused] = useState(false);
     const [testingGroup, setTestingGroup] = useState('');
+    const [profileDropActive, setProfileDropActive] = useState(false);
     const t = useMemo(() => getTranslator(settingsDraft.language || snapshot.settings.language), [settingsDraft.language, snapshot.settings.language]);
 
     const refreshSnapshot = useCallback(async () => {
@@ -202,6 +206,23 @@ function App() {
         }, tab === 'logs' || tab === 'connections' || tab === 'dashboard' ? 2000 : 4500);
         return () => window.clearInterval(timer);
     }, [refreshPageData, refreshSnapshot, tab]);
+
+    useEffect(() => {
+        if (tab !== 'profiles') {
+            setProfileDropActive(false);
+            return;
+        }
+        OnFileDrop((_x, _y, paths) => {
+            const profilePath = paths.find((path) => /\.(ya?ml)$/i.test(path));
+            if (!profilePath) {
+                setNotice('Only YAML profiles can be imported');
+                return;
+            }
+            setProfileDropActive(false);
+            run(() => ImportProfileFromFile(profilePath), t('profileImported'));
+        }, true);
+        return () => OnFileDropOff();
+    }, [run, t, tab]);
 
     const filteredGroups = useMemo(() => {
         const value = query.trim().toLowerCase();
@@ -428,6 +449,7 @@ function App() {
                         onProfileURLChange={setProfileURL}
                         onImportNameChange={setImportName}
                         onImportContentChange={setImportContent}
+                        dropActive={profileDropActive}
                         onOpenGithub={() => run(() => OpenURL('https://github.com/Admirepowered/Pulse'))}
                         onActivate={(id) => run(() => SetActiveProfile(id), t('switchedProfile'))}
                         onEdit={openEditor}
@@ -445,6 +467,7 @@ function App() {
                             setImportName('');
                             setImportContent('');
                         }, t('profileImported'))}
+                        onDropActiveChange={setProfileDropActive}
                     />
                 )}
 

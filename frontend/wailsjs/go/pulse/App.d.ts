@@ -28,6 +28,8 @@ export function GetSnapshot():Promise<pulse.RuntimeState>;
 
 export function ImportProfile(arg1:string,arg2:string):Promise<pulse.Profile>;
 
+export function ImportProfileFromFile(arg1:string):Promise<pulse.Profile>;
+
 export function MinimizeWindow():Promise<void>;
 
 export function OpenDataDirectory():Promise<void>;

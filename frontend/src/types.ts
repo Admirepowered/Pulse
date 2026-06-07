@@ -18,6 +18,7 @@ export type Settings = {
     logLevel: string;
     tunEnabled: boolean;
     systemProxy: boolean;
+    delayTestUrl: string;
     language: string;
     theme: string;
     autoStart: boolean;
@@ -167,6 +168,7 @@ export const emptySettings: Settings = {
     logLevel: 'info',
     tunEnabled: false,
     systemProxy: false,
+    delayTestUrl: 'https://www.gstatic.com/generate_204',
     language: 'zh',
     theme: 'light',
     autoStart: false,

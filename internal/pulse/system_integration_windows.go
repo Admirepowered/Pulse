@@ -15,6 +15,7 @@ const (
 	runKeyPath              = `Software\Microsoft\Windows\CurrentVersion\Run`
 	internetSettingsKeyPath = `Software\Microsoft\Windows\CurrentVersion\Internet Settings`
 	startupValueName        = "Pulse"
+	clashURLProtocolKeyPath = `Software\Classes\clash`
 )
 
 func setAutoStart(enabled bool) error {
@@ -34,6 +35,34 @@ func setAutoStart(enabled bool) error {
 		return err
 	}
 	return key.SetStringValue(startupValueName, quoteWindowsArg(executable))
+}
+
+func registerURLProtocol() error {
+	executable, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	key, _, err := registry.CreateKey(registry.CURRENT_USER, clashURLProtocolKeyPath, registry.SET_VALUE)
+	if err != nil {
+		return err
+	}
+	if err := key.SetStringValue("", "URL:clash Protocol"); err != nil {
+		_ = key.Close()
+		return err
+	}
+	if err := key.SetStringValue("URL Protocol", ""); err != nil {
+		_ = key.Close()
+		return err
+	}
+	if err := key.Close(); err != nil {
+		return err
+	}
+	commandKey, _, err := registry.CreateKey(registry.CURRENT_USER, clashURLProtocolKeyPath+`\shell\open\command`, registry.SET_VALUE)
+	if err != nil {
+		return err
+	}
+	defer commandKey.Close()
+	return commandKey.SetStringValue("", quoteWindowsArg(executable)+" \"%1\"")
 }
 
 func configureSystemProxy(settings Settings, enabled bool) error {

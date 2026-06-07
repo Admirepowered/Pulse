@@ -823,6 +823,30 @@ textarea {
     margin-top: 4px;
 }
 
+.localProfileDrop {
+    transition: border-color .16s ease, background .16s ease;
+}
+
+.localProfileDrop.active {
+    border-color: #0f766e;
+    background: #eefaf6;
+}
+
+.dropTarget {
+    min-height: 58px;
+    display: grid;
+    place-items: center;
+    border: 1px dashed #b8c5d3;
+    border-radius: 6px;
+    color: #64748b;
+    font-size: 13px;
+}
+
+.localProfileDrop.active .dropTarget {
+    border-color: #0f766e;
+    color: #0f766e;
+}
+
 .subscriptionUsage > div:first-child {
     display: flex;
     justify-content: space-between;

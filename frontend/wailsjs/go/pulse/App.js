@@ -54,6 +54,10 @@ export function ImportProfile(arg1, arg2) {
   return window['go']['pulse']['App']['ImportProfile'](arg1, arg2);
 }
 
+export function ImportProfileFromFile(arg1) {
+  return window['go']['pulse']['App']['ImportProfileFromFile'](arg1);
+}
+
 export function MinimizeWindow() {
   return window['go']['pulse']['App']['MinimizeWindow']();
 }

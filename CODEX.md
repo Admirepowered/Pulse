@@ -20,6 +20,7 @@ This file is for future Codex sessions working on Pulse.
 - Background opacity controls component transparency only. Do not add frosted-glass blur to components for this setting.
 - Node selection should not show a global notice; keep it quiet unless there is an error.
 - Right-clicking a proxy node runs a delay test for that node only.
+- Proxy delay tests use `settings.delayTestUrl`; keep group and node delay tests on the same configurable URL.
 - Successful actions should stay quiet. Only failures should show global notices.
 - Disabled controls should use a clear `not-allowed` cursor, not a loading cursor.
 - If a setting needs mihomo restart, let the backend decide and log the restart reason.
@@ -42,6 +43,11 @@ This file is for future Codex sessions working on Pulse.
 - Runtime config generation injects custom rules at the beginning of `rules:` so they win before subscription rules.
 - Subscription updates must not erase custom rules.
 - Subscription updates may optionally use the local mixed proxy when the user enables proxy updates.
+- Local YAML profiles can be imported by dropping `.yaml` or `.yml` files onto the local profile import panel.
+
+## Platform Integration
+
+- On Windows startup, register the `clash://` URL protocol under `HKCU\Software\Classes\clash` with the current executable path and `"%1"` argument.
 
 ## Build And Verification
 

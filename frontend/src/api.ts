@@ -11,6 +11,7 @@ export {
     GetLogs,
     GetSnapshot,
     ImportProfile,
+    ImportProfileFromFile,
     MinimizeWindow,
     OpenDataDirectory,
     OpenURL,
@@ -33,4 +34,4 @@ export {
     UpdateProvider,
 } from '../wailsjs/go/pulse/App';
 export {pulse as Models} from '../wailsjs/go/models';
-export {WindowToggleMaximise} from '../wailsjs/runtime/runtime';
+export {OnFileDrop, OnFileDropOff, WindowToggleMaximise} from '../wailsjs/runtime/runtime';

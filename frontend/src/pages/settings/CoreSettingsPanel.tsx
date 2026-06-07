@@ -3,6 +3,12 @@ import {Toggle} from '../../components/common';
 import type {Translator} from '../../i18n';
 import type {Settings} from '../../types';
 
+const clashModes = [
+    {id: 'rule', label: '规则'},
+    {id: 'global', label: '全局'},
+    {id: 'direct', label: '直连'},
+] as const;
+
 export function CoreSettingsPanel({settings, t, onDraft, onCommit, onApply}: {
     settings: Settings;
     t: Translator;
@@ -34,15 +40,19 @@ export function CoreSettingsPanel({settings, t, onDraft, onCommit, onApply}: {
                     </button>
                 ))}
             </div>
-            <AutoSaveField label={t('mihomoPath')} value={settings.corePath} onDraft={(value) => draft('corePath', value)} onCommit={(value) => commit('corePath', value)}/>
-            <AutoSaveField label={t('apiAddress')} value={settings.apiBase} onDraft={(value) => draft('apiBase', value)} onCommit={(value) => commit('apiBase', value)}/>
+            {settings.coreMode === 'custom' && (
+                <>
+                    <AutoSaveField label={t('mihomoPath')} value={settings.corePath} onDraft={(value) => draft('corePath', value)} onCommit={(value) => commit('corePath', value)}/>
+                    <AutoSaveField label={t('apiAddress')} value={settings.apiBase} onDraft={(value) => draft('apiBase', value)} onCommit={(value) => commit('apiBase', value)}/>
+                </>
+            )}
             <AutoSaveField label="Secret" value={settings.secret} onDraft={(value) => draft('secret', value)} onCommit={(value) => commit('secret', value)}/>
             <AutoSaveField label="Mixed Port" type="number" value={String(settings.mixedPort || 7890)} onCommit={commitMixedPort}/>
             <AutoSaveField label={t('delayTestUrl')} value={settings.delayTestUrl} onDraft={(value) => draft('delayTestUrl', value)} onCommit={(value) => commit('delayTestUrl', value)}/>
             <div className="segmented">
-                {['rule', 'global', 'direct'].map((mode) => (
-                    <button className={settings.mode === mode ? 'active' : ''} key={mode} onClick={() => apply('mode', mode)}>
-                        {mode}
+                {clashModes.map((mode) => (
+                    <button className={settings.mode === mode.id ? 'active' : ''} key={mode.id} onClick={() => apply('mode', mode.id)}>
+                        {mode.label}
                     </button>
                 ))}
             </div>

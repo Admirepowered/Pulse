@@ -27,6 +27,8 @@ This file is for future Codex sessions working on Pulse.
 - Disabled controls should use a clear `not-allowed` cursor, not a loading cursor.
 - If a setting needs mihomo restart, let the backend decide and log the restart reason.
 - Keep user-visible notices short and auto-dismissed.
+- Settings should display clash modes as Chinese labels: `规则`, `全局`, `直连`, while saving API values as `rule`, `global`, `direct`.
+- In embedded core mode, hide custom mihomo path and API address fields. Show them only for custom core mode.
 
 ## Lists And Pagination
 

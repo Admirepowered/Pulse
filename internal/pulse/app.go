@@ -624,6 +624,11 @@ func mergeSettings(current, defaults Settings) Settings {
 	if current.CloseBehavior == "" {
 		current.CloseBehavior = defaults.CloseBehavior
 	}
+	if current.AutoStart {
+		current.AutoStartService = false
+	} else if current.AutoStartService {
+		current.AutoStart = false
+	}
 	current.BackgroundBlur = clampBackgroundBlur(current.BackgroundBlur)
 	current.BackgroundOpacity = clampBackgroundOpacity(current.BackgroundOpacity)
 	return current
@@ -744,6 +749,11 @@ func (a *App) GetSnapshot() RuntimeState {
 func (a *App) SaveSettings(settings Settings) error {
 	settings = mergeSettings(settings, defaultSettings())
 	settings.LogLevel = normalizeLogLevel(settings.LogLevel)
+	if settings.AutoStart {
+		settings.AutoStartService = false
+	} else if settings.AutoStartService {
+		settings.AutoStart = false
+	}
 	a.appendLog("info", fmt.Sprintf(
 		"save settings requested: store=%s coreMode=%s autoStartCore=%t autoStart=%t serviceStartup=%t systemProxy=%t allowLan=%t mixedPort=%d tun=%t interface=%s",
 		a.storePath,

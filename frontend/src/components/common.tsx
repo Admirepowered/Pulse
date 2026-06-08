@@ -42,11 +42,16 @@ export function Field({label, value, onChange, type = 'text', placeholder, onBlu
     );
 }
 
-export function Toggle({label, checked, onChange}: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
+export function Toggle({label, checked, disabled = false, onChange}: {
+    label: string;
+    checked: boolean;
+    disabled?: boolean;
+    onChange: (value: boolean) => void;
+}) {
     return (
-        <label className="toggle">
+        <label className={disabled ? 'toggle disabled' : 'toggle'}>
             <span>{label}</span>
-            <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)}/>
+            <input type="checkbox" checked={checked} disabled={disabled} onChange={(event) => onChange(event.target.checked)}/>
             <i aria-hidden="true"/>
         </label>
     );

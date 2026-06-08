@@ -22,6 +22,23 @@ const (
 )
 
 func setAutoStart(enabled bool) error {
+	_ = deleteElevatedStartupTask()
+	if !enabled {
+		return deleteRunStartupValue()
+	}
+	executable, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	key, _, err := registry.CreateKey(registry.CURRENT_USER, runKeyPath, registry.SET_VALUE)
+	if err != nil {
+		return err
+	}
+	defer key.Close()
+	return key.SetStringValue(startupValueName, quoteWindowsArg(executable))
+}
+
+func setElevatedAutoStart(enabled bool) error {
 	if err := deleteRunStartupValue(); err != nil {
 		return err
 	}

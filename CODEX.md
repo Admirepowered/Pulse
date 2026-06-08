@@ -62,7 +62,7 @@ This file is for future Codex sessions working on Pulse.
 
 - On Windows startup, register the `clash://` URL protocol under `HKCU\Software\Classes\clash` with the current executable path and `"%1"` argument.
 - `clash://install-config?...url=...` launches should decode the `url` parameter twice and import it through the same URL subscription flow so the name is inferred from remote metadata or URL. If another Pulse instance is already running, pass the URL protocol argument through `show.signal`.
-- Windows service startup is a separate setting from the normal startup task. The main app embeds `PulseStartupService.exe`, extracts it to the data directory, writes `pulse-startup-service.json` with the latest Pulse executable path, and registers `PulseStartupService` only on Windows.
+- Normal Windows startup uses the current-user `Run` registry key. Windows service startup is a separate mutually exclusive setting. The main app embeds `PulseStartupService.exe`, extracts it to the data directory, writes `pulse-startup-service.json` with the latest Pulse executable path, and registers `PulseStartupService` only on Windows.
 - TUN settings live in a separate settings panel/component. The backend owns interface enumeration and writes the selected interface into the generated runtime YAML.
 - If mihomo returns `memory: 0` from `/connections`, Pulse should provide a process RSS fallback so the UI does not show a misleading zero.
 - Update checks use GitHub latest release through `github_client`. Check once on app open and on manual request only. Updates download the matching executable asset and replace the current executable after exit.

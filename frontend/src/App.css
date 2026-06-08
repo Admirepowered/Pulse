@@ -1500,6 +1500,11 @@ textarea {
     gap: 10px;
 }
 
+.toggle.disabled {
+    cursor: not-allowed;
+    opacity: .56;
+}
+
 .toggle input {
     position: absolute;
     opacity: 0;
@@ -1535,6 +1540,10 @@ textarea {
 
 .toggle input:checked + i::after {
     transform: translateX(18px);
+}
+
+.toggle input:disabled + i {
+    cursor: not-allowed;
 }
 
 .segmented {

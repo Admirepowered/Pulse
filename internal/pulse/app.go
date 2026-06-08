@@ -294,6 +294,7 @@ type ConnectionSnapshot struct {
 const (
 	subscriptionUserAgent = "clash-verge/v2.5.2"
 	defaultDelayTestURL   = "https://www.gstatic.com/generate_204"
+	coreServiceStartFlag = "--start-core-service"
 )
 
 var (

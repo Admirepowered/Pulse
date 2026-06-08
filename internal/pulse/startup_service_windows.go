@@ -44,7 +44,6 @@ const (
 	startupServiceExecutable  = "PulseStartupService.exe"
 	startupServiceConfigFile  = "pulse-startup-service.json"
 	coreServiceConfigFile     = "pulse-core-service.json"
-	coreServiceStartFlag      = "--start-core-service"
 )
 
 type startupServiceConfig struct {

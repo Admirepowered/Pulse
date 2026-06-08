@@ -375,11 +375,15 @@ func removeStartupServiceFiles(dataDir string) error {
 	}
 	servicePath := filepath.Join(dataDir, startupServiceExecutable)
 	configPath := filepath.Join(dataDir, startupServiceConfigFile)
-	if err := os.Remove(servicePath); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-	if err := os.Remove(configPath); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
+	// Best-effort. The helper binary may still be locked by the OS
+	// even after waitForServiceState sees Stopped (a child mihomo
+	// process, or just the OS holding the handle open a moment longer),
+	// in which case os.Remove returns "Access is denied". The service
+	// is already unregistered from SCM at this point, which is the
+	// real goal of the uninstall; the leftover file is harmless and
+	// will be overwritten on the next service registration. Don't
+	// surface the failure to the user.
+	_ = os.Remove(servicePath)
+	_ = os.Remove(configPath)
 	return nil
 }

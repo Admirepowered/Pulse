@@ -93,7 +93,7 @@ jobs:
         # checkout has no copy until the Makefile produces one. Anything
         # that compiles internal/pulse (go test, wails build, the asset
         # embed) needs this file on disk, so generate it once up front.
-        run: make build-windows-service-amd64
+        run: make build-windows-service-embedded-amd64
 
       - name: Setup 7z
         if: runner.os == 'macOS'

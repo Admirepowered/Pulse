@@ -23,6 +23,7 @@ export function SyncSettingsPanel({settings, t, onDraft, onCommit, onApply, onOp
     };
     const autoStartDisabled = settings.autoStartService && !settings.autoStart;
     const serviceStartupDisabled = settings.autoStart;
+    const serviceDaemonDisabled = !settings.autoStartService;
 
     return (
         <article className="panel formPanel">
@@ -40,7 +41,18 @@ export function SyncSettingsPanel({settings, t, onDraft, onCommit, onApply, onOp
                 label={t('autoStartService')}
                 checked={settings.autoStartService}
                 disabled={serviceStartupDisabled}
-                onChange={(value) => onApply({...settings, autoStartService: value, autoStart: value ? false : settings.autoStart})}
+                onChange={(value) => onApply({
+                    ...settings,
+                    autoStartService: value,
+                    autoStartServiceDaemon: value ? settings.autoStartServiceDaemon : false,
+                    autoStart: value ? false : settings.autoStart,
+                })}
+            />
+            <Toggle
+                label={t('autoStartServiceDaemon')}
+                checked={settings.autoStartServiceDaemon}
+                disabled={serviceDaemonDisabled}
+                onChange={(value) => onApply({...settings, autoStartServiceDaemon: value})}
             />
             <Toggle label="WebDAV" checked={settings.webdav.enabled} onChange={(value) => applyWebDAV('enabled', value)}/>
             <AutoSaveField label="URL" value={settings.webdav.url} onDraft={(value) => draftWebDAV('url', value)} onCommit={(value) => commitWebDAV('url', value)}/>

@@ -42,52 +42,53 @@ import (
 )
 
 type App struct {
-	ctx                  context.Context
-	mu                   sync.Mutex
-	dataDir              string
-	storePath            string
-	store                Store
-	coreCmd              *exec.Cmd
-	embeddedCoreRunning  bool
-	mihomoLogSub         mihomoObservable.Subscription[mihomoLog.Event]
-	startedAt            int64
-	logLines             []LogLine
-	geodataStatus        GeodataStatus
-	geodataRunning       bool
-	httpClient           *http.Client
-	forceQuit            bool
-	trayOnce             sync.Once
-	trayMu               sync.Mutex
-	trayReady            bool
-	trayShowItem         *trayMenuItem
-	trayCoreItem         *trayMenuItem
-	trayStatusItem       *trayMenuItem
-	trayModeMenu         *trayMenuItem
-	trayRuleModeItem     *trayMenuItem
-	trayGlobalModeItem   *trayMenuItem
-	trayDirectModeItem   *trayMenuItem
-	trayAllowLanItem     *trayMenuItem
-	traySystemProxyItem  *trayMenuItem
-	traySubProxyItem     *trayMenuItem
-	trayAutoStartItem    *trayMenuItem
-	trayProfilesMenu     *trayMenuItem
-	trayProfileIDs       []string
-	trayProfileItems     []*trayMenuItem
-	trayNodesMenu        *trayMenuItem
-	trayNodeStatusItem   *trayMenuItem
-	trayNodeGroupNames   []string
-	trayNodeNamesByGroup [][]string
-	trayNodeGroupItems   []*trayMenuItem
-	trayNodeItems        [][]*trayMenuItem
-	trayRefreshItem      *trayMenuItem
-	trayQuitItem         *trayMenuItem
-	trayWndProc          uintptr
-	trayPrevWndProc      uintptr
-	trayLastLeftClick    int64
-	showSignalPath       string
-	lastShowSignalTime   time.Time
-	connectionSamples    map[string]connectionSample
-	closedConnections    []ConnectionRow
+	ctx                   context.Context
+	mu                    sync.Mutex
+	dataDir               string
+	storePath             string
+	store                 Store
+	coreCmd               *exec.Cmd
+	embeddedCoreRunning   bool
+	mihomoLogSub          mihomoObservable.Subscription[mihomoLog.Event]
+	startedAt             int64
+	logLines              []LogLine
+	geodataStatus         GeodataStatus
+	geodataRunning        bool
+	httpClient            *http.Client
+	forceQuit             bool
+	trayOnce              sync.Once
+	trayMu                sync.Mutex
+	trayReady             bool
+	trayShowItem          *trayMenuItem
+	trayCoreItem          *trayMenuItem
+	trayStatusItem        *trayMenuItem
+	trayModeMenu          *trayMenuItem
+	trayRuleModeItem      *trayMenuItem
+	trayGlobalModeItem    *trayMenuItem
+	trayDirectModeItem    *trayMenuItem
+	trayAllowLanItem      *trayMenuItem
+	traySystemProxyItem   *trayMenuItem
+	traySubProxyItem      *trayMenuItem
+	trayAutoStartItem     *trayMenuItem
+	trayProfilesMenu      *trayMenuItem
+	trayProfileIDs        []string
+	trayProfileItems      []*trayMenuItem
+	trayNodesMenu         *trayMenuItem
+	trayNodeStatusItem    *trayMenuItem
+	trayNodeGroupNames    []string
+	trayNodeNamesByGroup  [][]string
+	trayNodeGroupItems    []*trayMenuItem
+	trayNodeItems         [][]*trayMenuItem
+	trayRefreshItem       *trayMenuItem
+	trayQuitItem          *trayMenuItem
+	trayWndProc           uintptr
+	trayPrevWndProc       uintptr
+	trayLastLeftClick     int64
+	showSignalPath        string
+	serviceStopSignalPath string
+	lastShowSignalTime    time.Time
+	connectionSamples     map[string]connectionSample
+	closedConnections     []ConnectionRow
 }
 
 type connectionSample struct {
@@ -106,61 +107,63 @@ type Store struct {
 }
 
 type Settings struct {
-	CorePath             string         `json:"corePath"`
-	CoreMode             string         `json:"coreMode"`
-	ApiBase              string         `json:"apiBase"`
-	Secret               string         `json:"secret"`
-	MixedPort            int            `json:"mixedPort"`
-	AllowLan             bool           `json:"allowLan"`
-	Mode                 string         `json:"mode"`
-	LogLevel             string         `json:"logLevel"`
-	TunEnabled           bool           `json:"tunEnabled"`
-	TunInterface         string         `json:"tunInterface"`
-	TunStack             string         `json:"tunStack"`
-	TunAutoRoute         bool           `json:"tunAutoRoute"`
-	TunAutoRedirect      bool           `json:"tunAutoRedirect"`
-	TunAutoDetect        bool           `json:"tunAutoDetectInterface"`
-	TunDNSHijack         []string       `json:"tunDNSHijack"`
-	TunDevice            string         `json:"tunDevice"`
-	TunMTU               int            `json:"tunMTU"`
-	TunStrictRoute       bool           `json:"tunStrictRoute"`
-	TunGSO               bool           `json:"tunGSO"`
-	TunGSOMaxSize        int            `json:"tunGSOMaxSize"`
-	TunInet6Address      string         `json:"tunInet6Address"`
-	TunUDPTimeout        int            `json:"tunUDPTimeout"`
-	TunIPRoute2Table     int            `json:"tunIPRoute2TableIndex"`
-	TunIPRoute2Rule      int            `json:"tunIPRoute2RuleIndex"`
-	TunEINAT             bool           `json:"tunEndpointIndependentNAT"`
-	TunRouteSet          []string       `json:"tunRouteAddressSet"`
-	TunRouteExcludeSet   []string       `json:"tunRouteExcludeAddressSet"`
-	TunRouteAddress      []string       `json:"tunRouteAddress"`
-	TunRouteExclude      []string       `json:"tunRouteExcludeAddress"`
-	TunIncludeIF         []string       `json:"tunIncludeInterface"`
-	TunExcludeIF         []string       `json:"tunExcludeInterface"`
-	TunIncludeUID        []int          `json:"tunIncludeUID"`
-	TunIncludeUIDRange   []string       `json:"tunIncludeUIDRange"`
-	TunExcludeUID        []int          `json:"tunExcludeUID"`
-	TunExcludeUIDRange   []string       `json:"tunExcludeUIDRange"`
-	TunIncludeAndroid    []int          `json:"tunIncludeAndroidUser"`
-	TunIncludePackage    []string       `json:"tunIncludePackage"`
-	TunExcludePackage    []string       `json:"tunExcludePackage"`
-	TunInet4Route        []string       `json:"tunInet4RouteAddress"`
-	TunInet6Route        []string       `json:"tunInet6RouteAddress"`
-	TunInet4RouteExclude []string       `json:"tunInet4RouteExcludeAddress"`
-	TunInet6RouteExclude []string       `json:"tunInet6RouteExcludeAddress"`
-	SystemProxy          bool           `json:"systemProxy"`
-	DelayTestURL         string         `json:"delayTestUrl"`
-	Language             string         `json:"language"`
-	Theme                string         `json:"theme"`
-	AutoStart            bool           `json:"autoStart"`
-	AutoStartService     bool           `json:"autoStartService"`
-	AutoStartCore        bool           `json:"autoStartCore"`
-	CloseBehavior        string         `json:"closeBehavior"`
-	SubscriptionProxy    bool           `json:"subscriptionProxy"`
-	BackgroundPath       string         `json:"backgroundPath"`
-	BackgroundBlur       int            `json:"backgroundBlur"`
-	BackgroundOpacity    int            `json:"backgroundOpacity"`
-	WebDAV               WebDAVSettings `json:"webdav"`
+	CorePath               string         `json:"corePath"`
+	CoreMode               string         `json:"coreMode"`
+	ApiBase                string         `json:"apiBase"`
+	Secret                 string         `json:"secret"`
+	MixedPort              int            `json:"mixedPort"`
+	AllowLan               bool           `json:"allowLan"`
+	Mode                   string         `json:"mode"`
+	LogLevel               string         `json:"logLevel"`
+	TunEnabled             bool           `json:"tunEnabled"`
+	TunInterface           string         `json:"tunInterface"`
+	TunStack               string         `json:"tunStack"`
+	TunAutoRoute           bool           `json:"tunAutoRoute"`
+	TunAutoRedirect        bool           `json:"tunAutoRedirect"`
+	TunAutoDetect          bool           `json:"tunAutoDetectInterface"`
+	TunDNSHijack           []string       `json:"tunDNSHijack"`
+	TunDevice              string         `json:"tunDevice"`
+	TunMTU                 int            `json:"tunMTU"`
+	TunStrictRoute         bool           `json:"tunStrictRoute"`
+	TunGSO                 bool           `json:"tunGSO"`
+	TunGSOMaxSize          int            `json:"tunGSOMaxSize"`
+	TunInet6Address        string         `json:"tunInet6Address"`
+	TunUDPTimeout          int            `json:"tunUDPTimeout"`
+	TunIPRoute2Table       int            `json:"tunIPRoute2TableIndex"`
+	TunIPRoute2Rule        int            `json:"tunIPRoute2RuleIndex"`
+	TunEINAT               bool           `json:"tunEndpointIndependentNAT"`
+	TunRouteSet            []string       `json:"tunRouteAddressSet"`
+	TunRouteExcludeSet     []string       `json:"tunRouteExcludeAddressSet"`
+	TunRouteAddress        []string       `json:"tunRouteAddress"`
+	TunRouteExclude        []string       `json:"tunRouteExcludeAddress"`
+	TunIncludeIF           []string       `json:"tunIncludeInterface"`
+	TunExcludeIF           []string       `json:"tunExcludeInterface"`
+	TunIncludeUID          []int          `json:"tunIncludeUID"`
+	TunIncludeUIDRange     []string       `json:"tunIncludeUIDRange"`
+	TunExcludeUID          []int          `json:"tunExcludeUID"`
+	TunExcludeUIDRange     []string       `json:"tunExcludeUIDRange"`
+	TunIncludeAndroid      []int          `json:"tunIncludeAndroidUser"`
+	TunIncludePackage      []string       `json:"tunIncludePackage"`
+	TunExcludePackage      []string       `json:"tunExcludePackage"`
+	TunInet4Route          []string       `json:"tunInet4RouteAddress"`
+	TunInet6Route          []string       `json:"tunInet6RouteAddress"`
+	TunInet4RouteExclude   []string       `json:"tunInet4RouteExcludeAddress"`
+	TunInet6RouteExclude   []string       `json:"tunInet6RouteExcludeAddress"`
+	SystemProxy            bool           `json:"systemProxy"`
+	DelayTestURL           string         `json:"delayTestUrl"`
+	Language               string         `json:"language"`
+	Theme                  string         `json:"theme"`
+	AutoStart              bool           `json:"autoStart"`
+	AutoStartService       bool           `json:"autoStartService"`
+	AutoStartServiceDaemon bool           `json:"autoStartServiceDaemon"`
+	AutoStartCore          bool           `json:"autoStartCore"`
+	DisableUpdateCheck     bool           `json:"disableUpdateCheck"`
+	CloseBehavior          string         `json:"closeBehavior"`
+	SubscriptionProxy      bool           `json:"subscriptionProxy"`
+	BackgroundPath         string         `json:"backgroundPath"`
+	BackgroundBlur         int            `json:"backgroundBlur"`
+	BackgroundOpacity      int            `json:"backgroundOpacity"`
+	WebDAV                 WebDAVSettings `json:"webdav"`
 }
 
 type BackgroundImage struct {
@@ -319,8 +322,11 @@ func (a *App) Startup(ctx context.Context) {
 	if err := registerURLProtocol(); err != nil {
 		a.appendLog("error", "register clash URL protocol failed: "+err.Error())
 	}
-	a.handleLaunchArgs(os.Args[1:])
+	startHidden := a.handleLaunchArgs(os.Args[1:])
 	a.updateTrayMenuState()
+	if startHidden {
+		wailsruntime.WindowHide(ctx)
+	}
 	a.startShowSignalWatcher()
 	go func() {
 		if err := a.EnsureGeodata(); err != nil {
@@ -341,6 +347,7 @@ func (a *App) syncAutoStartPath() {
 	a.mu.Lock()
 	enabled := a.store.Settings.AutoStart
 	serviceEnabled := a.store.Settings.AutoStartService
+	settings := a.store.Settings
 	dataDir := a.dataDir
 	a.mu.Unlock()
 	if enabled {
@@ -351,13 +358,13 @@ func (a *App) syncAutoStartPath() {
 		}
 	}
 	if serviceEnabled {
-		if err := syncStartupServicePayload(dataDir); err != nil {
+		if err := syncStartupServicePayload(dataDir, settings); err != nil {
 			a.appendLog("error", "service startup payload sync failed: "+err.Error())
 		} else {
 			a.appendLog("info", "service startup config synced to current executable")
 		}
 		if isProcessElevated() {
-			if err := setServiceAutoStart(dataDir, true); err != nil {
+			if err := setServiceAutoStart(dataDir, settings, true); err != nil {
 				a.appendLog("error", "service startup registration sync failed: "+err.Error())
 			}
 		}
@@ -365,6 +372,7 @@ func (a *App) syncAutoStartPath() {
 }
 
 func (a *App) Shutdown(ctx context.Context) {
+	a.writeServiceStopSignalIfNeeded()
 	_ = a.StopCore()
 	quitTray()
 }
@@ -418,14 +426,20 @@ func (a *App) ShowWindow() {
 	wailsruntime.WindowShow(a.ctx)
 }
 
-func (a *App) handleLaunchArgs(args []string) {
+func (a *App) handleLaunchArgs(args []string) bool {
+	startHidden := false
 	for _, arg := range args {
+		if arg == "--start-hidden" || arg == "-start-hidden" {
+			startHidden = true
+			continue
+		}
 		if strings.Contains(arg, "install-config") {
 			if err := a.ProcessInstallConfigURL(arg); err != nil {
 				a.appendLog("error", "install config import failed: "+err.Error())
 			}
 		}
 	}
+	return startHidden
 }
 
 func (a *App) ProcessInstallConfigURL(raw string) error {
@@ -478,8 +492,25 @@ func (a *App) quitApplication() {
 	a.mu.Lock()
 	a.forceQuit = true
 	a.mu.Unlock()
+	a.writeServiceStopSignal()
 	quitTray()
 	wailsruntime.Quit(a.ctx)
+}
+
+func (a *App) writeServiceStopSignalIfNeeded() {
+	a.mu.Lock()
+	forceQuit := a.forceQuit
+	a.mu.Unlock()
+	if forceQuit {
+		a.writeServiceStopSignal()
+	}
+}
+
+func (a *App) writeServiceStopSignal() {
+	if a.serviceStopSignalPath == "" {
+		return
+	}
+	_ = os.WriteFile(a.serviceStopSignalPath, []byte(fmt.Sprintf("%d", time.Now().UnixNano())), 0o644)
 }
 
 func (a *App) initStore() error {
@@ -490,6 +521,7 @@ func (a *App) initStore() error {
 	a.dataDir = filepath.Join(configDir, "Pulse")
 	a.storePath = filepath.Join(a.dataDir, "store.json")
 	a.showSignalPath = filepath.Join(a.dataDir, "show.signal")
+	a.serviceStopSignalPath = filepath.Join(a.dataDir, "pulse-service-stop.signal")
 	if err := os.MkdirAll(filepath.Join(a.dataDir, "profiles"), 0o755); err != nil {
 		return err
 	}
@@ -629,6 +661,9 @@ func mergeSettings(current, defaults Settings) Settings {
 	} else if current.AutoStartService {
 		current.AutoStart = false
 	}
+	if !current.AutoStartService {
+		current.AutoStartServiceDaemon = false
+	}
 	current.BackgroundBlur = clampBackgroundBlur(current.BackgroundBlur)
 	current.BackgroundOpacity = clampBackgroundOpacity(current.BackgroundOpacity)
 	return current
@@ -754,6 +789,9 @@ func (a *App) SaveSettings(settings Settings) error {
 	} else if settings.AutoStartService {
 		settings.AutoStart = false
 	}
+	if !settings.AutoStartService {
+		settings.AutoStartServiceDaemon = false
+	}
 	a.appendLog("info", fmt.Sprintf(
 		"save settings requested: store=%s coreMode=%s autoStartCore=%t autoStart=%t serviceStartup=%t systemProxy=%t allowLan=%t mixedPort=%d tun=%t interface=%s",
 		a.storePath,
@@ -779,7 +817,7 @@ func (a *App) SaveSettings(settings Settings) error {
 	requiresRuntimeApply := running && settingsRequireRuntimeApply(previous, settings)
 	requiresSystemProxyApply := running || previous.SystemProxy != settings.SystemProxy || (settings.SystemProxy && previous.MixedPort != settings.MixedPort)
 	requiresAutoStartApply := previous.AutoStart != settings.AutoStart || (settings.AutoStart && isProcessElevated())
-	requiresServiceStartupApply := previous.AutoStartService != settings.AutoStartService
+	requiresServiceStartupApply := previous.AutoStartService != settings.AutoStartService || previous.AutoStartServiceDaemon != settings.AutoStartServiceDaemon
 	requiresServiceStartupSync := !requiresServiceStartupApply && settings.AutoStartService
 	dataDir := a.dataDir
 	a.mu.Unlock()
@@ -792,13 +830,13 @@ func (a *App) SaveSettings(settings Settings) error {
 		a.appendLog("info", fmt.Sprintf("save settings auto-start applied: enabled=%t", settings.AutoStart))
 	}
 	if requiresServiceStartupApply {
-		if err := setServiceAutoStart(dataDir, settings.AutoStartService); err != nil {
+		if err := setServiceAutoStart(dataDir, settings, settings.AutoStartService); err != nil {
 			a.appendLog("error", "save settings service startup apply failed: "+err.Error())
 			return err
 		}
 		a.appendLog("info", fmt.Sprintf("save settings service startup applied: enabled=%t", settings.AutoStartService))
 	} else if requiresServiceStartupSync {
-		if err := syncStartupServicePayload(dataDir); err != nil {
+		if err := syncStartupServicePayload(dataDir, settings); err != nil {
 			a.appendLog("warn", "save settings service startup sync failed: "+err.Error())
 		}
 	}

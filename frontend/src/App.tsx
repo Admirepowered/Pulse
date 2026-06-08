@@ -5,6 +5,7 @@ import {
     Cat,
     CircleStop,
     Cloud,
+    Download,
     Gauge,
     ListChecks,
     Maximize2,
@@ -120,6 +121,7 @@ function App() {
     const [logs, setLogs] = useState<LogLine[]>([]);
     const [query, setQuery] = useState('');
     const [notice, setNotice] = useState('');
+    const [updatePrompt, setUpdatePrompt] = useState<UpdateInfo | null>(null);
     const [busy, setBusy] = useState(false);
     const [profileURL, setProfileURL] = useState('');
     const [editorProfile, setEditorProfile] = useState<Profile | null>(null);
@@ -197,14 +199,16 @@ function App() {
                 if (manual) setNotice(t('noUpdateAvailable'));
                 return;
             }
-            const message = `${t('updateAvailable')}: ${info.latestVersion}\n${info.assetName}\n\n${t('update')}?`;
-            if (window.confirm(message)) {
-                await run(ApplyUpdate);
-            }
+            setUpdatePrompt(info);
         } catch (error) {
             if (manual) setNotice(error instanceof Error ? error.message : String(error));
         }
-    }, [run, t]);
+    }, [t]);
+
+    const applyUpdate = useCallback(async () => {
+        setUpdatePrompt(null);
+        await run(ApplyUpdate);
+    }, [run]);
 
     const saveSettings = useCallback(async (settings: Settings) => {
         const next = normalizeSettings(settings);
@@ -254,6 +258,11 @@ function App() {
         persistSettings(settings);
     }, [persistSettings]);
 
+    const disableAutomaticUpdates = useCallback(() => {
+        setUpdatePrompt(null);
+        applySettings({...settingsDraft, disableUpdateCheck: true});
+    }, [applySettings, settingsDraft]);
+
     const commitSettings = useCallback((settings: Settings) => {
         persistSettings(settings);
     }, [persistSettings]);
@@ -272,11 +281,12 @@ function App() {
     }, []);
 
     useEffect(() => {
+        if (settingsDraft.disableUpdateCheck || snapshot.settings.disableUpdateCheck) return;
         const timer = window.setTimeout(() => {
             promptUpdate(false).catch(() => undefined);
         }, 2500);
         return () => window.clearTimeout(timer);
-    }, [promptUpdate]);
+    }, [promptUpdate, settingsDraft.disableUpdateCheck, snapshot.settings.disableUpdateCheck]);
 
     useEffect(() => {
         if (!notice) return;
@@ -732,6 +742,36 @@ function App() {
                                 setEditorProfile(null);
                             }, t('profileSaved'))}>
                                 <Save size={17}/>{t('save')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {updatePrompt && (
+                <div className="modalBackdrop">
+                    <div className="modal updateModal">
+                        <div className="panelHead">
+                            <div>
+                                <h2>{t('updateAvailable')}</h2>
+                                <span>{updatePrompt.latestVersion}</span>
+                            </div>
+                            <button className="iconButton" onClick={() => setUpdatePrompt(null)}>
+                                <X size={18}/>
+                            </button>
+                        </div>
+                        <div className="updateCard">
+                            <Download size={24}/>
+                            <div>
+                                <strong>{updatePrompt.assetName || updatePrompt.latestVersion}</strong>
+                                <span>{updatePrompt.message}</span>
+                            </div>
+                        </div>
+                        <div className="modalActions">
+                            <button onClick={disableAutomaticUpdates}>{t('dontCheckAgain')}</button>
+                            <button onClick={() => setUpdatePrompt(null)}>{t('updateLater')}</button>
+                            <button className="primary" onClick={applyUpdate}>
+                                <Download size={17}/>{t('updateNow')}
                             </button>
                         </div>
                     </div>

@@ -56,7 +56,9 @@ export type Settings = {
     theme: string;
     autoStart: boolean;
     autoStartService: boolean;
+    autoStartServiceDaemon: boolean;
     autoStartCore: boolean;
+    disableUpdateCheck: boolean;
     closeBehavior: string;
     subscriptionProxy: boolean;
     backgroundPath: string;
@@ -264,7 +266,9 @@ export const emptySettings: Settings = {
     theme: 'system',
     autoStart: false,
     autoStartService: false,
+    autoStartServiceDaemon: false,
     autoStartCore: true,
+    disableUpdateCheck: false,
     closeBehavior: 'minimize',
     subscriptionProxy: false,
     backgroundPath: '',
@@ -317,8 +321,11 @@ export function normalizeSettings(settings?: Partial<Settings>): Settings {
         language: settings?.language || 'zh',
         webdav: {...emptySettings.webdav, ...(settings?.webdav || {})},
     };
+    const autoStartService = next.autoStart ? false : next.autoStartService;
     return {
         ...next,
+        autoStartService,
+        autoStartServiceDaemon: autoStartService ? next.autoStartServiceDaemon : false,
         tunStack: next.tunStack || 'mixed',
         tunDNSHijack: stringList(next.tunDNSHijack, emptySettings.tunDNSHijack),
         tunRouteAddressSet: stringList(next.tunRouteAddressSet),

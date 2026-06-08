@@ -43,11 +43,19 @@ func singleInstanceDataDir() string {
 
 func signalRunningInstance(args []string) {
 	value := time.Now().Format(time.RFC3339Nano)
+	hasVisibleSignal := false
 	for _, arg := range args {
+		if arg == "--start-hidden" || arg == "-start-hidden" {
+			continue
+		}
 		if arg != "" {
 			value = arg
+			hasVisibleSignal = true
 			break
 		}
+	}
+	if len(args) > 0 && !hasVisibleSignal {
+		return
 	}
 	signalRunningInstanceValue(value)
 }

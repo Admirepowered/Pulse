@@ -25,6 +25,8 @@ type serviceConfig struct {
 	Executable       string   `json:"executable"`
 	WorkingDirectory string   `json:"workingDirectory"`
 	Arguments        []string `json:"arguments"`
+	Daemon           bool     `json:"daemon"`
+	StopSignal       string   `json:"stopSignal"`
 	UpdatedAt        int64    `json:"updatedAt"`
 }
 
@@ -32,10 +34,12 @@ type pulseService struct{}
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "run" {
-		if err := launchConfiguredPulse(); err != nil {
+		process, _, err := launchConfiguredPulse()
+		if err != nil {
 			writeLog("manual launch failed: " + err.Error())
 			os.Exit(1)
 		}
+		windows.CloseHandle(process)
 		return
 	}
 	if err := svc.Run(serviceName, pulseService{}); err != nil {
@@ -47,46 +51,50 @@ func (pulseService) Execute(args []string, requests <-chan svc.ChangeRequest, ch
 	changes <- svc.Status{State: svc.StartPending}
 	changes <- svc.Status{State: svc.Running, Accepts: svc.AcceptStop | svc.AcceptShutdown}
 
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
 	lastError := ""
 	for {
-		if err := launchConfiguredPulse(); err == nil {
+		process, config, err := launchConfiguredPulse()
+		if err == nil {
 			writeLog("launch requested")
-			changes <- svc.Status{State: svc.StopPending}
-			return false, 0
-		} else if message := err.Error(); message != lastError {
-			writeLog("launch failed: " + message)
-			lastError = message
-		}
-
-		select {
-		case request := <-requests:
-			if request.Cmd == svc.Stop || request.Cmd == svc.Shutdown {
+			if !config.Daemon {
+				windows.CloseHandle(process)
 				changes <- svc.Status{State: svc.StopPending}
 				return false, 0
 			}
-		case <-ticker.C:
+			if shouldStop := waitForPulseProcess(process, config, requests); shouldStop {
+				changes <- svc.Status{State: svc.StopPending}
+				return false, 0
+			}
+			lastError = ""
+			time.Sleep(time.Second)
+		} else if message := err.Error(); message != lastError {
+			writeLog("launch failed: " + message)
+			lastError = message
+			if shouldStop := waitForRetry(requests, 2*time.Second); shouldStop {
+				changes <- svc.Status{State: svc.StopPending}
+				return false, 0
+			}
 		}
 	}
 }
 
-func launchConfiguredPulse() error {
+func launchConfiguredPulse() (windows.Handle, serviceConfig, error) {
 	config, err := readConfig()
 	if err != nil {
-		return err
+		return 0, config, err
 	}
 	if strings.TrimSpace(config.Executable) == "" {
-		return fmt.Errorf("missing executable in %s", configFileName)
+		return 0, config, fmt.Errorf("missing executable in %s", configFileName)
 	}
 	if _, err := os.Stat(config.Executable); err != nil {
-		return err
+		return 0, config, err
 	}
 	workingDirectory := config.WorkingDirectory
 	if strings.TrimSpace(workingDirectory) == "" {
 		workingDirectory = filepath.Dir(config.Executable)
 	}
-	return createProcessInActiveSession(config.Executable, workingDirectory, config.Arguments)
+	process, err := createProcessInActiveSession(config.Executable, workingDirectory, config.Arguments)
+	return process, config, err
 }
 
 func readConfig() (serviceConfig, error) {
@@ -105,15 +113,15 @@ func readConfig() (serviceConfig, error) {
 	return config, nil
 }
 
-func createProcessInActiveSession(executable, workingDirectory string, args []string) error {
+func createProcessInActiveSession(executable, workingDirectory string, args []string) (windows.Handle, error) {
 	sessionID := windows.WTSGetActiveConsoleSessionId()
 	if sessionID == 0xffffffff {
-		return fmt.Errorf("no active console session")
+		return 0, fmt.Errorf("no active console session")
 	}
 
 	var userToken windows.Token
 	if err := windows.WTSQueryUserToken(sessionID, &userToken); err != nil {
-		return fmt.Errorf("query active user token: %w", err)
+		return 0, fmt.Errorf("query active user token: %w", err)
 	}
 	defer userToken.Close()
 
@@ -127,27 +135,27 @@ func createProcessInActiveSession(executable, workingDirectory string, args []st
 		&primaryToken,
 	)
 	if err != nil {
-		return fmt.Errorf("duplicate user token: %w", err)
+		return 0, fmt.Errorf("duplicate user token: %w", err)
 	}
 	defer primaryToken.Close()
 
 	var environment *uint16
 	if err := windows.CreateEnvironmentBlock(&environment, primaryToken, false); err != nil {
-		return fmt.Errorf("create user environment: %w", err)
+		return 0, fmt.Errorf("create user environment: %w", err)
 	}
 	defer windows.DestroyEnvironmentBlock(environment)
 
 	commandLine, err := windows.UTF16PtrFromString(windowsCommandLine(executable, args))
 	if err != nil {
-		return err
+		return 0, err
 	}
 	currentDirectory, err := windows.UTF16PtrFromString(workingDirectory)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	desktop, err := windows.UTF16PtrFromString(`winsta0\default`)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	startupInfo := windows.StartupInfo{
@@ -171,11 +179,57 @@ func createProcessInActiveSession(executable, workingDirectory string, args []st
 		&processInfo,
 	)
 	if err != nil {
-		return fmt.Errorf("create pulse process: %w", err)
+		return 0, fmt.Errorf("create pulse process: %w", err)
 	}
-	windows.CloseHandle(processInfo.Process)
 	windows.CloseHandle(processInfo.Thread)
-	return nil
+	return processInfo.Process, nil
+}
+
+func waitForPulseProcess(process windows.Handle, config serviceConfig, requests <-chan svc.ChangeRequest) bool {
+	defer windows.CloseHandle(process)
+	stopMarker := signalModTime(config.StopSignal)
+	for {
+		event, err := windows.WaitForSingleObject(process, 1000)
+		if err != nil {
+			writeLog("process wait failed: " + err.Error())
+			return false
+		}
+		if event == windows.WAIT_OBJECT_0 {
+			if signalModTime(config.StopSignal).After(stopMarker) {
+				writeLog("daemon stopped after user exit signal")
+				return true
+			}
+			writeLog("daemon restarting Pulse after exit")
+			return false
+		}
+		select {
+		case request := <-requests:
+			return request.Cmd == svc.Stop || request.Cmd == svc.Shutdown
+		default:
+		}
+	}
+}
+
+func waitForRetry(requests <-chan svc.ChangeRequest, delay time.Duration) bool {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case request := <-requests:
+		return request.Cmd == svc.Stop || request.Cmd == svc.Shutdown
+	case <-timer.C:
+		return false
+	}
+}
+
+func signalModTime(path string) time.Time {
+	if strings.TrimSpace(path) == "" {
+		return time.Time{}
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return time.Time{}
+	}
+	return info.ModTime()
 }
 
 func windowsCommandLine(executable string, args []string) string {

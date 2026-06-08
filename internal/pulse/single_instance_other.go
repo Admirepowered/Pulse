@@ -45,11 +45,19 @@ func signalRunningInstance(args []string) {
 	dir := singleInstanceDataDir()
 	_ = os.MkdirAll(dir, 0o755)
 	value := time.Now().Format(time.RFC3339Nano)
+	hasVisibleSignal := false
 	for _, arg := range args {
+		if arg == "--start-hidden" || arg == "-start-hidden" {
+			continue
+		}
 		if arg != "" {
 			value = arg
+			hasVisibleSignal = true
 			break
 		}
+	}
+	if len(args) > 0 && !hasVisibleSignal {
+		return
 	}
 	_ = os.WriteFile(filepath.Join(dir, "show.signal"), []byte(value), 0o644)
 }

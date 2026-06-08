@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"os"
 
 	"Pulse/internal/pulse"
 
@@ -27,15 +28,17 @@ func main() {
 	// Create an instance of the app structure
 	app := pulse.NewApp()
 	pulse.StartTray(app)
+	startHidden := hasStartHiddenArg(os.Args[1:])
 
 	// Create application with options
 	err = wails.Run(&options.App{
-		Title:     "Pulse",
-		Width:     1280,
-		Height:    820,
-		MinWidth:  1060,
-		MinHeight: 680,
-		Frameless: true,
+		Title:       "Pulse",
+		Width:       1280,
+		Height:      820,
+		MinWidth:    1060,
+		MinHeight:   680,
+		Frameless:   true,
+		StartHidden: startHidden,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
@@ -52,4 +55,13 @@ func main() {
 	if err != nil {
 		println("Error:", err.Error())
 	}
+}
+
+func hasStartHiddenArg(args []string) bool {
+	for _, arg := range args {
+		if arg == "--start-hidden" || arg == "-start-hidden" {
+			return true
+		}
+	}
+	return false
 }

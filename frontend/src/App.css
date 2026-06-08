@@ -610,6 +610,19 @@ h2 {
     border-color: #704037;
 }
 
+.shell.darkTheme .updateCard {
+    background: #102b1f;
+    border-color: #276649;
+}
+
+.shell.darkTheme .updateCard strong {
+    color: #f3f4f6;
+}
+
+.shell.darkTheme .updateCard span {
+    color: #a5abb5;
+}
+
 .shell.darkTheme .windowControls {
     border-left-color: #343434;
 }
@@ -1647,6 +1660,41 @@ textarea {
 
 .compactModal {
     width: min(1040px, calc(100vw - 40px));
+}
+
+.updateModal {
+    width: min(520px, calc(100vw - 40px));
+}
+
+.updateCard {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid #d7ebe5;
+    background: #f4fbf8;
+    border-radius: 8px;
+    padding: 14px;
+}
+
+.updateCard svg {
+    color: #0f766e;
+}
+
+.updateCard strong,
+.updateCard span {
+    display: block;
+}
+
+.updateCard strong {
+    color: #17202a;
+    font-size: 14px;
+}
+
+.updateCard span {
+    color: #5b6472;
+    font-size: 12px;
+    margin-top: 3px;
 }
 
 .hintText {

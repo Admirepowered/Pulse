@@ -2,6 +2,7 @@ import {Download} from 'lucide-react';
 import {AppearanceSettingsPanel} from './settings/AppearanceSettingsPanel';
 import {CoreSettingsPanel} from './settings/CoreSettingsPanel';
 import {SyncSettingsPanel} from './settings/SyncSettingsPanel';
+import {Toggle} from '../components/common';
 import type {Translator} from '../i18n';
 import type {BackgroundImage, Settings} from '../types';
 
@@ -56,6 +57,11 @@ export function SettingsPage({settings, backgrounds, t, onChange, onApply, onCom
                     <button className="wide" onClick={onCheckUpdates}>
                         <Download size={17}/>{t('checkUpdates')}
                     </button>
+                    <Toggle
+                        label={t('disableUpdateCheck')}
+                        checked={settings.disableUpdateCheck}
+                        onChange={(value) => onApply({...settings, disableUpdateCheck: value})}
+                    />
                 </article>
             </div>
         </section>

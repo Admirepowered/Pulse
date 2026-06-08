@@ -28,10 +28,12 @@ type startupServiceConfig struct {
 	Executable       string   `json:"executable"`
 	WorkingDirectory string   `json:"workingDirectory"`
 	Arguments        []string `json:"arguments"`
+	Daemon           bool     `json:"daemon"`
+	StopSignal       string   `json:"stopSignal"`
 	UpdatedAt        int64    `json:"updatedAt"`
 }
 
-func syncStartupServicePayload(dataDir string) error {
+func syncStartupServicePayload(dataDir string, settings Settings) error {
 	if dataDir == "" {
 		return errors.New("data directory is not initialized")
 	}
@@ -46,7 +48,9 @@ func syncStartupServicePayload(dataDir string) error {
 	config := startupServiceConfig{
 		Executable:       executable,
 		WorkingDirectory: filepath.Dir(executable),
-		Arguments:        []string{},
+		Arguments:        []string{"--start-hidden"},
+		Daemon:           settings.AutoStartServiceDaemon,
+		StopSignal:       filepath.Join(dataDir, "pulse-service-stop.signal"),
 		UpdatedAt:        time.Now().Unix(),
 	}
 	data, err := json.MarshalIndent(config, "", "  ")
@@ -59,7 +63,7 @@ func syncStartupServicePayload(dataDir string) error {
 	return nil
 }
 
-func setServiceAutoStart(dataDir string, enabled bool) error {
+func setServiceAutoStart(dataDir string, settings Settings, enabled bool) error {
 	if !enabled {
 		return uninstallStartupService(dataDir)
 	}
@@ -70,7 +74,7 @@ func setServiceAutoStart(dataDir string, enabled bool) error {
 	if err != nil {
 		return err
 	}
-	if err := syncStartupServicePayload(dataDir); err != nil {
+	if err := syncStartupServicePayload(dataDir, settings); err != nil {
 		return err
 	}
 	manager, err := mgr.Connect()
@@ -86,7 +90,7 @@ func setServiceAutoStart(dataDir string, enabled bool) error {
 		DisplayName:      startupServiceDisplayName,
 		Description:      startupServiceDescription,
 		BinaryPathName:   servicePath,
-		DelayedAutoStart: true,
+		DelayedAutoStart: false,
 	}
 	service, err := manager.OpenService(startupServiceName)
 	if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {

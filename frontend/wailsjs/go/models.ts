@@ -430,7 +430,9 @@ export namespace pulse {
 	    theme: string;
 	    autoStart: boolean;
 	    autoStartService: boolean;
+	    autoStartServiceDaemon: boolean;
 	    autoStartCore: boolean;
+	    disableUpdateCheck: boolean;
 	    closeBehavior: string;
 	    subscriptionProxy: boolean;
 	    backgroundPath: string;
@@ -492,7 +494,9 @@ export namespace pulse {
 	        this.theme = source["theme"];
 	        this.autoStart = source["autoStart"];
 	        this.autoStartService = source["autoStartService"];
+	        this.autoStartServiceDaemon = source["autoStartServiceDaemon"];
 	        this.autoStartCore = source["autoStartCore"];
+	        this.disableUpdateCheck = source["disableUpdateCheck"];
 	        this.closeBehavior = source["closeBehavior"];
 	        this.subscriptionProxy = source["subscriptionProxy"];
 	        this.backgroundPath = source["backgroundPath"];

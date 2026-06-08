@@ -123,6 +123,9 @@ export type RuntimeState = {
     version: string;
     buildNumber: string;
     platform: string;
+    appEmbeddedCore: boolean;
+    serviceEmbeddedCore: boolean;
+    coreModeImplementation: string;
     startedAt: number;
     dataDir: string;
     activeProfile: string;
@@ -305,6 +308,9 @@ export const emptySnapshot: RuntimeState = {
     version: 'P0',
     buildNumber: '0',
     platform: '',
+    appEmbeddedCore: false,
+    serviceEmbeddedCore: false,
+    coreModeImplementation: 'external',
     startedAt: 0,
     dataDir: '',
     activeProfile: '',

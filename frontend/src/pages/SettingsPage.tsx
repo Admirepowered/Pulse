@@ -6,11 +6,14 @@ import {Toggle} from '../components/common';
 import type {Translator} from '../i18n';
 import type {BackgroundImage, Settings} from '../types';
 
-export function SettingsPage({settings, platform, backgrounds, t, onChange, onApply, onCommit, onOpenDir, onChooseBackground, onClearBackground, onSelectBackground, onDeleteBackground, onCheckUpdates}: {
+export function SettingsPage({settings, platform, backgrounds, t, appEmbeddedCore, serviceEmbeddedCore, coreModeImplementation, onChange, onApply, onCommit, onOpenDir, onChooseBackground, onClearBackground, onSelectBackground, onDeleteBackground, onCheckUpdates}: {
     settings: Settings;
     platform: string;
     backgrounds: BackgroundImage[];
     t: Translator;
+    appEmbeddedCore: boolean;
+    serviceEmbeddedCore: boolean;
+    coreModeImplementation: string;
     onChange: (settings: Settings) => void;
     onApply: (settings: Settings) => void;
     onCommit: (settings: Settings) => void;
@@ -27,6 +30,9 @@ export function SettingsPage({settings, platform, backgrounds, t, onChange, onAp
                 settings={settings}
                 platform={platform}
                 t={t}
+                appEmbeddedCore={appEmbeddedCore}
+                serviceEmbeddedCore={serviceEmbeddedCore}
+                coreModeImplementation={coreModeImplementation}
                 onDraft={onChange}
                 onCommit={onCommit}
                 onApply={onApply}
@@ -47,6 +53,7 @@ export function SettingsPage({settings, platform, backgrounds, t, onChange, onAp
                 <SyncSettingsPanel
                     settings={settings}
                     t={t}
+                    appEmbeddedCore={appEmbeddedCore}
                     onDraft={onChange}
                     onCommit={onCommit}
                     onApply={onApply}

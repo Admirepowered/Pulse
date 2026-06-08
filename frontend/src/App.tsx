@@ -707,6 +707,9 @@ function App() {
                         platform={snapshot.platform}
                         backgrounds={backgrounds}
                         t={t}
+                        appEmbeddedCore={snapshot.appEmbeddedCore}
+                        serviceEmbeddedCore={snapshot.serviceEmbeddedCore}
+                        coreModeImplementation={snapshot.coreModeImplementation}
                         onChange={(settings) => {
                             setSettingsDraft(settings);
                             setSettingsDirty(true);

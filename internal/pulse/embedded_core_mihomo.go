@@ -1,5 +1,10 @@
 //go:build !windows || pulse_embed_mihomo
 
+// This file implements the **app-embedded** core path: mihomo is linked into
+// the Pulse app itself (build tag `pulse_embed_mihomo`) and runs in-process.
+// On non-Windows this is the only path. When the app is built with the
+// embedded tag, the `AutoStartService` boot service is unnecessary because
+// Pulse can autostart via the `Run` registry and run the core in-process.
 package pulse
 
 import (
@@ -16,6 +21,10 @@ import (
 	"github.com/metacubex/mihomo/hub/route"
 	mihomoLog "github.com/metacubex/mihomo/log"
 )
+
+func appHasEmbeddedCore() bool {
+	return true
+}
 
 func (a *App) startEmbeddedCore(runtimeConfig string, settings Settings) error {
 	configBytes, err := os.ReadFile(runtimeConfig)

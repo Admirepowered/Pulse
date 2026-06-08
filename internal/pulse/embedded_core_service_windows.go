@@ -1,5 +1,14 @@
 //go:build windows && !pulse_embed_mihomo
 
+// This file implements the **helper-managed** core path for Windows builds
+// that do not embed mihomo into the Pulse app. The app spawns
+// `PulseStartupService.exe` as a child process that acts as the core. The
+// helper itself either embeds mihomo (when built with
+// `pulse_service_embed_mihomo`) or launches an external `mihomo.exe` resolved
+// from `settings.CorePath`. This is the "core itself starts PulseStartupService
+// as the core" path used when neither the app nor the service has mihomo
+// linked in, and also when the service has mihomo embedded but the user picks
+// the embedded CoreMode instead of registering the service.
 package pulse
 
 import (
@@ -7,6 +16,10 @@ import (
 	"strings"
 	"time"
 )
+
+func appHasEmbeddedCore() bool {
+	return false
+}
 
 func (a *App) startEmbeddedCore(runtimeConfig string, settings Settings) error {
 	cmd, err := startManagedHelperCore(a.dataDir, settings, runtimeConfig)

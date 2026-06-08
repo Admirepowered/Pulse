@@ -205,6 +205,9 @@ type RuntimeState struct {
 	Version       string          `json:"version"`
 	BuildNumber   string          `json:"buildNumber"`
 	Platform      string          `json:"platform"`
+	AppEmbeddedCore     bool      `json:"appEmbeddedCore"`
+	ServiceEmbeddedCore bool      `json:"serviceEmbeddedCore"`
+	CoreModeImplementation string  `json:"coreModeImplementation"`
 	StartedAt     int64           `json:"startedAt"`
 	DataDir       string          `json:"dataDir"`
 	ActiveProfile string          `json:"activeProfile"`
@@ -316,7 +319,7 @@ func (a *App) Startup(ctx context.Context) {
 	if err := registerURLProtocol(); err != nil {
 		a.appendLog("error", "register clash URL protocol failed: "+err.Error())
 	}
-	startHidden := a.handleLaunchArgs(os.Args[1:])
+	startHidden, startCoreService := a.handleLaunchArgs(os.Args[1:])
 	a.updateTrayMenuState()
 	if startHidden {
 		wailsruntime.WindowHide(ctx)
@@ -327,7 +330,7 @@ func (a *App) Startup(ctx context.Context) {
 			a.appendLog("error", "geodata download failed: "+err.Error())
 		}
 	}()
-	if a.store.Settings.AutoStartCore {
+	if startCoreService || a.store.Settings.AutoStartCore {
 		go func() {
 			time.Sleep(300 * time.Millisecond)
 			if err := a.StartCore(); err != nil {
@@ -425,11 +428,14 @@ func (a *App) ShowWindow() {
 	wailsruntime.WindowShow(a.ctx)
 }
 
-func (a *App) handleLaunchArgs(args []string) bool {
-	startHidden := false
+func (a *App) handleLaunchArgs(args []string) (startHidden bool, startCoreService bool) {
 	for _, arg := range args {
 		if arg == "--start-hidden" || arg == "-start-hidden" {
 			startHidden = true
+			continue
+		}
+		if arg == coreServiceStartFlag {
+			startCoreService = true
 			continue
 		}
 		if strings.Contains(arg, "install-config") {
@@ -438,7 +444,7 @@ func (a *App) handleLaunchArgs(args []string) bool {
 			}
 		}
 	}
-	return startHidden
+	return startHidden, startCoreService
 }
 
 func (a *App) ProcessInstallConfigURL(raw string) error {
@@ -773,6 +779,9 @@ func (a *App) GetSnapshot() RuntimeState {
 		Version:       AppVersion,
 		BuildNumber:   BuildNumber,
 		Platform:      goruntime.GOOS,
+		AppEmbeddedCore:     appHasEmbeddedCore(),
+		ServiceEmbeddedCore: serviceHelperHasEmbeddedCore(),
+		CoreModeImplementation: coreModeImplementation(settings),
 		StartedAt:     startedAt,
 		DataDir:       dataDir,
 		ActiveProfile: active,
@@ -2313,6 +2322,29 @@ func (a *App) coreAvailable(settings Settings) bool {
 		return true
 	}
 	return a.corePathExists(settings.CorePath)
+}
+
+func coreModeImplementation(settings Settings) string {
+	switch settings.CoreMode {
+	case "custom":
+		return "custom"
+	case "service":
+		if goruntime.GOOS == "windows" {
+			return "service-registered"
+		}
+		return "custom"
+	default:
+		switch {
+		case appHasEmbeddedCore():
+			return "app"
+		case serviceHelperHasEmbeddedCore():
+			return "service-helper"
+		case goruntime.GOOS == "windows":
+			return "external-helper"
+		default:
+			return "external"
+		}
+	}
 }
 
 func (a *App) resolveCorePath(corePath string) (string, error) {

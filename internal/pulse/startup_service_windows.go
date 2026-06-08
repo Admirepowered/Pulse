@@ -1,5 +1,21 @@
 //go:build windows
 
+// This file owns the `PulseStartupService` (boot autostart) and
+// `PulseCoreService` (service CoreMode) lifecycle on Windows.
+//
+// Three core mode implementations are supported, selected by the build tags:
+//   - **App-embedded** (`pulse_embed_mihomo`): mihomo runs in the Pulse app
+//     process. The `AutoStartService` boot service is unnecessary — Pulse can
+//     autostart via the `Run` registry and run the core in-process.
+//   - **Service-embedded** (`pulse_service_embed_mihomo`, Windows only): the
+//     `PulseStartupService.exe` binary has mihomo linked in. The user can
+//     register it as a Windows service (CoreMode `service`) to run the core
+//     as a service, or the app can spawn it as a child process to act as the
+//     core (CoreMode `embedded`, helper-managed path).
+//   - **External** (default Windows, helper runs an external `mihomo.exe`):
+//     `PulseStartupService.exe` has no embedded core and launches the mihomo
+//     binary resolved from `settings.CorePath`. The app still spawns the
+//     helper as a child process.
 package pulse
 
 import (
@@ -28,6 +44,7 @@ const (
 	startupServiceExecutable  = "PulseStartupService.exe"
 	startupServiceConfigFile  = "pulse-startup-service.json"
 	coreServiceConfigFile     = "pulse-core-service.json"
+	coreServiceStartFlag      = "--start-core-service"
 )
 
 type startupServiceConfig struct {
@@ -129,10 +146,15 @@ func startServiceCore(dataDir string, settings Settings, runtimeConfig string) e
 	if err != nil {
 		return err
 	}
-	if isProcessElevated() {
-		if err := ensureCoreServiceRegistered(servicePath); err != nil {
-			return err
+	if !isProcessElevated() {
+		if relaunchErr := relaunchAsAdministratorWithArgs([]string{coreServiceStartFlag}); relaunchErr == nil {
+			return errors.New("服务模式需要管理员权限，正在触发 UAC 提示并以提权进程拉起服务")
+		} else {
+			return fmt.Errorf("服务模式需要管理员权限，请求 UAC 失败: %w", relaunchErr)
 		}
+	}
+	if err := ensureCoreServiceRegistered(servicePath); err != nil {
+		return err
 	}
 	return startRegisteredService(coreServiceName)
 }

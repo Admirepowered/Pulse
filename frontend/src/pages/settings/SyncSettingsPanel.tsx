@@ -4,9 +4,10 @@ import type {Translator} from '../../i18n';
 import type {Settings, WebDAVSettings} from '../../types';
 import {AutoSaveField} from './AutoSaveField';
 
-export function SyncSettingsPanel({settings, t, onDraft, onCommit, onApply, onOpenDir}: {
+export function SyncSettingsPanel({settings, t, appEmbeddedCore, onDraft, onCommit, onApply, onOpenDir}: {
     settings: Settings;
     t: Translator;
+    appEmbeddedCore: boolean;
     onDraft: (settings: Settings) => void;
     onCommit: (settings: Settings) => void;
     onApply: (settings: Settings) => void;
@@ -22,7 +23,7 @@ export function SyncSettingsPanel({settings, t, onDraft, onCommit, onApply, onOp
         onApply({...settings, webdav: {...settings.webdav, [key]: value}});
     };
     const autoStartDisabled = settings.autoStartService && !settings.autoStart;
-    const serviceStartupDisabled = settings.autoStart;
+    const serviceStartupDisabled = settings.autoStart || appEmbeddedCore;
     const serviceDaemonDisabled = !settings.autoStartService;
 
     return (

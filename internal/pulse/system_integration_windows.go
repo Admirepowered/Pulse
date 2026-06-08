@@ -181,12 +181,20 @@ func isProcessElevated() bool {
 }
 
 func relaunchAsAdministrator() error {
+	return relaunchAsAdministratorWithArgs(nil)
+}
+
+func relaunchAsAdministratorWithArgs(extraArgs []string) error {
 	executable, err := os.Executable()
 	if err != nil {
 		return err
 	}
 	directory := filepathForShellExecute(executable)
-	script, err := writeAdminRelaunchScript(executable, directory, os.Args[1:])
+	args := append([]string{}, os.Args[1:]...)
+	if len(extraArgs) > 0 {
+		args = append(args, extraArgs...)
+	}
+	script, err := writeAdminRelaunchScript(executable, directory, args)
 	if err != nil {
 		return err
 	}

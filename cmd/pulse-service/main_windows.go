@@ -51,6 +51,18 @@ type runtimeOptions struct {
 func main() {
 	options := parseRuntimeOptions(os.Args[1:])
 	if options.manualRun {
+		config, err := readConfig(options.configFile)
+		if err != nil {
+			writeLog("manual config read failed: " + err.Error())
+			os.Exit(1)
+		}
+		if config.EmbeddedCore {
+			if err := runEmbeddedCore(config, make(chan svc.ChangeRequest)); err != nil {
+				writeLog("manual embedded core failed: " + err.Error())
+				os.Exit(1)
+			}
+			return
+		}
 		process, config, err := launchConfiguredProcess(options.configFile)
 		if err != nil {
 			writeLog("manual launch failed: " + err.Error())

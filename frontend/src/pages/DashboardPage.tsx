@@ -17,11 +17,27 @@ export function DashboardPage({snapshot, connections, t, onRestart, onOpenMihomo
     const [speedPoints, setSpeedPoints] = useState<number[]>([]);
     const uptime = snapshot.startedAt ? Math.max(0, Math.floor(Date.now() / 1000 - snapshot.startedAt)) : 0;
     const totalTraffic = (connections.uploadTotal || 0) + (connections.downloadTotal || 0);
-    const coreLabel = snapshot.settings.coreMode === 'embedded'
-        ? t('embedded')
-        : snapshot.settings.coreMode === 'service'
-            ? t('serviceCore')
-            : snapshot.settings.corePath;
+    const coreLabel = (() => {
+        switch (snapshot.coreModeImplementation) {
+            case 'app':
+                return `${t('embedded')}(APP)`;
+            case 'service-helper':
+                return `${t('embedded')}(${t('serviceCore')})`;
+            case 'external-helper':
+            case 'external':
+                return `${t('embedded')}(helper)`;
+            case 'service-registered':
+                return t('serviceCore');
+            case 'custom':
+                return snapshot.settings.corePath;
+            default:
+                return snapshot.settings.coreMode === 'embedded'
+                    ? t('embedded')
+                    : snapshot.settings.coreMode === 'service'
+                        ? t('serviceCore')
+                        : snapshot.settings.corePath;
+        }
+    })();
 
     useEffect(() => {
         const totalSpeed = Math.max(0, (snapshot.traffic.up || 0) + (snapshot.traffic.down || 0));

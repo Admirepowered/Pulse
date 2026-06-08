@@ -9,10 +9,13 @@ const clashModes = [
     {id: 'direct', label: '直连'},
 ] as const;
 
-export function CoreSettingsPanel({settings, platform, t, onDraft, onCommit, onApply}: {
+export function CoreSettingsPanel({settings, platform, t, appEmbeddedCore, serviceEmbeddedCore, coreModeImplementation, onDraft, onCommit, onApply}: {
     settings: Settings;
     platform: string;
     t: Translator;
+    appEmbeddedCore: boolean;
+    serviceEmbeddedCore: boolean;
+    coreModeImplementation: string;
     onDraft: (settings: Settings) => void;
     onCommit: (settings: Settings) => void;
     onApply: (settings: Settings) => void;
@@ -27,11 +30,21 @@ export function CoreSettingsPanel({settings, platform, t, onDraft, onCommit, onA
         }
         commit('mixedPort', port);
     };
+    const embeddedLabel = coreModeImplementation === 'app'
+        ? `${t('embedded')}(APP)`
+        : coreModeImplementation === 'service-helper'
+            ? `${t('embedded')}(服务)`
+            : coreModeImplementation === 'external-helper' || coreModeImplementation === 'external'
+                ? `${t('embedded')}(helper)`
+                : t('embedded');
     const coreModes = [
-        {id: 'embedded', label: t('embedded')},
-        ...(platform === 'windows' || settings.coreMode === 'service' ? [{id: 'service', label: t('serviceCore')}] : []),
-        {id: 'custom', label: t('custom')},
+        {id: 'embedded', label: embeddedLabel},
     ];
+    if (platform === 'windows' && !appEmbeddedCore) {
+        coreModes.push({id: 'service', label: t('serviceCore')});
+    }
+    coreModes.push({id: 'custom', label: t('custom')});
+    const showCorePathFields = settings.coreMode === 'custom' || (!appEmbeddedCore && !serviceEmbeddedCore && platform === 'windows' && settings.coreMode === 'embedded');
 
     return (
         <article className="panel formPanel">
@@ -44,6 +57,12 @@ export function CoreSettingsPanel({settings, platform, t, onDraft, onCommit, onA
                 ))}
             </div>
             {settings.coreMode === 'custom' && (
+                <>
+                    <AutoSaveField label={t('mihomoPath')} value={settings.corePath} onDraft={(value) => draft('corePath', value)} onCommit={(value) => commit('corePath', value)}/>
+                    <AutoSaveField label={t('apiAddress')} value={settings.apiBase} onDraft={(value) => draft('apiBase', value)} onCommit={(value) => commit('apiBase', value)}/>
+                </>
+            )}
+            {showCorePathFields && (
                 <>
                     <AutoSaveField label={t('mihomoPath')} value={settings.corePath} onDraft={(value) => draft('corePath', value)} onCommit={(value) => commit('corePath', value)}/>
                     <AutoSaveField label={t('apiAddress')} value={settings.apiBase} onDraft={(value) => draft('apiBase', value)} onCommit={(value) => commit('apiBase', value)}/>

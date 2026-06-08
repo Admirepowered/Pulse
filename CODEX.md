@@ -70,6 +70,23 @@ This file is for future Codex sessions working on Pulse.
 - Update checks use GitHub latest release through `github_client`. Check once on app open and on manual request only. Updates download the matching executable asset and replace the current executable after exit.
 - Geodata fallback order is: existing data directory file, application directory bundled file, GitHub download, then mihomo's own fallback behavior.
 
+## Core Mode Implementations
+
+Pulse picks one of three runtime paths for the mihomo core, decided by the build configuration of the app and the embedded `PulseStartupService.exe`. The runtime state exposes `coreModeImplementation` so the UI can reflect which path is in effect.
+
+- **App-embedded** (`pulse_embed_mihomo` build tag, default on non-Windows and `make build-windows-app-mihomo` on Windows): mihomo runs in the Pulse app process. The `AutoStartService` boot service is unnecessary because Pulse can autostart via the `Run` registry and run the core in-process. The settings panel should hide the `AutoStartService` toggle when this path is active.
+- **Service-embedded** (`pulse_service_embed_mihomo` build tag on Windows, `make build-windows-service-mihomo`): `PulseStartupService.exe` links mihomo in. The user can register the helper as a Windows service (CoreMode `service`) to run the core as a service, or the app can spawn the helper as a child process (CoreMode `embedded`, helper-managed path) so the core lives outside the UI process.
+- **External** (default Windows, `make build-windows`): neither binary embeds mihomo. The app spawns `PulseStartupService.exe` as a child process; the helper launches an external `mihomo.exe` resolved from `settings.CorePath`.
+
+Implementation files:
+
+- `internal/pulse/embedded_core_mihomo.go` — app-embedded path.
+- `internal/pulse/embedded_core_service_windows.go` — helper-managed path for Windows builds without app-embedded mihomo.
+- `internal/pulse/service_helper_embed_windows.go` and `service_helper_external.go` — declare whether the embedded `PulseStartupService.exe` binary has mihomo.
+- `cmd/pulse-service/embedded_core_windows.go` and `embedded_core_stub_windows.go` — the actual core entry points inside `PulseStartupService.exe` for the service-embedded and external builds.
+
+The `coreModeImplementation` snapshot field returns one of `app`, `service-helper`, `external-helper`, `service-registered`, or `custom`.
+
 ## Build And Verification
 
 - Before commit, run:

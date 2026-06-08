@@ -857,6 +857,21 @@ func (a *App) SaveSettings(settings Settings) error {
 		a.appendLog("info", fmt.Sprintf("save settings auto-start applied: enabled=%t", settings.AutoStart))
 	}
 	if requiresServiceStartupApply {
+		if settings.AutoStartService && !isProcessElevated() {
+			// Registering the service needs admin. Trigger the UAC
+			// relaunch; the elevated process will see
+			// AutoStartService=true from the saved store.json on its
+			// next Startup and run setServiceAutoStart itself. The
+			// relaunch script kills the current non-elevated process
+			// so the elevated instance is the only one left.
+			if relaunchErr := relaunchAsAdministratorWithArgs(nil); relaunchErr == nil {
+				a.appendLog("info", "save settings service startup requires admin, requesting UAC")
+				return nil
+			} else {
+				a.appendLog("error", "save settings service startup UAC request failed: "+relaunchErr.Error())
+				return errors.New("注册服务需要管理员权限，请允许 UAC 提示")
+			}
+		}
 		if err := setServiceAutoStart(dataDir, settings, settings.AutoStartService); err != nil {
 			a.appendLog("error", "save settings service startup apply failed: "+err.Error())
 			return err

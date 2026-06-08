@@ -24,7 +24,7 @@ jobs:
         include:
           - name: Windows
             os: windows-latest
-            target: build-windows build-windows-386
+            target: ''
             print: ''
             kind: windows
           - name: Linux Ubuntu 22.04 x64
@@ -130,8 +130,6 @@ jobs:
         if: matrix.kind == 'windows'
         shell: bash
         run: |
-          echo "x64=$(make print-windows-artifact)" >> "$GITHUB_OUTPUT"
-          echo "x86=$(make print-windows-386-artifact)" >> "$GITHUB_OUTPUT"
           echo "app_embedded=$(make print-windows-app-embedded-artifact)" >> "$GITHUB_OUTPUT"
           echo "service_embedded=$(make print-windows-service-embedded-artifact)" >> "$GITHUB_OUTPUT"
 
@@ -143,19 +141,15 @@ jobs:
       - name: Build Wails App
         if: matrix.kind == 'windows'
         shell: bash
+        # Only the two embedded Windows variants are kept. The app-
+        # embedded build links mihomo into Pulse.exe; the service-
+        # embedded build links mihomo into PulseStartupService.exe and
+        # embeds that helper into Pulse.exe. The default Windows build
+        # (no embed) was dropped — it would have been an external-
+        # helper launcher only, and the service-embedded path already
+        # covers that scenario.
         run: |
           set -euo pipefail
-          # Generate every Windows service helper variant before wails build
-          # runs. The helpers are gitignored, so a fresh CI checkout has no
-          # copy until the Makefile produces them. build-windows-service-*
-          # all write to the same SERVICE_ARTIFACT path, so we must run
-          # the dependency-generating target once per wails build that
-          # embeds a helper.
-          make build-windows-service-amd64
-          make build-windows
-          make build-windows-service-386
-          make build-windows-386
-          make build-windows-service-embedded-amd64
           make build-windows-app-mihomo
           make build-windows-service-mihomo
 
@@ -193,7 +187,7 @@ jobs:
           case "${{ matrix.kind }}" in
             windows)
               sevenzip="$(find_7z)"
-              for name in "$(make print-windows-artifact)" "$(make print-windows-386-artifact)" "$(make print-windows-app-embedded-artifact)" "$(make print-windows-service-embedded-artifact)"; do
+              for name in "$(make print-windows-app-embedded-artifact)" "$(make print-windows-service-embedded-artifact)"; do
                 (cd build/bin && "$sevenzip" a -tzip "../../release/$name.zip" "$name")
               done
               ;;
@@ -222,22 +216,6 @@ jobs:
           path: |
             release/*.zip
             release/*.tar.gz
-          if-no-files-found: error
-
-      - name: Upload Windows x64 Artifact
-        if: matrix.kind == 'windows'
-        uses: actions/upload-artifact@v5
-        with:
-          name: ${{ steps.windows-artifacts.outputs.x64 }}
-          path: release/${{ steps.windows-artifacts.outputs.x64 }}.zip
-          if-no-files-found: error
-
-      - name: Upload Windows x86 Artifact
-        if: matrix.kind == 'windows'
-        uses: actions/upload-artifact@v5
-        with:
-          name: ${{ steps.windows-artifacts.outputs.x86 }}
-          path: release/${{ steps.windows-artifacts.outputs.x86 }}.zip
           if-no-files-found: error
 
       - name: Upload Windows App Embedded x64 Artifact

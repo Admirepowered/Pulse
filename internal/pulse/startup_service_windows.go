@@ -335,10 +335,38 @@ func uninstallStartupService(dataDir string) error {
 		!errors.Is(err, windows.ERROR_SERVICE_NOT_ACTIVE) {
 		return fmt.Errorf("stop startup service: %w", err)
 	}
+	// Service.Control(svc.Stop) is async: the SCM marks the request
+	// pending, the service process gets a stop notification, and only
+	// when the process actually exits does the SCM mark the service
+	// Stopped. While the process is still running it holds the
+	// PulseStartupService.exe binary open, so calling
+	// removeStartupServiceFiles before that yields
+	// "Access is denied" on Windows. Poll the state until it reaches
+	// Stopped (or a 5s deadline) and then clean up the file.
+	if err := waitForServiceState(service, svc.Stopped, 5*time.Second); err != nil {
+		return fmt.Errorf("wait for startup service stopped: %w", err)
+	}
 	if err := service.Delete(); err != nil {
 		return fmt.Errorf("delete startup service: %w", err)
 	}
 	return removeStartupServiceFiles(dataDir)
+}
+
+func waitForServiceState(service *mgr.Service, want svc.State, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for {
+		status, err := service.Query()
+		if err != nil {
+			return err
+		}
+		if status.State == want {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timeout waiting for service to reach state %v (current %v)", want, status.State)
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
 }
 
 func removeStartupServiceFiles(dataDir string) error {

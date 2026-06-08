@@ -3,7 +3,6 @@
 package pulse
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -71,6 +70,3 @@ func signalRunningInstance(args []string) {
 	}
 	_ = os.WriteFile(filepath.Join(dir, "show.signal"), []byte(value), 0o644)
 }
-
-// avoid unused import errors when errcheck sweeps the file
-var _ = errors.New

@@ -22,15 +22,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Windows x64
+          - name: Windows
             os: windows-latest
-            target: build-windows
-            print: print-windows-artifact
-            kind: windows
-          - name: Windows x86
-            os: windows-latest
-            target: build-windows-386
-            print: print-windows-386-artifact
+            target: build-windows build-windows-386
+            print: ''
             kind: windows
           - name: Linux Ubuntu 22.04 x64
             os: ubuntu-22.04
@@ -96,6 +91,7 @@ jobs:
       - name: Setup UPX
         if: runner.os == 'Windows'
         uses: crazy-max/ghaction-upx@v3
+        continue-on-error: true
         with:
           install-only: true
 
@@ -123,15 +119,25 @@ jobs:
 
       - name: Resolve Artifact Name
         id: artifact
+        if: matrix.kind != 'windows'
         shell: bash
         run: |
           name="$(make ${{ matrix.print }})"
           echo "name=$name" >> "$GITHUB_OUTPUT"
 
       - name: Build Wails App
-        if: runner.os != 'Linux'
+        if: runner.os != 'Linux' && matrix.kind != 'windows'
         shell: bash
         run: make ${{ matrix.target }}
+
+      - name: Build Wails App
+        if: matrix.kind == 'windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for target in ${{ matrix.target }}; do
+            make "$target"
+          done
 
       - name: Build Wails App
         if: runner.os == 'Linux'
@@ -167,13 +173,17 @@ jobs:
           case "${{ matrix.kind }}" in
             windows)
               sevenzip="$(find_7z)"
-              (cd build/bin && "$sevenzip" a -tzip "../../release/$name.zip" "$name")
+              for name in "$(make print-windows-artifact)" "$(make print-windows-386-artifact)"; do
+                (cd build/bin && "$sevenzip" a -tzip "../../release/$name.zip" "$name")
+              done
               ;;
             linux)
+              name="${{ steps.artifact.outputs.name }}"
               chmod +x "build/bin/$name"
               tar -C build/bin -czf "release/$name.tar.gz" "$name"
               ;;
             macos)
+              name="${{ steps.artifact.outputs.name }}"
               sevenzip="$(find_7z)"
               app_dir="$(find build/bin -maxdepth 1 -name '*.app' -type d | head -n 1)"
               if [ -n "$app_dir" ]; then
@@ -187,7 +197,7 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.artifact.outputs.name }}
+          name: ${{ matrix.kind == 'windows' && 'Windows' || steps.artifact.outputs.name }}
           path: |
             release/*.zip
             release/*.tar.gz

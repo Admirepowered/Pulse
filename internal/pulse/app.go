@@ -94,7 +94,10 @@ type connectionSample struct {
 	At  time.Time
 }
 
-const tunAdminRequiredMessage = "TUN 模式需要管理员权限，请以管理员身份重新启动 Pulse"
+const (
+	tunAdminRequiredMessage = "TUN 模式需要管理员权限，请以管理员身份重新启动 Pulse"
+	adminRelaunchSignal     = "__pulse_admin_relaunch__"
+)
 
 type Store struct {
 	ActiveProfileID string    `json:"activeProfileId"`
@@ -414,6 +417,10 @@ func (a *App) startShowSignalWatcher() {
 				a.lastShowSignalTime = info.ModTime()
 				if data, err := os.ReadFile(a.showSignalPath); err == nil {
 					value := strings.TrimSpace(string(data))
+					if value == adminRelaunchSignal {
+						a.quitApplication()
+						return
+					}
 					if strings.Contains(value, "install-config") {
 						if err := a.ProcessInstallConfigURL(value); err != nil {
 							a.appendLog("error", "install config import failed: "+err.Error())

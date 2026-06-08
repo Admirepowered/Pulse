@@ -3,10 +3,14 @@
 package pulse
 
 import (
+	"encoding/base64"
+	"encoding/binary"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 	"syscall"
+	"unicode/utf16"
 
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
@@ -17,6 +21,7 @@ const (
 	internetSettingsKeyPath = `Software\Microsoft\Windows\CurrentVersion\Internet Settings`
 	startupValueName        = "Pulse"
 	clashURLProtocolKeyPath = `Software\Classes\clash`
+	adminRelaunchArg        = "--pulse-admin-relaunch"
 )
 
 func setAutoStart(enabled bool) error {
@@ -136,31 +141,18 @@ func relaunchAsAdministrator() error {
 	if err != nil {
 		return err
 	}
-	params := strings.Join(quoteWindowsArgs(os.Args[1:]), " ")
-	verb, err := windows.UTF16PtrFromString("runas")
-	if err != nil {
-		return err
-	}
-	file, err := windows.UTF16PtrFromString(executable)
-	if err != nil {
-		return err
-	}
-	var parameters *uint16
-	if params != "" {
-		parameters, err = windows.UTF16PtrFromString(params)
-		if err != nil {
-			return err
-		}
-	}
+	args := append([]string{adminRelaunchArg}, os.Args[1:]...)
 	directory := filepathForShellExecute(executable)
-	var directoryPtr *uint16
-	if directory != "" {
-		directoryPtr, err = windows.UTF16PtrFromString(directory)
-		if err != nil {
-			return err
-		}
-	}
-	return windows.ShellExecute(0, verb, file, parameters, directoryPtr, windows.SW_SHOWNORMAL)
+	script := fmt.Sprintf(
+		"$ErrorActionPreference='SilentlyContinue'; Wait-Process -Id %d -Timeout 15; Start-Process -FilePath %s -ArgumentList @(%s) -Verb RunAs -WorkingDirectory %s",
+		os.Getpid(),
+		powerShellString(executable),
+		powerShellStringList(args),
+		powerShellString(directory),
+	)
+	cmd := exec.Command("powershell.exe", "-NoProfile", "-WindowStyle", "Hidden", "-EncodedCommand", powerShellEncodedCommand(script))
+	setCoreProcessOptions(cmd)
+	return cmd.Start()
 }
 
 func filepathForShellExecute(executable string) string {
@@ -181,10 +173,23 @@ func quoteWindowsArg(value string) string {
 	return `"` + strings.ReplaceAll(value, `"`, `\"`) + `"`
 }
 
-func quoteWindowsArgs(values []string) []string {
+func powerShellString(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "''") + "'"
+}
+
+func powerShellStringList(values []string) string {
 	quoted := make([]string, 0, len(values))
 	for _, value := range values {
-		quoted = append(quoted, quoteWindowsArg(value))
+		quoted = append(quoted, powerShellString(value))
 	}
-	return quoted
+	return strings.Join(quoted, ",")
+}
+
+func powerShellEncodedCommand(script string) string {
+	wide := utf16.Encode([]rune(script))
+	data := make([]byte, len(wide)*2)
+	for i, value := range wide {
+		binary.LittleEndian.PutUint16(data[i*2:], value)
+	}
+	return base64.StdEncoding.EncodeToString(data)
 }

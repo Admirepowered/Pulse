@@ -184,12 +184,7 @@ func writeAdminRelaunchScript(executable, directory string, args []string) (stri
 		return "", err
 	}
 	defer file.Close()
-	powerShellCommand := fmt.Sprintf(
-		"Start-Process -FilePath %s -ArgumentList @(%s) -WorkingDirectory %s -Verb RunAs",
-		powerShellString(executable),
-		powerShellStringList(args),
-		powerShellString(directory),
-	)
+	powerShellCommand := adminRelaunchPowerShellCommand(executable, directory, args)
 	content := fmt.Sprintf(
 		`@echo off
 setlocal
@@ -201,7 +196,7 @@ if not errorlevel 1 (
     goto wait_process
 )
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "%s"
-del "%%~f0" >nul 2>nul
+start "" /b cmd.exe /c "timeout /t 2 /nobreak >nul & del ""%%~f0"" >nul 2>nul"
 `,
 		os.Getpid(),
 		os.Getpid(),
@@ -212,6 +207,22 @@ del "%%~f0" >nul 2>nul
 		return "", err
 	}
 	return file.Name(), nil
+}
+
+func adminRelaunchPowerShellCommand(executable, directory string, args []string) string {
+	if len(args) == 0 {
+		return fmt.Sprintf(
+			"Start-Process -FilePath %s -WorkingDirectory %s -Verb RunAs",
+			powerShellString(executable),
+			powerShellString(directory),
+		)
+	}
+	return fmt.Sprintf(
+		"Start-Process -FilePath %s -ArgumentList @(%s) -WorkingDirectory %s -Verb RunAs",
+		powerShellString(executable),
+		powerShellStringList(args),
+		powerShellString(directory),
+	)
 }
 
 func escapeBatchPercent(value string) string {

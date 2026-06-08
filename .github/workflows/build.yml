@@ -3,6 +3,9 @@ name: Build
 permissions:
   contents: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 on:
   push:
     branches:
@@ -58,14 +61,12 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-          cache: true
+          cache: false
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
 
       - name: Install Linux Dependencies
         if: runner.os == 'Linux'
@@ -87,13 +88,6 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: choco install make -y --no-progress
-
-      - name: Setup UPX
-        if: runner.os == 'Windows'
-        uses: crazy-max/ghaction-upx@v3
-        continue-on-error: true
-        with:
-          install-only: true
 
       - name: Setup 7z
         if: runner.os == 'macOS'
@@ -124,6 +118,14 @@ jobs:
         run: |
           name="$(make ${{ matrix.print }})"
           echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve Windows Artifact Names
+        id: windows-artifacts
+        if: matrix.kind == 'windows'
+        shell: bash
+        run: |
+          echo "x64=$(make print-windows-artifact)" >> "$GITHUB_OUTPUT"
+          echo "x86=$(make print-windows-386-artifact)" >> "$GITHUB_OUTPUT"
 
       - name: Build Wails App
         if: runner.os != 'Linux' && matrix.kind != 'windows'
@@ -195,12 +197,29 @@ jobs:
           esac
 
       - name: Upload Artifact
+        if: matrix.kind != 'windows'
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.kind == 'windows' && 'Windows' || steps.artifact.outputs.name }}
+          name: ${{ steps.artifact.outputs.name }}
           path: |
             release/*.zip
             release/*.tar.gz
+          if-no-files-found: error
+
+      - name: Upload Windows x64 Artifact
+        if: matrix.kind == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.windows-artifacts.outputs.x64 }}
+          path: release/${{ steps.windows-artifacts.outputs.x64 }}.zip
+          if-no-files-found: error
+
+      - name: Upload Windows x86 Artifact
+        if: matrix.kind == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.windows-artifacts.outputs.x86 }}
+          path: release/${{ steps.windows-artifacts.outputs.x86 }}.zip
           if-no-files-found: error
 
   release:

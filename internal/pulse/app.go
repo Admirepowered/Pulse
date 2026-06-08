@@ -352,6 +352,11 @@ func (a *App) syncAutoStartPath() {
 	settings := a.store.Settings
 	dataDir := a.dataDir
 	a.mu.Unlock()
+	if err := syncStartupServiceExecutable(dataDir); err != nil {
+		a.appendLog("warn", "startup service helper sync failed: "+err.Error())
+	} else {
+		a.appendLog("debug", "startup service helper synced")
+	}
 	if enabled {
 		if err := setAutoStart(true); err != nil {
 			a.appendLog("error", "auto-start path sync failed: "+err.Error())

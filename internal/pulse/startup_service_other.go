@@ -2,6 +2,10 @@
 
 package pulse
 
+func syncStartupServiceExecutable(dataDir string) error {
+	return nil
+}
+
 func syncStartupServicePayload(dataDir string, settings Settings) error {
 	return nil
 }

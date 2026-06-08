@@ -45,6 +45,11 @@ type startupServiceConfig struct {
 	UpdatedAt        int64    `json:"updatedAt"`
 }
 
+func syncStartupServiceExecutable(dataDir string) error {
+	_, err := ensureStartupServiceExecutable(dataDir)
+	return err
+}
+
 func syncStartupServicePayload(dataDir string, settings Settings) error {
 	if dataDir == "" {
 		return errors.New("data directory is not initialized")

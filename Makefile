@@ -111,7 +111,7 @@ build-windows: clean-windows-amd64 build-windows-service-amd64
 	wails build -platform windows/amd64 -ldflags "$(LD_FLAGS)" -o $(WINDOWS_ARTIFACT)
 	$(MAKE) compress-windows
 
-build-windows-app-mihomo: clean-windows-app-embedded build-windows-service-amd64
+build-windows-app-mihomo: clean-windows-app-embedded
 	wails build -platform windows/amd64 -tags pulse_embed_mihomo -ldflags "$(LD_FLAGS)" -o $(WINDOWS_APP_EMBEDDED_ARTIFACT)
 	$(MAKE) compress-windows-app-embedded
 

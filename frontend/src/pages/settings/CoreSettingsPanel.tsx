@@ -32,18 +32,17 @@ export function CoreSettingsPanel({settings, platform, t, appEmbeddedCore, servi
     };
     const embeddedLabel = coreModeImplementation === 'app'
         ? `${t('embedded')}(APP)`
-        : coreModeImplementation === 'service-helper'
-            ? `${t('embedded')}(服务)`
+        : coreModeImplementation === 'service-helper' || coreModeImplementation === 'service-registered'
+            ? `${t('embedded')}(${t('serviceCore')})`
             : coreModeImplementation === 'external-helper' || coreModeImplementation === 'external'
                 ? `${t('embedded')}(helper)`
                 : t('embedded');
+    // Core options are only "embedded" and "custom". The "service" toggle
+    // is now expressed via the autoStartService setting in SyncSettingsPanel.
     const coreModes = [
         {id: 'embedded', label: embeddedLabel},
+        {id: 'custom', label: t('custom')},
     ];
-    if (platform === 'windows' && !appEmbeddedCore) {
-        coreModes.push({id: 'service', label: t('serviceCore')});
-    }
-    coreModes.push({id: 'custom', label: t('custom')});
     const showCorePathFields = settings.coreMode === 'custom' || (!appEmbeddedCore && !serviceEmbeddedCore && platform === 'windows' && settings.coreMode === 'embedded');
 
     return (

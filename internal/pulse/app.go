@@ -673,6 +673,12 @@ func mergeSettings(current, defaults Settings) Settings {
 	if !current.AutoStartService {
 		current.AutoStartServiceDaemon = false
 	}
+	if current.CoreMode == "service" {
+		// Legacy "service" CoreMode is now expressed as "embedded" with the
+		// AutoStartService toggle flipped on.
+		current.CoreMode = "embedded"
+		current.AutoStartService = true
+	}
 	current.BackgroundBlur = clampBackgroundBlur(current.BackgroundBlur)
 	current.BackgroundOpacity = clampBackgroundOpacity(current.BackgroundOpacity)
 	return current
@@ -972,6 +978,7 @@ func settingsRequireCoreRestart(previous, next Settings) bool {
 		previous.ApiBase != next.ApiBase ||
 		previous.Secret != next.Secret ||
 		previous.MixedPort != next.MixedPort ||
+		previous.AutoStartService != next.AutoStartService ||
 		tunSettingsChanged(previous, next)
 }
 
@@ -1384,7 +1391,10 @@ func (a *App) StartCore() error {
 	if !ok {
 		return errors.New("no active profile")
 	}
-	if settings.TunEnabled && !isProcessElevated() && settings.CoreMode != "service" {
+	useService := goruntime.GOOS == "windows" &&
+		!appHasEmbeddedCore() &&
+		(settings.CoreMode == "service" || (settings.CoreMode == "embedded" && settings.AutoStartService))
+	if settings.TunEnabled && !isProcessElevated() && !useService {
 		a.appendLog("error", tunAdminRequiredMessage)
 		return errors.New(tunAdminRequiredMessage)
 	}
@@ -1395,7 +1405,8 @@ func (a *App) StartCore() error {
 	if err != nil {
 		return err
 	}
-	if settings.CoreMode == "service" {
+	switch {
+	case useService:
 		if err := startServiceCore(a.dataDir, settings, runtimeConfig); err != nil {
 			return err
 		}
@@ -1403,7 +1414,7 @@ func (a *App) StartCore() error {
 		a.serviceCoreRunning = true
 		a.startedAt = time.Now().Unix()
 		a.mu.Unlock()
-	} else if settings.CoreMode == "custom" {
+	case settings.CoreMode == "custom":
 		corePath, err := a.resolveCorePath(settings.CorePath)
 		if err != nil {
 			return err
@@ -1443,8 +1454,10 @@ func (a *App) StartCore() error {
 			}
 			a.appendLog("info", "mihomo stopped")
 		}()
-	} else if err := a.startEmbeddedCore(runtimeConfig, settings); err != nil {
-		return err
+	default:
+		if err := a.startEmbeddedCore(runtimeConfig, settings); err != nil {
+			return err
+		}
 	}
 	if err := a.waitForAPIReady(8 * time.Second); err != nil {
 		if settings.CoreMode == "service" {
@@ -2330,22 +2343,28 @@ func coreModeImplementation(settings Settings) string {
 	case "custom":
 		return "custom"
 	case "service":
-		if goruntime.GOOS == "windows" {
+		// Legacy value: post-mergeSettings this should not survive, but keep
+		// the safe mapping for users who reload a stale store.json.
+		if goruntime.GOOS == "windows" && !appHasEmbeddedCore() {
 			return "service-registered"
 		}
-		return "custom"
-	default:
-		switch {
-		case appHasEmbeddedCore():
+		return "app"
+	case "embedded", "":
+		if appHasEmbeddedCore() {
 			return "app"
-		case serviceHelperHasEmbeddedCore():
-			return "service-helper"
-		case goruntime.GOOS == "windows":
-			return "external-helper"
-		default:
+		}
+		if goruntime.GOOS != "windows" {
 			return "external"
 		}
+		if settings.AutoStartService {
+			return "service-registered"
+		}
+		if serviceHelperHasEmbeddedCore() {
+			return "service-helper"
+		}
+		return "external-helper"
 	}
+	return "external"
 }
 
 func (a *App) resolveCorePath(corePath string) (string, error) {

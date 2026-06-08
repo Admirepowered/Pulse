@@ -19,7 +19,6 @@
 package pulse
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -341,31 +340,6 @@ func uninstallStartupService(dataDir string) error {
 		return fmt.Errorf("delete startup service: %w", err)
 	}
 	return removeStartupServiceFiles(dataDir)
-}
-
-func ensureStartupServiceExecutable(dataDir string) (string, error) {
-	if dataDir == "" {
-		return "", errors.New("data directory is not initialized")
-	}
-	if err := os.MkdirAll(dataDir, 0o755); err != nil {
-		return "", err
-	}
-	data, err := startupServiceAssets.ReadFile("assets/" + startupServiceExecutable)
-	if err != nil {
-		return "", errors.New("Windows 服务 helper 没有嵌入到当前程序，请先通过 make build-windows 构建")
-	}
-	if len(data) < 2 || data[0] != 'M' || data[1] != 'Z' {
-		return "", errors.New("Windows 服务 helper 不是有效的 PE 程序，请重新执行 make build-windows")
-	}
-	servicePath := filepath.Join(dataDir, startupServiceExecutable)
-	current, err := os.ReadFile(servicePath)
-	if err == nil && bytes.Equal(current, data) {
-		return servicePath, nil
-	}
-	if err := os.WriteFile(servicePath, data, 0o755); err != nil {
-		return "", err
-	}
-	return servicePath, nil
 }
 
 func removeStartupServiceFiles(dataDir string) error {

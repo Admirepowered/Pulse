@@ -25,6 +25,10 @@ export function SyncSettingsPanel({settings, t, appEmbeddedCore, onDraft, onComm
     const autoStartDisabled = settings.autoStartService && !settings.autoStart;
     const serviceStartupDisabled = settings.autoStart || appEmbeddedCore;
     const serviceDaemonDisabled = !settings.autoStartService;
+    // App-embedded builds ship without PulseStartupService.exe, so neither
+    // the service startup nor the daemon mode toggle applies.
+    const hideServiceStartup = appEmbeddedCore;
+    const hideServiceDaemon = appEmbeddedCore || true;
 
     return (
         <article className="panel formPanel">
@@ -38,23 +42,27 @@ export function SyncSettingsPanel({settings, t, appEmbeddedCore, onDraft, onComm
                 disabled={autoStartDisabled}
                 onChange={(value) => onApply({...settings, autoStart: value, autoStartService: value ? false : settings.autoStartService})}
             />
-            <Toggle
-                label={t('autoStartService')}
-                checked={settings.autoStartService}
-                disabled={serviceStartupDisabled}
-                onChange={(value) => onApply({
-                    ...settings,
-                    autoStartService: value,
-                    autoStartServiceDaemon: value ? settings.autoStartServiceDaemon : false,
-                    autoStart: value ? false : settings.autoStart,
-                })}
-            />
-            <Toggle
-                label={t('autoStartServiceDaemon')}
-                checked={settings.autoStartServiceDaemon}
-                disabled={serviceDaemonDisabled}
-                onChange={(value) => onApply({...settings, autoStartServiceDaemon: value})}
-            />
+            {!hideServiceStartup && (
+                <Toggle
+                    label={t('autoStartService')}
+                    checked={settings.autoStartService}
+                    disabled={serviceStartupDisabled}
+                    onChange={(value) => onApply({
+                        ...settings,
+                        autoStartService: value,
+                        autoStartServiceDaemon: value ? settings.autoStartServiceDaemon : false,
+                        autoStart: value ? false : settings.autoStart,
+                    })}
+                />
+            )}
+            {!hideServiceDaemon && !hideServiceStartup && (
+                <Toggle
+                    label={t('autoStartServiceDaemon')}
+                    checked={settings.autoStartServiceDaemon}
+                    disabled={serviceDaemonDisabled}
+                    onChange={(value) => onApply({...settings, autoStartServiceDaemon: value})}
+                />
+            )}
             <Toggle label="WebDAV" checked={settings.webdav.enabled} onChange={(value) => applyWebDAV('enabled', value)}/>
             <AutoSaveField label="URL" value={settings.webdav.url} onDraft={(value) => draftWebDAV('url', value)} onCommit={(value) => commitWebDAV('url', value)}/>
             <AutoSaveField label={t('username')} value={settings.webdav.username} onDraft={(value) => draftWebDAV('username', value)} onCommit={(value) => commitWebDAV('username', value)}/>

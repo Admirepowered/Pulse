@@ -74,18 +74,23 @@ This file is for future Codex sessions working on Pulse.
 
 Pulse picks one of three runtime paths for the mihomo core, decided by the build configuration of the app and the embedded `PulseStartupService.exe`. The runtime state exposes `coreModeImplementation` so the UI can reflect which path is in effect.
 
-- **App-embedded** (`pulse_embed_mihomo` build tag, default on non-Windows and `make build-windows-app-mihomo` on Windows): mihomo runs in the Pulse app process. The `AutoStartService` boot service is unnecessary because Pulse can autostart via the `Run` registry and run the core in-process. The settings panel should hide the `AutoStartService` toggle when this path is active.
-- **Service-embedded** (`pulse_service_embed_mihomo` build tag on Windows, `make build-windows-service-mihomo`): `PulseStartupService.exe` links mihomo in. The user can register the helper as a Windows service (CoreMode `service`) to run the core as a service, or the app can spawn the helper as a child process (CoreMode `embedded`, helper-managed path) so the core lives outside the UI process.
-- **External** (default Windows, `make build-windows`): neither binary embeds mihomo. The app spawns `PulseStartupService.exe` as a child process; the helper launches an external `mihomo.exe` resolved from `settings.CorePath`.
+- **App-embedded** (`pulse_embed_mihomo` build tag, default on non-Windows and `make build-windows-app-mihomo` on Windows): mihomo runs in the Pulse app process. The `PulseStartupService.exe` helper is **not** embedded in the app binary and the sync settings panel hides the `AutoStartService` and `AutoStartServiceDaemon` toggles entirely (no service helper, no daemon). The `CoreMode` selector only offers `embedded` and `custom`.
+- **Service-embedded** (`pulse_service_embed_mihomo` build tag on Windows, `make build-windows-service-mihomo`): `PulseStartupService.exe` links mihomo in. The user picks `CoreMode = embedded` to run the core as a helper child process, or flips the `AutoStartService` toggle in the sync panel to register the helper as a Windows service and start the core through that service. The `CoreMode` selector still only offers `embedded` and `custom`; the service path is controlled by the `AutoStartService` toggle. `AutoStartServiceDaemon` is hidden because Pulse runs in user session regardless of how the helper is started.
+- **External** (default Windows, `make build-windows`): neither binary embeds mihomo. The app spawns `PulseStartupService.exe` as a child process; the helper launches an external `mihomo.exe` resolved from `settings.CorePath`. The `AutoStartService` toggle still controls whether the helper is registered as a service first.
+
+A legacy `CoreMode = "service"` value in `store.json` is migrated on load to `CoreMode = "embedded"` with `AutoStartService = true`, so existing users do not need to reconfigure.
 
 Implementation files:
 
 - `internal/pulse/embedded_core_mihomo.go` — app-embedded path.
 - `internal/pulse/embedded_core_service_windows.go` — helper-managed path for Windows builds without app-embedded mihomo.
 - `internal/pulse/service_helper_embed_windows.go` and `service_helper_external.go` — declare whether the embedded `PulseStartupService.exe` binary has mihomo.
+- `internal/pulse/startup_service_assets_windows.go` — `//go:embed assets/PulseStartupService.exe`, build-tag-gated to `!pulse_embed_mihomo` so app-embedded builds do not ship the helper.
+- `internal/pulse/startup_service_helper_windows.go` — the real `ensureStartupServiceExecutable` for service/default Windows.
+- `internal/pulse/startup_service_app_embedded_stub_windows.go` — placeholder for app-embedded Windows, where the helper is never needed.
 - `cmd/pulse-service/embedded_core_windows.go` and `embedded_core_stub_windows.go` — the actual core entry points inside `PulseStartupService.exe` for the service-embedded and external builds.
 
-The `coreModeImplementation` snapshot field returns one of `app`, `service-helper`, `external-helper`, `service-registered`, or `custom`.
+The `coreModeImplementation` snapshot field returns one of `app`, `service-helper`, `external-helper`, `service-registered`, or `custom`. `service-registered` is emitted both for the legacy `CoreMode = "service"` value and for `CoreMode = "embedded"` combined with `AutoStartService = true` on a non-app-embedded Windows build.
 
 ## Build And Verification
 

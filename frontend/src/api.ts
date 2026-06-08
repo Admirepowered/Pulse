@@ -30,6 +30,7 @@ export {
     SaveProfileCustomRules,
     SaveSettings,
     DeleteBackgroundImage,
+    ExitKeepServiceRunning,
     SelectBackgroundImage,
     SelectProxy,
     SetActiveProfile,

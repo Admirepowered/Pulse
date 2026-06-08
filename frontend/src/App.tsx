@@ -28,6 +28,7 @@ import {
     CloseWindow,
     DeleteProfile,
     DeleteBackgroundImage,
+    ExitKeepServiceRunning,
     FetchConnections,
     FetchProviders,
     FetchProxyGroups,
@@ -622,6 +623,7 @@ function App() {
                         t={t}
                         onRestart={() => run(RestartCore, t('coreRestarted'))}
                         onOpenMihomo={() => run(() => OpenURL('https://github.com/MetaCubeX/mihomo/tree/Meta'))}
+                        onExit={() => run(ExitKeepServiceRunning)}
                     />
                 )}
 

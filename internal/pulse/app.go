@@ -376,7 +376,12 @@ func (a *App) syncAutoStartPath() {
 
 func (a *App) Shutdown(ctx context.Context) {
 	a.writeServiceStopSignalIfNeeded()
-	_ = a.StopCore()
+	a.mu.Lock()
+	serviceCore := a.serviceCoreRunning
+	a.mu.Unlock()
+	if !serviceCore {
+		_ = a.StopCore()
+	}
 	quitTray()
 }
 
@@ -401,6 +406,14 @@ func (a *App) CloseWindow() {
 		return
 	}
 	wailsruntime.WindowHide(a.ctx)
+}
+
+func (a *App) ExitKeepServiceRunning() {
+	a.mu.Lock()
+	a.forceQuit = true
+	a.mu.Unlock()
+	quitTray()
+	wailsruntime.Quit(a.ctx)
 }
 
 func (a *App) MinimizeWindow() {

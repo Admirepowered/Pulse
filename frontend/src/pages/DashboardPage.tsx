@@ -1,4 +1,4 @@
-import {Activity, GitBranch, Globe2, PlugZap, RotateCcw, Wifi} from 'lucide-react';
+import {Activity, GitBranch, Globe2, LogOut, PlugZap, RotateCcw, Wifi} from 'lucide-react';
 import {useEffect, useState} from 'react';
 import {Metric, formatBytes, formatDuration, StatusPill} from '../components/common';
 import type {Translator} from '../i18n';
@@ -7,12 +7,13 @@ import {NetworkSpeedCard} from './dashboard/NetworkSpeedCard';
 
 const maxSpeedPoints = 32;
 
-export function DashboardPage({snapshot, connections, t, onRestart, onOpenMihomo}: {
+export function DashboardPage({snapshot, connections, t, onRestart, onOpenMihomo, onExit}: {
     snapshot: RuntimeState;
     connections: ConnectionSnapshot;
     t: Translator;
     onRestart: () => void;
     onOpenMihomo: () => void;
+    onExit: () => void;
 }) {
     const [speedPoints, setSpeedPoints] = useState<number[]>([]);
     const uptime = snapshot.startedAt ? Math.max(0, Math.floor(Date.now() / 1000 - snapshot.startedAt)) : 0;
@@ -65,6 +66,9 @@ export function DashboardPage({snapshot, connections, t, onRestart, onOpenMihomo
                 <div className="quickGrid">
                     <button onClick={onRestart}><RotateCcw size={17}/>{t('restartCore')}</button>
                     <button onClick={onOpenMihomo}><GitBranch size={17}/>mihomo Meta</button>
+                    {snapshot.serviceEmbeddedCore && (
+                        <button onClick={onExit}><LogOut size={17}/>{t('exit')}</button>
+                    )}
                 </div>
             </article>
         </section>

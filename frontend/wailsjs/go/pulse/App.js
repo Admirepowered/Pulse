@@ -34,6 +34,10 @@ export function DeleteBackgroundImage(arg1) {
   return window['go']['pulse']['App']['DeleteBackgroundImage'](arg1);
 }
 
+export function ExitKeepServiceRunning() {
+  return window['go']['pulse']['App']['ExitKeepServiceRunning']();
+}
+
 export function EnsureGeodata() {
   return window['go']['pulse']['App']['EnsureGeodata']();
 }

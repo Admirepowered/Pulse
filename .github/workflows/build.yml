@@ -99,6 +99,10 @@ jobs:
         with:
           install-only: true
 
+      - name: Setup 7z
+        if: runner.os == 'macOS'
+        run: brew install p7zip
+
       - name: Install Frontend Dependencies
         working-directory: frontend
         run: npm ci
@@ -140,18 +144,40 @@ jobs:
           set -euo pipefail
           mkdir -p release
           name="${{ steps.artifact.outputs.name }}"
+          find_7z() {
+            if command -v 7z >/dev/null 2>&1; then
+              command -v 7z
+              return
+            fi
+            if command -v 7zz >/dev/null 2>&1; then
+              command -v 7zz
+              return
+            fi
+            if [ -x "/c/Program Files/7-Zip/7z.exe" ]; then
+              printf '%s\n' "/c/Program Files/7-Zip/7z.exe"
+              return
+            fi
+            if [ -x "/c/Program Files (x86)/7-Zip/7z.exe" ]; then
+              printf '%s\n' "/c/Program Files (x86)/7-Zip/7z.exe"
+              return
+            fi
+            echo "7z not found" >&2
+            return 1
+          }
           case "${{ matrix.kind }}" in
             windows)
-              (cd build/bin && zip -q "../../release/$name.zip" "$name")
+              sevenzip="$(find_7z)"
+              (cd build/bin && "$sevenzip" a -tzip "../../release/$name.zip" "$name")
               ;;
             linux)
               chmod +x "build/bin/$name"
               tar -C build/bin -czf "release/$name.tar.gz" "$name"
               ;;
             macos)
+              sevenzip="$(find_7z)"
               app_dir="$(find build/bin -maxdepth 1 -name '*.app' -type d | head -n 1)"
               if [ -n "$app_dir" ]; then
-                (cd build/bin && zip -qry "../../release/$name.zip" "$(basename "$app_dir")")
+                (cd build/bin && "$sevenzip" a -tzip "../../release/$name.zip" "$(basename "$app_dir")")
               else
                 cp "build/bin/$name" "release/$name"
               fi

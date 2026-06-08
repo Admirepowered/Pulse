@@ -1,4 +1,4 @@
-import {type CSSProperties, useCallback, useEffect, useMemo, useState} from 'react';
+import {type CSSProperties, useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
     Activity,
     Bug,
@@ -137,12 +137,21 @@ function App() {
     const [providerUpdateStatus, setProviderUpdateStatus] = useState<Record<string, InlineActionState>>({});
     const [profileDropActive, setProfileDropActive] = useState(false);
     const [systemDark, setSystemDark] = useState(false);
+    const settingsSaveSeqRef = useRef(0);
+    const settingsSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
+    const settingsSnapshotHoldUntilRef = useRef(0);
     const t = useMemo(() => getTranslator(settingsDraft.language || snapshot.settings.language), [settingsDraft.language, snapshot.settings.language]);
     const adminNotice = notice.includes('管理员') || notice.toLowerCase().includes('administrator');
 
     const refreshSnapshot = useCallback(async () => {
         const next = await GetSnapshot();
-        setSnapshot(normalizeSnapshot(next as unknown as Partial<RuntimeState>));
+        const normalized = normalizeSnapshot(next as unknown as Partial<RuntimeState>);
+        setSnapshot((current) => {
+            if (Date.now() < settingsSnapshotHoldUntilRef.current) {
+                return normalizeSnapshot({...normalized, settings: current.settings});
+            }
+            return normalized;
+        });
     }, []);
 
     const refreshPageData = useCallback(async (activeTab: TabId) => {
@@ -195,27 +204,57 @@ function App() {
         }
     }, [run, t]);
 
-    const saveSettings = useCallback(async (settings: Settings = settingsDraft) => {
+    const saveSettings = useCallback(async (settings: Settings) => {
         const next = normalizeSettings(settings);
         await SaveSettings(new Models.Settings(next));
         setSettingsDraft(next);
         setSnapshot((current) => normalizeSnapshot({...current, settings: next}));
-        setSettingsDirty(false);
-    }, [settingsDraft]);
+    }, []);
+
+    const persistSettings = useCallback((settings: Settings) => {
+        const next = normalizeSettings(settings);
+        const previous = normalizeSettings(settingsDraft);
+        const seq = settingsSaveSeqRef.current + 1;
+        settingsSaveSeqRef.current = seq;
+        settingsSnapshotHoldUntilRef.current = Date.now() + 1500;
+        setSettingsDraft(next);
+        setSettingsDirty(true);
+        setSnapshot((current) => normalizeSnapshot({...current, settings: next}));
+        setBusy(true);
+        setNotice('');
+
+        const queued = settingsSaveQueueRef.current
+            .catch(() => undefined)
+            .then(() => saveSettings(next));
+        settingsSaveQueueRef.current = queued;
+
+        queued
+            .then(() => {
+                if (seq !== settingsSaveSeqRef.current) return;
+                settingsSnapshotHoldUntilRef.current = Date.now() + 1500;
+                setSettingsDraft(next);
+                setSnapshot((current) => normalizeSnapshot({...current, settings: next}));
+                setSettingsDirty(false);
+                setBusy(false);
+            })
+            .catch((error) => {
+                if (seq !== settingsSaveSeqRef.current) return;
+                settingsSnapshotHoldUntilRef.current = Date.now() + 1500;
+                setSettingsDraft(previous);
+                setSnapshot((current) => normalizeSnapshot({...current, settings: previous}));
+                setSettingsDirty(false);
+                setNotice(error instanceof Error ? error.message : String(error));
+                setBusy(false);
+            });
+    }, [saveSettings, settingsDraft]);
 
     const applySettings = useCallback((settings: Settings) => {
-        const next = normalizeSettings(settings);
-        setSettingsDraft(next);
-        setSettingsDirty(true);
-        run(() => saveSettings(next), t('settingsApplied'));
-    }, [run, saveSettings, t]);
+        persistSettings(settings);
+    }, [persistSettings]);
 
     const commitSettings = useCallback((settings: Settings) => {
-        const next = normalizeSettings(settings);
-        setSettingsDraft(next);
-        setSettingsDirty(true);
-        run(() => saveSettings(next), t('settingsSaved'));
-    }, [run, saveSettings, t]);
+        persistSettings(settings);
+    }, [persistSettings]);
 
     useEffect(() => {
         refreshSnapshot().catch((error) => setNotice(String(error)));
@@ -332,11 +371,10 @@ function App() {
             const dataURL = await ReadBackgroundImageDataURL(path) as string;
             const next = normalizeSettings({...settingsDraft, backgroundPath: path});
             setSettingsDraft(next);
-            setSettingsDirty(false);
+            setSettingsDirty(true);
             setBackgroundDataURL(dataURL);
             setBackgrounds(await ListBackgroundImages() as BackgroundImage[]);
-            await saveSettings(next);
-            await refreshSnapshot();
+            persistSettings(next);
         } catch (error) {
             setNotice(error instanceof Error ? error.message : String(error));
         } finally {
@@ -354,7 +392,7 @@ function App() {
             await DeleteBackgroundImage(id);
             const next = settingsDraft.backgroundPath === id ? normalizeSettings({...settingsDraft, backgroundPath: ''}) : settingsDraft;
             if (next.backgroundPath !== settingsDraft.backgroundPath) {
-                await saveSettings(next);
+                persistSettings(next);
                 setBackgroundDataURL('');
             }
             setBackgrounds(await ListBackgroundImages() as BackgroundImage[]);

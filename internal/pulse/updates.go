@@ -1,6 +1,9 @@
 package pulse
 
 import (
+	"archive/tar"
+	"archive/zip"
+	"compress/gzip"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"regexp"
 	goruntime "runtime"
@@ -84,15 +88,19 @@ func (a *App) ApplyUpdate() error {
 	if err != nil {
 		return err
 	}
+	replacement, err := prepareDownloadedUpdate(downloaded)
+	if err != nil {
+		return err
+	}
 	executable, err := os.Executable()
 	if err != nil {
 		return err
 	}
 	switch goruntime.GOOS {
 	case "windows":
-		return a.scheduleWindowsExecutableReplace(downloaded, executable)
+		return a.scheduleWindowsExecutableReplace(replacement, executable)
 	default:
-		return a.scheduleUnixExecutableReplace(downloaded, executable)
+		return a.scheduleUnixExecutableReplace(replacement, executable)
 	}
 }
 
@@ -216,19 +224,22 @@ func pickUpdateAsset(release githubRelease) releaseAsset {
 	wantOS := goruntime.GOOS
 	wantArch := goruntime.GOARCH
 	var fallback releaseAsset
+	fallbackPriority := 99
 	for _, candidate := range release.Assets {
 		name := strings.ToLower(candidate.Name)
 		if !matchesRuntimeOS(name, wantOS) || !strings.Contains(name, wantArch) {
 			continue
 		}
-		if !isExecutableUpdateAsset(name) {
+		priority, ok := updateAssetPriority(name)
+		if !ok {
 			continue
 		}
-		if fallback.Name == "" {
+		if fallback.Name == "" || priority < fallbackPriority {
 			fallback = releaseAsset{Name: candidate.Name, BrowserDownloadURL: candidate.BrowserDownloadURL}
+			fallbackPriority = priority
 		}
-		if goruntime.GOOS == "windows" && strings.HasSuffix(name, ".exe") && !strings.Contains(name, "installer") {
-			return releaseAsset{Name: candidate.Name, BrowserDownloadURL: candidate.BrowserDownloadURL}
+		if priority == 0 {
+			return fallback
 		}
 	}
 	return fallback
@@ -241,16 +252,27 @@ func matchesRuntimeOS(name string, wantOS string) bool {
 	return wantOS == "linux" && strings.Contains(name, "ubuntu")
 }
 
-func isExecutableUpdateAsset(name string) bool {
-	if strings.Contains(name, "installer") || strings.Contains(name, ".zip") || strings.Contains(name, ".tar.gz") {
-		return false
+func updateAssetPriority(name string) (int, bool) {
+	if strings.Contains(name, "installer") {
+		return 0, false
 	}
 	switch goruntime.GOOS {
 	case "windows":
-		return strings.HasSuffix(name, ".exe")
+		if strings.HasSuffix(name, ".exe") {
+			return 0, true
+		}
+		if strings.HasSuffix(name, ".zip") {
+			return 1, true
+		}
 	default:
-		return !strings.Contains(filepath.Base(name), ".")
+		if !strings.Contains(filepath.Base(name), ".") {
+			return 0, true
+		}
+		if strings.HasSuffix(name, ".tar.gz") || strings.HasSuffix(name, ".zip") {
+			return 1, true
+		}
 	}
+	return 0, false
 }
 
 func updateVersionFromAsset(assetName string, tagName string) string {
@@ -267,6 +289,9 @@ func updateVersionFromAsset(assetName string, tagName string) string {
 func versionGreater(latest string, current string) bool {
 	latestBase, latestBuild := splitVersionAndBuild(latest)
 	currentBase, currentBuild := splitVersionAndBuild(current)
+	if latestBuild != 0 || currentBuild != 0 {
+		return latestBuild > currentBuild
+	}
 	if latestBase != "" || currentBase != "" {
 		if currentBase == "" {
 			return latestBuild > currentBuild
@@ -278,9 +303,6 @@ func versionGreater(latest string, current string) bool {
 			return latestBuild > currentBuild
 		}
 		return false
-	}
-	if latestBuild != 0 || currentBuild != 0 {
-		return latestBuild > currentBuild
 	}
 	return versionBaseGreater(latest, current)
 }
@@ -339,6 +361,130 @@ func parseVersionParts(value string) []int {
 		return []int{0}
 	}
 	return out
+}
+
+func prepareDownloadedUpdate(source string) (string, error) {
+	lower := strings.ToLower(source)
+	switch {
+	case strings.HasSuffix(lower, ".zip"):
+		return extractZipUpdate(source)
+	case strings.HasSuffix(lower, ".tar.gz"):
+		return extractTarGzUpdate(source)
+	default:
+		return source, nil
+	}
+}
+
+func extractZipUpdate(source string) (string, error) {
+	reader, err := zip.OpenReader(source)
+	if err != nil {
+		return "", err
+	}
+	defer reader.Close()
+	targetDir, err := prepareUpdateExtractDir(source)
+	if err != nil {
+		return "", err
+	}
+	for _, file := range reader.File {
+		if file.FileInfo().IsDir() || !matchesUpdateArchiveEntry(file.Name) {
+			continue
+		}
+		in, err := file.Open()
+		if err != nil {
+			return "", err
+		}
+		outPath, err := writeUpdateArchiveEntry(targetDir, file.Name, in)
+		_ = in.Close()
+		if err != nil {
+			return "", err
+		}
+		return outPath, nil
+	}
+	return "", fmt.Errorf("no matching executable found in %s", filepath.Base(source))
+}
+
+func extractTarGzUpdate(source string) (string, error) {
+	file, err := os.Open(source)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	gzipReader, err := gzip.NewReader(file)
+	if err != nil {
+		return "", err
+	}
+	defer gzipReader.Close()
+	targetDir, err := prepareUpdateExtractDir(source)
+	if err != nil {
+		return "", err
+	}
+	reader := tar.NewReader(gzipReader)
+	for {
+		header, err := reader.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return "", err
+		}
+		if header.FileInfo().IsDir() || !matchesUpdateArchiveEntry(header.Name) {
+			continue
+		}
+		return writeUpdateArchiveEntry(targetDir, header.Name, reader)
+	}
+	return "", fmt.Errorf("no matching executable found in %s", filepath.Base(source))
+}
+
+func prepareUpdateExtractDir(source string) (string, error) {
+	targetDir := filepath.Join(filepath.Dir(source), "extracted")
+	if err := os.RemoveAll(targetDir); err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(targetDir, 0o755); err != nil {
+		return "", err
+	}
+	return targetDir, nil
+}
+
+func writeUpdateArchiveEntry(targetDir string, entryName string, reader io.Reader) (string, error) {
+	outPath := filepath.Join(targetDir, path.Base(strings.ReplaceAll(entryName, "\\", "/")))
+	out, err := os.Create(outPath)
+	if err != nil {
+		return "", err
+	}
+	if _, err := io.Copy(out, reader); err != nil {
+		_ = out.Close()
+		_ = os.Remove(outPath)
+		return "", err
+	}
+	if err := out.Close(); err != nil {
+		_ = os.Remove(outPath)
+		return "", err
+	}
+	if goruntime.GOOS != "windows" {
+		_ = os.Chmod(outPath, 0o755)
+	}
+	return outPath, nil
+}
+
+func matchesUpdateArchiveEntry(name string) bool {
+	normalized := strings.ToLower(strings.ReplaceAll(name, "\\", "/"))
+	base := path.Base(normalized)
+	if base == "" || strings.HasPrefix(base, ".") {
+		return false
+	}
+	switch goruntime.GOOS {
+	case "windows":
+		return strings.HasSuffix(base, ".exe") &&
+			(strings.Contains(normalized, "windows") || base == "pulse.exe") &&
+			(strings.Contains(normalized, goruntime.GOARCH) || base == "pulse.exe")
+	case "darwin":
+		return strings.Contains(normalized, ".app/contents/macos/") && !strings.Contains(base, ".")
+	default:
+		return !strings.Contains(base, ".") &&
+			matchesRuntimeOS(normalized, goruntime.GOOS) &&
+			strings.Contains(normalized, goruntime.GOARCH)
+	}
 }
 
 func shellQuote(value string) string {

@@ -529,6 +529,7 @@ export namespace pulse {
 	    coreFound: boolean;
 	    version: string;
 	    buildNumber: string;
+	    platform: string;
 	    startedAt: number;
 	    dataDir: string;
 	    activeProfile: string;
@@ -549,6 +550,7 @@ export namespace pulse {
 	        this.coreFound = source["coreFound"];
 	        this.version = source["version"];
 	        this.buildNumber = source["buildNumber"];
+	        this.platform = source["platform"];
 	        this.startedAt = source["startedAt"];
 	        this.dataDir = source["dataDir"];
 	        this.activeProfile = source["activeProfile"];

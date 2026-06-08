@@ -9,3 +9,11 @@ func syncStartupServicePayload(dataDir string, settings Settings) error {
 func setServiceAutoStart(dataDir string, settings Settings, enabled bool) error {
 	return nil
 }
+
+func startServiceCore(dataDir string, settings Settings, runtimeConfig string) error {
+	return nil
+}
+
+func stopServiceCore(dataDir string) error {
+	return nil
+}

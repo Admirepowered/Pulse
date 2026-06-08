@@ -49,6 +49,7 @@ type App struct {
 	store                 Store
 	coreCmd               *exec.Cmd
 	embeddedCoreRunning   bool
+	serviceCoreRunning    bool
 	mihomoLogSub          mihomoObservable.Subscription[mihomoLog.Event]
 	startedAt             int64
 	logLines              []LogLine
@@ -211,6 +212,7 @@ type RuntimeState struct {
 	CoreFound     bool            `json:"coreFound"`
 	Version       string          `json:"version"`
 	BuildNumber   string          `json:"buildNumber"`
+	Platform      string          `json:"platform"`
 	StartedAt     int64           `json:"startedAt"`
 	DataDir       string          `json:"dataDir"`
 	ActiveProfile string          `json:"activeProfile"`
@@ -620,6 +622,9 @@ func mergeSettings(current, defaults Settings) Settings {
 	if current.CoreMode == "" {
 		current.CoreMode = defaults.CoreMode
 	}
+	if current.CoreMode == "service" && goruntime.GOOS != "windows" {
+		current.CoreMode = defaults.CoreMode
+	}
 	if current.ApiBase == "" {
 		current.ApiBase = defaults.ApiBase
 	}
@@ -770,6 +775,7 @@ func (a *App) GetSnapshot() RuntimeState {
 		CoreFound:     a.coreAvailable(settings),
 		Version:       AppVersion,
 		BuildNumber:   BuildNumber,
+		Platform:      goruntime.GOOS,
 		StartedAt:     startedAt,
 		DataDir:       dataDir,
 		ActiveProfile: active,
@@ -1371,7 +1377,7 @@ func (a *App) StartCore() error {
 	if !ok {
 		return errors.New("no active profile")
 	}
-	if settings.TunEnabled && !isProcessElevated() {
+	if settings.TunEnabled && !isProcessElevated() && settings.CoreMode != "service" {
 		a.appendLog("error", tunAdminRequiredMessage)
 		return errors.New(tunAdminRequiredMessage)
 	}
@@ -1382,7 +1388,15 @@ func (a *App) StartCore() error {
 	if err != nil {
 		return err
 	}
-	if settings.CoreMode == "custom" {
+	if settings.CoreMode == "service" {
+		if err := startServiceCore(a.dataDir, settings, runtimeConfig); err != nil {
+			return err
+		}
+		a.mu.Lock()
+		a.serviceCoreRunning = true
+		a.startedAt = time.Now().Unix()
+		a.mu.Unlock()
+	} else if settings.CoreMode == "custom" {
 		corePath, err := a.resolveCorePath(settings.CorePath)
 		if err != nil {
 			return err
@@ -1426,10 +1440,17 @@ func (a *App) StartCore() error {
 		return err
 	}
 	if err := a.waitForAPIReady(8 * time.Second); err != nil {
-		if settings.CoreMode != "custom" {
+		if settings.CoreMode == "service" {
+			_ = stopServiceCore(a.dataDir)
+			a.mu.Lock()
+			a.serviceCoreRunning = false
+			a.startedAt = 0
+			a.mu.Unlock()
+		} else if settings.CoreMode != "custom" {
 			a.stopEmbeddedCore()
 			a.mu.Lock()
 			a.embeddedCoreRunning = false
+			a.serviceCoreRunning = false
 			a.startedAt = 0
 			a.mu.Unlock()
 		}
@@ -1452,9 +1473,11 @@ func (a *App) StopCore() error {
 	a.mu.Lock()
 	cmd := a.coreCmd
 	embedded := a.embeddedCoreRunning
+	serviceCore := a.serviceCoreRunning
 	settings := a.store.Settings
 	a.coreCmd = nil
 	a.embeddedCoreRunning = false
+	a.serviceCoreRunning = false
 	a.startedAt = 0
 	a.mu.Unlock()
 	if settings.SystemProxy {
@@ -1466,6 +1489,12 @@ func (a *App) StopCore() error {
 		}
 	}
 	if cmd == nil || cmd.Process == nil {
+		if serviceCore {
+			if err := stopServiceCore(a.dataDir); err != nil {
+				return err
+			}
+			a.appendLog("info", "service core stop requested")
+		}
 		if embedded {
 			a.stopEmbeddedCore()
 			a.appendLog("info", "mihomo stop requested")
@@ -2349,7 +2378,7 @@ func (a *App) profileByIDLocked(profileID string) (Profile, bool) {
 }
 
 func (a *App) coreRunningLocked() bool {
-	return a.embeddedCoreRunning || (a.coreCmd != nil && a.coreCmd.Process != nil)
+	return a.embeddedCoreRunning || a.serviceCoreRunning || (a.coreCmd != nil && a.coreCmd.Process != nil)
 }
 
 func (a *App) corePathExists(corePath string) bool {
@@ -2358,6 +2387,9 @@ func (a *App) corePathExists(corePath string) bool {
 }
 
 func (a *App) coreAvailable(settings Settings) bool {
+	if settings.CoreMode == "service" && goruntime.GOOS == "windows" {
+		return a.corePathExists(settings.CorePath)
+	}
 	if settings.CoreMode != "custom" {
 		return true
 	}

@@ -9,8 +9,9 @@ const clashModes = [
     {id: 'direct', label: '直连'},
 ] as const;
 
-export function CoreSettingsPanel({settings, t, onDraft, onCommit, onApply}: {
+export function CoreSettingsPanel({settings, platform, t, onDraft, onCommit, onApply}: {
     settings: Settings;
+    platform: string;
     t: Translator;
     onDraft: (settings: Settings) => void;
     onCommit: (settings: Settings) => void;
@@ -26,21 +27,23 @@ export function CoreSettingsPanel({settings, t, onDraft, onCommit, onApply}: {
         }
         commit('mixedPort', port);
     };
+    const coreModes = [
+        {id: 'embedded', label: t('embedded')},
+        ...(platform === 'windows' || settings.coreMode === 'service' ? [{id: 'service', label: t('serviceCore')}] : []),
+        {id: 'custom', label: t('custom')},
+    ];
 
     return (
         <article className="panel formPanel">
             <div className="panelHead"><h2>{t('core')}</h2></div>
             <div className="segmented">
-                {[
-                    {id: 'embedded', label: t('embedded')},
-                    {id: 'custom', label: t('custom')},
-                ].map((mode) => (
+                {coreModes.map((mode) => (
                     <button className={settings.coreMode === mode.id ? 'active' : ''} key={mode.id} onClick={() => apply('coreMode', mode.id)}>
                         {mode.label}
                     </button>
                 ))}
             </div>
-            {settings.coreMode === 'custom' && (
+            {(settings.coreMode === 'custom' || settings.coreMode === 'service') && (
                 <>
                     <AutoSaveField label={t('mihomoPath')} value={settings.corePath} onDraft={(value) => draft('corePath', value)} onCommit={(value) => commit('corePath', value)}/>
                     <AutoSaveField label={t('apiAddress')} value={settings.apiBase} onDraft={(value) => draft('apiBase', value)} onCommit={(value) => commit('apiBase', value)}/>

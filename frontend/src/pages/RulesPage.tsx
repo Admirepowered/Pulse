@@ -1,4 +1,6 @@
 import {Plus} from 'lucide-react';
+import {useMemo, useState} from 'react';
+import {SearchBox} from '../components/common';
 import {PageButtons, PaginationControls, defaultPageSize, usePagination} from '../components/pagination';
 import type {Translator} from '../i18n';
 import type {Profile, RuleRow} from '../types';
@@ -10,7 +12,13 @@ export function RulesPage({rules, profiles, activeProfile, t, onEditCustomRules}
     t: Translator;
     onEditCustomRules: (profile: Profile) => void;
 }) {
-    const pagination = usePagination(rules, defaultPageSize);
+    const [query, setQuery] = useState('');
+    const filteredRules = useMemo(() => {
+        const value = query.trim().toLowerCase();
+        if (!value) return rules;
+        return rules.filter((rule) => `${rule.type} ${rule.payload} ${rule.proxy}`.toLowerCase().includes(value));
+    }, [query, rules]);
+    const pagination = usePagination(filteredRules, defaultPageSize);
     const selectedProfile = profiles.find((profile) => profile.id === activeProfile || profile.name === activeProfile) || profiles[0];
 
     return (
@@ -30,6 +38,7 @@ export function RulesPage({rules, profiles, activeProfile, t, onEditCustomRules}
                     />
                 </div>
             </div>
+            <SearchBox value={query} onChange={setQuery} placeholder={t('searchRules')}/>
             <div className="ruleList">
                 {pagination.pageItems.map((rule, index) => (
                     <div className="ruleRow" key={`${rule.type}-${rule.payload}-${pagination.safePage}-${index}`}>

@@ -6,8 +6,9 @@ import {Toggle} from '../components/common';
 import type {Translator} from '../i18n';
 import type {BackgroundImage, Settings} from '../types';
 
-export function SettingsPage({settings, backgrounds, t, onChange, onApply, onCommit, onOpenDir, onChooseBackground, onClearBackground, onSelectBackground, onDeleteBackground, onCheckUpdates}: {
+export function SettingsPage({settings, platform, backgrounds, t, onChange, onApply, onCommit, onOpenDir, onChooseBackground, onClearBackground, onSelectBackground, onDeleteBackground, onCheckUpdates}: {
     settings: Settings;
+    platform: string;
     backgrounds: BackgroundImage[];
     t: Translator;
     onChange: (settings: Settings) => void;
@@ -24,6 +25,7 @@ export function SettingsPage({settings, backgrounds, t, onChange, onApply, onCom
         <section className="split">
             <CoreSettingsPanel
                 settings={settings}
+                platform={platform}
                 t={t}
                 onDraft={onChange}
                 onCommit={onCommit}

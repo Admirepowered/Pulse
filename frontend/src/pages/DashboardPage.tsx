@@ -17,7 +17,11 @@ export function DashboardPage({snapshot, connections, t, onRestart, onOpenMihomo
     const [speedPoints, setSpeedPoints] = useState<number[]>([]);
     const uptime = snapshot.startedAt ? Math.max(0, Math.floor(Date.now() / 1000 - snapshot.startedAt)) : 0;
     const totalTraffic = (connections.uploadTotal || 0) + (connections.downloadTotal || 0);
-    const coreLabel = snapshot.settings.coreMode === 'embedded' ? t('embedded') : snapshot.settings.corePath;
+    const coreLabel = snapshot.settings.coreMode === 'embedded'
+        ? t('embedded')
+        : snapshot.settings.coreMode === 'service'
+            ? `${t('serviceCore')} · ${snapshot.settings.corePath}`
+            : snapshot.settings.corePath;
 
     useEffect(() => {
         const totalSpeed = Math.max(0, (snapshot.traffic.up || 0) + (snapshot.traffic.down || 0));

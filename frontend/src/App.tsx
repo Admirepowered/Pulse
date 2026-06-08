@@ -704,6 +704,7 @@ function App() {
                 {tab === 'settings' && (
                     <SettingsPage
                         settings={settingsDraft}
+                        platform={snapshot.platform}
                         backgrounds={backgrounds}
                         t={t}
                         onChange={(settings) => {

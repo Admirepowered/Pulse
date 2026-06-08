@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 	"unsafe"
 
@@ -16,9 +18,9 @@ import (
 )
 
 const (
-	serviceName    = "PulseStartupService"
-	configFileName = "pulse-startup-service.json"
-	logFileName    = "pulse-startup-service.log"
+	defaultServiceName = "PulseStartupService"
+	defaultConfigFile  = "pulse-startup-service.json"
+	logFileName        = "pulse-startup-service.log"
 )
 
 type serviceConfig struct {
@@ -27,37 +29,47 @@ type serviceConfig struct {
 	Arguments        []string `json:"arguments"`
 	Daemon           bool     `json:"daemon"`
 	StopSignal       string   `json:"stopSignal"`
+	UserSession      bool     `json:"userSession"`
 	UpdatedAt        int64    `json:"updatedAt"`
 }
 
-type pulseService struct{}
+type pulseService struct {
+	configFile string
+}
+
+type runtimeOptions struct {
+	serviceName string
+	configFile  string
+	manualRun   bool
+}
 
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "run" {
-		process, _, err := launchConfiguredPulse()
+	options := parseRuntimeOptions(os.Args[1:])
+	if options.manualRun {
+		process, _, err := launchConfiguredProcess(options.configFile)
 		if err != nil {
 			writeLog("manual launch failed: " + err.Error())
 			os.Exit(1)
 		}
-		windows.CloseHandle(process)
+		process.Close()
 		return
 	}
-	if err := svc.Run(serviceName, pulseService{}); err != nil {
+	if err := svc.Run(options.serviceName, pulseService{configFile: options.configFile}); err != nil {
 		writeLog("service run failed: " + err.Error())
 	}
 }
 
-func (pulseService) Execute(args []string, requests <-chan svc.ChangeRequest, changes chan<- svc.Status) (bool, uint32) {
+func (s pulseService) Execute(args []string, requests <-chan svc.ChangeRequest, changes chan<- svc.Status) (bool, uint32) {
 	changes <- svc.Status{State: svc.StartPending}
 	changes <- svc.Status{State: svc.Running, Accepts: svc.AcceptStop | svc.AcceptShutdown}
 
 	lastError := ""
 	for {
-		process, config, err := launchConfiguredPulse()
+		process, config, err := launchConfiguredProcess(s.configFile)
 		if err == nil {
 			writeLog("launch requested")
 			if !config.Daemon {
-				windows.CloseHandle(process)
+				process.Close()
 				changes <- svc.Status{State: svc.StopPending}
 				return false, 0
 			}
@@ -78,31 +90,63 @@ func (pulseService) Execute(args []string, requests <-chan svc.ChangeRequest, ch
 	}
 }
 
-func launchConfiguredPulse() (windows.Handle, serviceConfig, error) {
-	config, err := readConfig()
+func parseRuntimeOptions(args []string) runtimeOptions {
+	options := runtimeOptions{serviceName: defaultServiceName, configFile: defaultConfigFile}
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		switch {
+		case arg == "run":
+			options.manualRun = true
+		case arg == "--service-name" && i+1 < len(args):
+			i++
+			options.serviceName = args[i]
+		case strings.HasPrefix(arg, "--service-name="):
+			options.serviceName = strings.TrimPrefix(arg, "--service-name=")
+		case arg == "--config" && i+1 < len(args):
+			i++
+			options.configFile = args[i]
+		case strings.HasPrefix(arg, "--config="):
+			options.configFile = strings.TrimPrefix(arg, "--config=")
+		}
+	}
+	if strings.TrimSpace(options.serviceName) == "" {
+		options.serviceName = defaultServiceName
+	}
+	if strings.TrimSpace(options.configFile) == "" {
+		options.configFile = defaultConfigFile
+	}
+	return options
+}
+
+func launchConfiguredProcess(configFile string) (*launchedProcess, serviceConfig, error) {
+	config, err := readConfig(configFile)
 	if err != nil {
-		return 0, config, err
+		return nil, config, err
 	}
 	if strings.TrimSpace(config.Executable) == "" {
-		return 0, config, fmt.Errorf("missing executable in %s", configFileName)
+		return nil, config, fmt.Errorf("missing executable in %s", configFile)
 	}
 	if _, err := os.Stat(config.Executable); err != nil {
-		return 0, config, err
+		return nil, config, err
 	}
 	workingDirectory := config.WorkingDirectory
 	if strings.TrimSpace(workingDirectory) == "" {
 		workingDirectory = filepath.Dir(config.Executable)
 	}
-	process, err := createProcessInActiveSession(config.Executable, workingDirectory, config.Arguments)
+	if config.UserSession {
+		process, err := createProcessInActiveSession(config.Executable, workingDirectory, config.Arguments)
+		return &launchedProcess{handle: process}, config, err
+	}
+	process, err := createProcessInServiceSession(config.Executable, workingDirectory, config.Arguments)
 	return process, config, err
 }
 
-func readConfig() (serviceConfig, error) {
+func readConfig(configFile string) (serviceConfig, error) {
 	executable, err := os.Executable()
 	if err != nil {
 		return serviceConfig{}, err
 	}
-	data, err := os.ReadFile(filepath.Join(filepath.Dir(executable), configFileName))
+	data, err := os.ReadFile(filepath.Join(filepath.Dir(executable), configFile))
 	if err != nil {
 		return serviceConfig{}, err
 	}
@@ -111,6 +155,35 @@ func readConfig() (serviceConfig, error) {
 		return serviceConfig{}, err
 	}
 	return config, nil
+}
+
+type launchedProcess struct {
+	handle windows.Handle
+	cmd    *exec.Cmd
+	done   chan error
+}
+
+func (p *launchedProcess) Close() {
+	if p == nil {
+		return
+	}
+	if p.handle != 0 {
+		windows.CloseHandle(p.handle)
+		p.handle = 0
+	}
+}
+
+func (p *launchedProcess) Kill() {
+	if p == nil {
+		return
+	}
+	if p.cmd != nil && p.cmd.Process != nil {
+		_ = p.cmd.Process.Kill()
+		return
+	}
+	if p.handle != 0 {
+		_ = windows.TerminateProcess(p.handle, 1)
+	}
 }
 
 func createProcessInActiveSession(executable, workingDirectory string, args []string) (windows.Handle, error) {
@@ -185,29 +258,61 @@ func createProcessInActiveSession(executable, workingDirectory string, args []st
 	return processInfo.Process, nil
 }
 
-func waitForPulseProcess(process windows.Handle, config serviceConfig, requests <-chan svc.ChangeRequest) bool {
-	defer windows.CloseHandle(process)
+func createProcessInServiceSession(executable, workingDirectory string, args []string) (*launchedProcess, error) {
+	cmd := exec.Command(executable, args...)
+	cmd.Dir = workingDirectory
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		HideWindow:    true,
+		CreationFlags: windows.CREATE_NEW_PROCESS_GROUP,
+	}
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	process := &launchedProcess{cmd: cmd, done: make(chan error, 1)}
+	go func() {
+		process.done <- cmd.Wait()
+	}()
+	return process, nil
+}
+
+func waitForPulseProcess(process *launchedProcess, config serviceConfig, requests <-chan svc.ChangeRequest) bool {
+	defer process.Close()
 	stopMarker := signalModTime(config.StopSignal)
 	for {
-		event, err := windows.WaitForSingleObject(process, 1000)
-		if err != nil {
-			writeLog("process wait failed: " + err.Error())
-			return false
-		}
-		if event == windows.WAIT_OBJECT_0 {
+		if processExited(process, time.Second) {
 			if signalModTime(config.StopSignal).After(stopMarker) {
 				writeLog("daemon stopped after user exit signal")
 				return true
 			}
-			writeLog("daemon restarting Pulse after exit")
+			writeLog("daemon restarting process after exit")
 			return false
 		}
 		select {
 		case request := <-requests:
-			return request.Cmd == svc.Stop || request.Cmd == svc.Shutdown
+			if request.Cmd == svc.Stop || request.Cmd == svc.Shutdown {
+				process.Kill()
+				return true
+			}
 		default:
 		}
 	}
+}
+
+func processExited(process *launchedProcess, timeout time.Duration) bool {
+	if process.cmd != nil {
+		select {
+		case <-process.done:
+			return true
+		case <-time.After(timeout):
+			return false
+		}
+	}
+	event, err := windows.WaitForSingleObject(process.handle, uint32(timeout/time.Millisecond))
+	if err != nil {
+		writeLog("process wait failed: " + err.Error())
+		return true
+	}
+	return event == windows.WAIT_OBJECT_0
 }
 
 func waitForRetry(requests <-chan svc.ChangeRequest, delay time.Duration) bool {

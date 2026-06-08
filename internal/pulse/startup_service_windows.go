@@ -8,7 +8,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"golang.org/x/sys/windows"
@@ -20,8 +22,12 @@ const (
 	startupServiceName        = "PulseStartupService"
 	startupServiceDisplayName = "Pulse Startup Service"
 	startupServiceDescription = "Starts Pulse for the active desktop user at boot."
+	coreServiceName           = "PulseCoreService"
+	coreServiceDisplayName    = "Pulse Core Service"
+	coreServiceDescription    = "Runs Pulse core with service privileges."
 	startupServiceExecutable  = "PulseStartupService.exe"
 	startupServiceConfigFile  = "pulse-startup-service.json"
+	coreServiceConfigFile     = "pulse-core-service.json"
 )
 
 type startupServiceConfig struct {
@@ -30,6 +36,7 @@ type startupServiceConfig struct {
 	Arguments        []string `json:"arguments"`
 	Daemon           bool     `json:"daemon"`
 	StopSignal       string   `json:"stopSignal"`
+	UserSession      bool     `json:"userSession"`
 	UpdatedAt        int64    `json:"updatedAt"`
 }
 
@@ -51,6 +58,7 @@ func syncStartupServicePayload(dataDir string, settings Settings) error {
 		Arguments:        []string{"--start-hidden"},
 		Daemon:           settings.AutoStartServiceDaemon,
 		StopSignal:       filepath.Join(dataDir, "pulse-service-stop.signal"),
+		UserSession:      true,
 		UpdatedAt:        time.Now().Unix(),
 	}
 	data, err := json.MarshalIndent(config, "", "  ")
@@ -104,6 +112,146 @@ func setServiceAutoStart(dataDir string, settings Settings, enabled bool) error 
 		return fmt.Errorf("update startup service: %w", err)
 	}
 	return nil
+}
+
+func startServiceCore(dataDir string, settings Settings, runtimeConfig string) error {
+	corePath, err := resolveCorePathStandalone(settings.CorePath)
+	if err != nil {
+		return err
+	}
+	servicePath, err := ensureStartupServiceExecutable(dataDir)
+	if err != nil {
+		return err
+	}
+	config := startupServiceConfig{
+		Executable:       corePath,
+		WorkingDirectory: filepath.Dir(corePath),
+		Arguments:        []string{"-d", dataDir, "-f", runtimeConfig},
+		Daemon:           true,
+		StopSignal:       filepath.Join(dataDir, "pulse-core-stop.signal"),
+		UserSession:      false,
+		UpdatedAt:        time.Now().Unix(),
+	}
+	data, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(filepath.Dir(servicePath), coreServiceConfigFile), data, 0o644); err != nil {
+		return err
+	}
+	if isProcessElevated() {
+		if err := ensureCoreServiceRegistered(servicePath); err != nil {
+			return err
+		}
+	}
+	return startRegisteredService(coreServiceName)
+}
+
+func stopServiceCore(dataDir string) error {
+	if dataDir != "" {
+		_ = os.WriteFile(filepath.Join(dataDir, "pulse-core-stop.signal"), []byte(fmt.Sprintf("%d", time.Now().UnixNano())), 0o644)
+	}
+	return stopRegisteredService(coreServiceName)
+}
+
+func ensureCoreServiceRegistered(servicePath string) error {
+	manager, err := mgr.Connect()
+	if err != nil {
+		return fmt.Errorf("connect service manager: %w", err)
+	}
+	defer manager.Disconnect()
+	config := mgr.Config{
+		ServiceType:    windows.SERVICE_WIN32_OWN_PROCESS,
+		StartType:      mgr.StartManual,
+		ErrorControl:   mgr.ErrorNormal,
+		DisplayName:    coreServiceDisplayName,
+		Description:    coreServiceDescription,
+		BinaryPathName: coreServiceBinaryPath(servicePath),
+	}
+	service, err := manager.OpenService(coreServiceName)
+	if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
+		service, err = manager.CreateService(coreServiceName, servicePath, config, "--service-name", coreServiceName, "--config", coreServiceConfigFile)
+	}
+	if err != nil {
+		return fmt.Errorf("open or create core service: %w", err)
+	}
+	defer service.Close()
+	if err := service.UpdateConfig(config); err != nil {
+		return fmt.Errorf("update core service: %w", err)
+	}
+	return nil
+}
+
+func coreServiceBinaryPath(servicePath string) string {
+	return strings.Join([]string{
+		quoteWindowsArg(servicePath),
+		"--service-name",
+		coreServiceName,
+		"--config",
+		coreServiceConfigFile,
+	}, " ")
+}
+
+func startRegisteredService(name string) error {
+	manager, err := mgr.Connect()
+	if err != nil {
+		return fmt.Errorf("connect service manager: %w", err)
+	}
+	defer manager.Disconnect()
+	service, err := manager.OpenService(name)
+	if err != nil {
+		return fmt.Errorf("open service %s: %w", name, err)
+	}
+	defer service.Close()
+	if err := service.Start(); err != nil && !errors.Is(err, windows.ERROR_SERVICE_ALREADY_RUNNING) {
+		return fmt.Errorf("start service %s: %w", name, err)
+	}
+	return nil
+}
+
+func stopRegisteredService(name string) error {
+	manager, err := mgr.Connect()
+	if err != nil {
+		return fmt.Errorf("connect service manager: %w", err)
+	}
+	defer manager.Disconnect()
+	service, err := manager.OpenService(name)
+	if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("open service %s: %w", name, err)
+	}
+	defer service.Close()
+	if _, err := service.Control(svc.Stop); err != nil && !errors.Is(err, windows.ERROR_SERVICE_NOT_ACTIVE) {
+		return fmt.Errorf("stop service %s: %w", name, err)
+	}
+	return nil
+}
+
+func resolveCorePathStandalone(corePath string) (string, error) {
+	corePath = strings.TrimSpace(corePath)
+	if corePath == "" {
+		corePath = defaultSettings().CorePath
+	}
+	if strings.ContainsAny(corePath, `/\`) {
+		candidates := []string{corePath}
+		if !filepath.IsAbs(corePath) {
+			if cwd, err := os.Getwd(); err == nil {
+				candidates = append(candidates, filepath.Join(cwd, corePath))
+			}
+			if exe, err := os.Executable(); err == nil {
+				candidates = append(candidates, filepath.Join(filepath.Dir(exe), corePath))
+			}
+		}
+		for _, candidate := range candidates {
+			if path, ok := existingFile(candidate); ok {
+				return path, nil
+			}
+		}
+		return "", fmt.Errorf("core not found: %s", corePath)
+	}
+	return exec.LookPath(corePath)
 }
 
 func uninstallStartupService(dataDir string) error {

@@ -122,6 +122,7 @@ export type RuntimeState = {
     coreFound: boolean;
     version: string;
     buildNumber: string;
+    platform: string;
     startedAt: number;
     dataDir: string;
     activeProfile: string;
@@ -303,6 +304,7 @@ export const emptySnapshot: RuntimeState = {
     coreFound: false,
     version: 'P0',
     buildNumber: '0',
+    platform: '',
     startedAt: 0,
     dataDir: '',
     activeProfile: '',

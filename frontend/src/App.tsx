@@ -206,8 +206,15 @@ function App() {
     const applySettings = useCallback((settings: Settings) => {
         const next = normalizeSettings(settings);
         setSettingsDraft(next);
-        setSettingsDirty(false);
+        setSettingsDirty(true);
         run(() => saveSettings(next), t('settingsApplied'));
+    }, [run, saveSettings, t]);
+
+    const commitSettings = useCallback((settings: Settings) => {
+        const next = normalizeSettings(settings);
+        setSettingsDraft(next);
+        setSettingsDirty(true);
+        run(() => saveSettings(next), t('settingsSaved'));
     }, [run, saveSettings, t]);
 
     useEffect(() => {
@@ -643,7 +650,7 @@ function App() {
                             setSettingsDirty(true);
                         }}
                         onApply={applySettings}
-                        onCommit={(settings) => run(() => saveSettings(settings), t('settingsSaved'))}
+                        onCommit={commitSettings}
                         onOpenDir={() => run(OpenDataDirectory)}
                         onChooseBackground={chooseBackground}
                         onClearBackground={clearBackground}

@@ -142,11 +142,10 @@ jobs:
           name="${{ steps.artifact.outputs.name }}"
           case "${{ matrix.kind }}" in
             windows)
-              cp "build/bin/$name" "release/$name"
+              (cd build/bin && zip -q "../../release/$name.zip" "$name")
               ;;
             linux)
               chmod +x "build/bin/$name"
-              cp "build/bin/$name" "release/$name"
               tar -C build/bin -czf "release/$name.tar.gz" "$name"
               ;;
             macos)
@@ -163,7 +162,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.artifact.outputs.name }}
-          path: release/*
+          path: |
+            release/*.zip
+            release/*.tar.gz
           if-no-files-found: error
 
   release:

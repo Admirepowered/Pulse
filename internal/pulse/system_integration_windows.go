@@ -3,14 +3,11 @@
 package pulse
 
 import (
-	"encoding/base64"
-	"encoding/binary"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
 	"syscall"
-	"unicode/utf16"
 
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
@@ -22,7 +19,6 @@ const (
 	startupValueName        = "Pulse"
 	startupTaskName         = "Pulse"
 	clashURLProtocolKeyPath = `Software\Classes\clash`
-	adminRelaunchArg        = "--pulse-admin-relaunch"
 )
 
 func setAutoStart(enabled bool) error {
@@ -172,18 +168,54 @@ func relaunchAsAdministrator() error {
 	if err != nil {
 		return err
 	}
-	args := append([]string{adminRelaunchArg}, os.Args[1:]...)
 	directory := filepathForShellExecute(executable)
-	script := fmt.Sprintf(
-		"$ErrorActionPreference='SilentlyContinue'; Wait-Process -Id %d -Timeout 15; Start-Process -FilePath %s -ArgumentList @(%s) -Verb RunAs -WorkingDirectory %s",
-		os.Getpid(),
+	script, err := writeAdminRelaunchScript(executable, directory, os.Args[1:])
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command("cmd.exe", "/C", "start", "", "/MIN", script)
+	setCoreProcessOptions(cmd)
+	return cmd.Start()
+}
+
+func writeAdminRelaunchScript(executable, directory string, args []string) (string, error) {
+	file, err := os.CreateTemp("", "pulse-admin-relaunch-*.cmd")
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	powerShellCommand := fmt.Sprintf(
+		"Start-Process -FilePath %s -ArgumentList @(%s) -WorkingDirectory %s -Verb RunAs",
 		powerShellString(executable),
 		powerShellStringList(args),
 		powerShellString(directory),
 	)
-	cmd := exec.Command("powershell.exe", "-NoProfile", "-WindowStyle", "Hidden", "-EncodedCommand", powerShellEncodedCommand(script))
-	setCoreProcessOptions(cmd)
-	return cmd.Start()
+	content := fmt.Sprintf(
+		`@echo off
+setlocal
+taskkill /PID %d /F >nul 2>nul
+:wait_process
+tasklist /FI "PID eq %d" | find "%d" >nul 2>nul
+if not errorlevel 1 (
+    timeout /t 1 /nobreak >nul
+    goto wait_process
+)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "%s"
+del "%%~f0" >nul 2>nul
+`,
+		os.Getpid(),
+		os.Getpid(),
+		os.Getpid(),
+		escapeBatchPercent(powerShellCommand),
+	)
+	if _, err := file.WriteString(content); err != nil {
+		return "", err
+	}
+	return file.Name(), nil
+}
+
+func escapeBatchPercent(value string) string {
+	return strings.ReplaceAll(value, "%", "%%")
 }
 
 func filepathForShellExecute(executable string) string {
@@ -214,13 +246,4 @@ func powerShellStringList(values []string) string {
 		quoted = append(quoted, powerShellString(value))
 	}
 	return strings.Join(quoted, ",")
-}
-
-func powerShellEncodedCommand(script string) string {
-	wide := utf16.Encode([]rune(script))
-	data := make([]byte, len(wide)*2)
-	for i, value := range wide {
-		binary.LittleEndian.PutUint16(data[i*2:], value)
-	}
-	return base64.StdEncoding.EncodeToString(data)
 }

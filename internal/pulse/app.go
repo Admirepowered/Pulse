@@ -19,6 +19,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	goruntime "runtime"
 	"sort"
@@ -105,28 +106,60 @@ type Store struct {
 }
 
 type Settings struct {
-	CorePath          string         `json:"corePath"`
-	CoreMode          string         `json:"coreMode"`
-	ApiBase           string         `json:"apiBase"`
-	Secret            string         `json:"secret"`
-	MixedPort         int            `json:"mixedPort"`
-	AllowLan          bool           `json:"allowLan"`
-	Mode              string         `json:"mode"`
-	LogLevel          string         `json:"logLevel"`
-	TunEnabled        bool           `json:"tunEnabled"`
-	TunInterface      string         `json:"tunInterface"`
-	SystemProxy       bool           `json:"systemProxy"`
-	DelayTestURL      string         `json:"delayTestUrl"`
-	Language          string         `json:"language"`
-	Theme             string         `json:"theme"`
-	AutoStart         bool           `json:"autoStart"`
-	AutoStartCore     bool           `json:"autoStartCore"`
-	CloseBehavior     string         `json:"closeBehavior"`
-	SubscriptionProxy bool           `json:"subscriptionProxy"`
-	BackgroundPath    string         `json:"backgroundPath"`
-	BackgroundBlur    int            `json:"backgroundBlur"`
-	BackgroundOpacity int            `json:"backgroundOpacity"`
-	WebDAV            WebDAVSettings `json:"webdav"`
+	CorePath             string         `json:"corePath"`
+	CoreMode             string         `json:"coreMode"`
+	ApiBase              string         `json:"apiBase"`
+	Secret               string         `json:"secret"`
+	MixedPort            int            `json:"mixedPort"`
+	AllowLan             bool           `json:"allowLan"`
+	Mode                 string         `json:"mode"`
+	LogLevel             string         `json:"logLevel"`
+	TunEnabled           bool           `json:"tunEnabled"`
+	TunInterface         string         `json:"tunInterface"`
+	TunStack             string         `json:"tunStack"`
+	TunAutoRoute         bool           `json:"tunAutoRoute"`
+	TunAutoRedirect      bool           `json:"tunAutoRedirect"`
+	TunAutoDetect        bool           `json:"tunAutoDetectInterface"`
+	TunDNSHijack         []string       `json:"tunDNSHijack"`
+	TunDevice            string         `json:"tunDevice"`
+	TunMTU               int            `json:"tunMTU"`
+	TunStrictRoute       bool           `json:"tunStrictRoute"`
+	TunGSO               bool           `json:"tunGSO"`
+	TunGSOMaxSize        int            `json:"tunGSOMaxSize"`
+	TunInet6Address      string         `json:"tunInet6Address"`
+	TunUDPTimeout        int            `json:"tunUDPTimeout"`
+	TunIPRoute2Table     int            `json:"tunIPRoute2TableIndex"`
+	TunIPRoute2Rule      int            `json:"tunIPRoute2RuleIndex"`
+	TunEINAT             bool           `json:"tunEndpointIndependentNAT"`
+	TunRouteSet          []string       `json:"tunRouteAddressSet"`
+	TunRouteExcludeSet   []string       `json:"tunRouteExcludeAddressSet"`
+	TunRouteAddress      []string       `json:"tunRouteAddress"`
+	TunRouteExclude      []string       `json:"tunRouteExcludeAddress"`
+	TunIncludeIF         []string       `json:"tunIncludeInterface"`
+	TunExcludeIF         []string       `json:"tunExcludeInterface"`
+	TunIncludeUID        []int          `json:"tunIncludeUID"`
+	TunIncludeUIDRange   []string       `json:"tunIncludeUIDRange"`
+	TunExcludeUID        []int          `json:"tunExcludeUID"`
+	TunExcludeUIDRange   []string       `json:"tunExcludeUIDRange"`
+	TunIncludeAndroid    []int          `json:"tunIncludeAndroidUser"`
+	TunIncludePackage    []string       `json:"tunIncludePackage"`
+	TunExcludePackage    []string       `json:"tunExcludePackage"`
+	TunInet4Route        []string       `json:"tunInet4RouteAddress"`
+	TunInet6Route        []string       `json:"tunInet6RouteAddress"`
+	TunInet4RouteExclude []string       `json:"tunInet4RouteExcludeAddress"`
+	TunInet6RouteExclude []string       `json:"tunInet6RouteExcludeAddress"`
+	SystemProxy          bool           `json:"systemProxy"`
+	DelayTestURL         string         `json:"delayTestUrl"`
+	Language             string         `json:"language"`
+	Theme                string         `json:"theme"`
+	AutoStart            bool           `json:"autoStart"`
+	AutoStartCore        bool           `json:"autoStartCore"`
+	CloseBehavior        string         `json:"closeBehavior"`
+	SubscriptionProxy    bool           `json:"subscriptionProxy"`
+	BackgroundPath       string         `json:"backgroundPath"`
+	BackgroundBlur       int            `json:"backgroundBlur"`
+	BackgroundOpacity    int            `json:"backgroundOpacity"`
+	WebDAV               WebDAVSettings `json:"webdav"`
 }
 
 type BackgroundImage struct {
@@ -483,6 +516,7 @@ func (a *App) initStore() error {
 	needsSave := strings.TrimSpace(a.store.Settings.Secret) == ""
 	missingAutoStartCore := !storeHasSetting(data, "autoStartCore")
 	missingBackgroundOpacity := !storeHasSetting(data, "backgroundOpacity")
+	missingTunDefaults := !storeHasSetting(data, "tunStack")
 	a.store.Settings = mergeSettings(a.store.Settings, defaultSettings())
 	if missingAutoStartCore {
 		a.store.Settings.AutoStartCore = true
@@ -490,7 +524,15 @@ func (a *App) initStore() error {
 	if missingBackgroundOpacity {
 		a.store.Settings.BackgroundOpacity = defaultSettings().BackgroundOpacity
 	}
-	if needsSave || missingAutoStartCore || missingBackgroundOpacity {
+	if missingTunDefaults {
+		defaults := defaultSettings()
+		a.store.Settings.TunStack = defaults.TunStack
+		a.store.Settings.TunAutoRoute = defaults.TunAutoRoute
+		a.store.Settings.TunAutoRedirect = defaults.TunAutoRedirect
+		a.store.Settings.TunAutoDetect = defaults.TunAutoDetect
+		a.store.Settings.TunDNSHijack = defaults.TunDNSHijack
+	}
+	if needsSave || missingAutoStartCore || missingBackgroundOpacity || missingTunDefaults {
 		return a.saveStoreLocked()
 	}
 	return nil
@@ -512,6 +554,11 @@ func defaultSettings() Settings {
 		Language:          "zh",
 		Theme:             "system",
 		TunEnabled:        false,
+		TunStack:          "mixed",
+		TunAutoRoute:      true,
+		TunAutoRedirect:   true,
+		TunAutoDetect:     true,
+		TunDNSHijack:      []string{"any:53", "tcp://any:53"},
 		DelayTestURL:      defaultDelayTestURL,
 		AutoStartCore:     true,
 		CloseBehavior:     "minimize",
@@ -550,6 +597,15 @@ func mergeSettings(current, defaults Settings) Settings {
 	}
 	if current.Theme == "" {
 		current.Theme = defaults.Theme
+	}
+	if current.TunStack == "" {
+		current.TunStack = defaults.TunStack
+	}
+	if len(current.TunDNSHijack) == 0 {
+		current.TunDNSHijack = defaults.TunDNSHijack
+	}
+	if len(current.TunIncludeIF) > 0 && len(current.TunExcludeIF) > 0 {
+		current.TunExcludeIF = nil
 	}
 	if current.CloseBehavior == "" {
 		current.CloseBehavior = defaults.CloseBehavior
@@ -813,15 +869,92 @@ func settingsRequireCoreRestart(previous, next Settings) bool {
 		previous.ApiBase != next.ApiBase ||
 		previous.Secret != next.Secret ||
 		previous.MixedPort != next.MixedPort ||
-		previous.TunEnabled != next.TunEnabled ||
-		previous.TunInterface != next.TunInterface
+		tunSettingsChanged(previous, next)
 }
 
 func settingsNeedTunAdmin(previous, next Settings, running bool) bool {
 	if !next.TunEnabled {
 		return false
 	}
-	return running || !previous.TunEnabled || previous.TunInterface != next.TunInterface
+	return running || !previous.TunEnabled || tunSettingsChanged(previous, next)
+}
+
+func tunSettingsChanged(previous, next Settings) bool {
+	return !reflect.DeepEqual(tunSettingsSnapshot(previous), tunSettingsSnapshot(next))
+}
+
+func tunSettingsSnapshot(settings Settings) any {
+	return struct {
+		Enabled           bool
+		Interface         string
+		Stack             string
+		AutoRoute         bool
+		AutoRedirect      bool
+		AutoDetect        bool
+		DNSHijack         []string
+		Device            string
+		MTU               int
+		StrictRoute       bool
+		GSO               bool
+		GSOMaxSize        int
+		Inet6Address      string
+		UDPTimeout        int
+		IPRoute2Table     int
+		IPRoute2Rule      int
+		EINAT             bool
+		RouteSet          []string
+		RouteExcludeSet   []string
+		RouteAddress      []string
+		RouteExclude      []string
+		IncludeIF         []string
+		ExcludeIF         []string
+		IncludeUID        []int
+		IncludeUIDRange   []string
+		ExcludeUID        []int
+		ExcludeUIDRange   []string
+		IncludeAndroid    []int
+		IncludePackage    []string
+		ExcludePackage    []string
+		Inet4Route        []string
+		Inet6Route        []string
+		Inet4RouteExclude []string
+		Inet6RouteExclude []string
+	}{
+		Enabled:           settings.TunEnabled,
+		Interface:         strings.TrimSpace(settings.TunInterface),
+		Stack:             strings.TrimSpace(settings.TunStack),
+		AutoRoute:         settings.TunAutoRoute,
+		AutoRedirect:      settings.TunAutoRedirect,
+		AutoDetect:        settings.TunAutoDetect,
+		DNSHijack:         settings.TunDNSHijack,
+		Device:            strings.TrimSpace(settings.TunDevice),
+		MTU:               settings.TunMTU,
+		StrictRoute:       settings.TunStrictRoute,
+		GSO:               settings.TunGSO,
+		GSOMaxSize:        settings.TunGSOMaxSize,
+		Inet6Address:      strings.TrimSpace(settings.TunInet6Address),
+		UDPTimeout:        settings.TunUDPTimeout,
+		IPRoute2Table:     settings.TunIPRoute2Table,
+		IPRoute2Rule:      settings.TunIPRoute2Rule,
+		EINAT:             settings.TunEINAT,
+		RouteSet:          settings.TunRouteSet,
+		RouteExcludeSet:   settings.TunRouteExcludeSet,
+		RouteAddress:      settings.TunRouteAddress,
+		RouteExclude:      settings.TunRouteExclude,
+		IncludeIF:         settings.TunIncludeIF,
+		ExcludeIF:         settings.TunExcludeIF,
+		IncludeUID:        settings.TunIncludeUID,
+		IncludeUIDRange:   settings.TunIncludeUIDRange,
+		ExcludeUID:        settings.TunExcludeUID,
+		ExcludeUIDRange:   settings.TunExcludeUIDRange,
+		IncludeAndroid:    settings.TunIncludeAndroid,
+		IncludePackage:    settings.TunIncludePackage,
+		ExcludePackage:    settings.TunExcludePackage,
+		Inet4Route:        settings.TunInet4Route,
+		Inet6Route:        settings.TunInet6Route,
+		Inet4RouteExclude: settings.TunInet4RouteExclude,
+		Inet6RouteExclude: settings.TunInet6RouteExclude,
+	}
 }
 
 func settingsRequireRuntimeApply(previous, next Settings) bool {
@@ -1686,13 +1819,102 @@ func (a *App) applyRuntimeSettings(settings Settings) error {
 
 func tunConfigMap(settings Settings) map[string]any {
 	config := map[string]any{
-		"enable":                settings.TunEnabled,
-		"stack":                 "gvisor",
-		"dns-hijack":            []string{"any:53"},
-		"auto-route":            true,
-		"auto-detect-interface": true,
+		"enable":                   settings.TunEnabled,
+		"stack":                    normalizedTunStack(settings.TunStack),
+		"dns-hijack":               nonEmptyStrings(settings.TunDNSHijack),
+		"auto-route":               settings.TunAutoRoute,
+		"auto-redirect":            settings.TunAutoRedirect,
+		"auto-detect-interface":    settings.TunAutoDetect,
+		"strict-route":             settings.TunStrictRoute,
+		"endpoint-independent-nat": settings.TunEINAT,
 	}
+	addOptionalString(config, "device", settings.TunDevice)
+	addOptionalInt(config, "mtu", settings.TunMTU)
+	addOptionalBool(config, "gso", settings.TunGSO)
+	addOptionalInt(config, "gso-max-size", settings.TunGSOMaxSize)
+	addOptionalString(config, "inet6-address", settings.TunInet6Address)
+	addOptionalInt(config, "udp-timeout", settings.TunUDPTimeout)
+	addOptionalInt(config, "iproute2-table-index", settings.TunIPRoute2Table)
+	addOptionalInt(config, "iproute2-rule-index", settings.TunIPRoute2Rule)
+	addOptionalStringSlice(config, "route-address-set", settings.TunRouteSet)
+	addOptionalStringSlice(config, "route-exclude-address-set", settings.TunRouteExcludeSet)
+	addOptionalStringSlice(config, "route-address", settings.TunRouteAddress)
+	addOptionalStringSlice(config, "route-exclude-address", settings.TunRouteExclude)
+	includeIF := nonEmptyStrings(settings.TunIncludeIF)
+	if len(includeIF) == 0 && strings.TrimSpace(settings.TunInterface) != "" {
+		includeIF = []string{strings.TrimSpace(settings.TunInterface)}
+	}
+	addOptionalStringSlice(config, "include-interface", includeIF)
+	if len(includeIF) == 0 {
+		addOptionalStringSlice(config, "exclude-interface", settings.TunExcludeIF)
+	}
+	addOptionalIntSlice(config, "include-uid", settings.TunIncludeUID)
+	addOptionalStringSlice(config, "include-uid-range", settings.TunIncludeUIDRange)
+	addOptionalIntSlice(config, "exclude-uid", settings.TunExcludeUID)
+	addOptionalStringSlice(config, "exclude-uid-range", settings.TunExcludeUIDRange)
+	addOptionalIntSlice(config, "include-android-user", settings.TunIncludeAndroid)
+	addOptionalStringSlice(config, "include-package", settings.TunIncludePackage)
+	addOptionalStringSlice(config, "exclude-package", settings.TunExcludePackage)
+	addOptionalStringSlice(config, "inet4-route-address", settings.TunInet4Route)
+	addOptionalStringSlice(config, "inet6-route-address", settings.TunInet6Route)
+	addOptionalStringSlice(config, "inet4-route-exclude-address", settings.TunInet4RouteExclude)
+	addOptionalStringSlice(config, "inet6-route-exclude-address", settings.TunInet6RouteExclude)
 	return config
+}
+
+func normalizedTunStack(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "system", "gvisor", "mixed":
+		return strings.ToLower(strings.TrimSpace(value))
+	default:
+		return "mixed"
+	}
+}
+
+func addOptionalString(config map[string]any, key string, value string) {
+	if value = strings.TrimSpace(value); value != "" {
+		config[key] = value
+	}
+}
+
+func addOptionalInt(config map[string]any, key string, value int) {
+	if value > 0 {
+		config[key] = value
+	}
+}
+
+func addOptionalBool(config map[string]any, key string, value bool) {
+	if value {
+		config[key] = true
+	}
+}
+
+func addOptionalStringSlice(config map[string]any, key string, values []string) {
+	if out := nonEmptyStrings(values); len(out) > 0 {
+		config[key] = out
+	}
+}
+
+func addOptionalIntSlice(config map[string]any, key string, values []int) {
+	out := make([]int, 0, len(values))
+	for _, value := range values {
+		if value >= 0 {
+			out = append(out, value)
+		}
+	}
+	if len(out) > 0 {
+		config[key] = out
+	}
+}
+
+func nonEmptyStrings(values []string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value != "" {
+			out = append(out, value)
+		}
+	}
+	return out
 }
 
 func (a *App) isEmbeddedCoreRunning() bool {
@@ -2147,23 +2369,14 @@ func mergeRuntimeConfig(content []byte, settings Settings, controller string, cu
 	setYAMLScalar(root, "log-level", normalizeLogLevel(settings.LogLevel))
 	setYAMLScalar(root, "external-controller", controller)
 	setYAMLScalar(root, "secret", settings.Secret)
-	if name := strings.TrimSpace(settings.TunInterface); name != "" {
-		setYAMLScalar(root, "interface-name", name)
-	} else {
-		deleteYAMLKey(root, "interface-name")
+	if strings.TrimSpace(settings.TunInet6Address) != "" {
+		setYAMLScalar(root, "ipv6", true)
 	}
+	deleteYAMLKey(root, "interface-name")
 
-	tun := yamlMappingValue(root, "tun")
-	if tun == nil || tun.Kind != yaml.MappingNode {
-		tun = &yaml.Node{Kind: yaml.MappingNode}
-		setYAMLNode(root, "tun", tun)
-	}
-	setYAMLScalar(tun, "enable", settings.TunEnabled)
-	setYAMLScalar(tun, "stack", "gvisor")
-	setYAMLStringSequence(tun, "dns-hijack", []string{"any:53"})
-	setYAMLScalar(tun, "auto-route", true)
-	setYAMLScalar(tun, "auto-detect-interface", true)
-	deleteYAMLKey(tun, "interface-name")
+	tun := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+	writeTunYAML(tun, settings)
+	setYAMLNode(root, "tun", tun)
 	prependRules(root, customRules)
 
 	var output bytes.Buffer
@@ -2177,6 +2390,33 @@ func mergeRuntimeConfig(content []byte, settings Settings, controller string, cu
 		return nil, err
 	}
 	return output.Bytes(), nil
+}
+
+func writeTunYAML(tun *yaml.Node, settings Settings) {
+	config := tunConfigMap(settings)
+	keys := []string{
+		"enable", "stack", "auto-route", "auto-redirect", "auto-detect-interface", "dns-hijack",
+		"device", "mtu", "strict-route", "gso", "gso-max-size", "inet6-address", "udp-timeout",
+		"iproute2-table-index", "iproute2-rule-index", "endpoint-independent-nat",
+		"route-address-set", "route-exclude-address-set", "route-address", "route-exclude-address",
+		"include-interface", "exclude-interface", "include-uid", "include-uid-range", "exclude-uid",
+		"exclude-uid-range", "include-android-user", "include-package", "exclude-package",
+		"inet4-route-address", "inet6-route-address", "inet4-route-exclude-address", "inet6-route-exclude-address",
+	}
+	for _, key := range keys {
+		value, ok := config[key]
+		if !ok {
+			continue
+		}
+		switch typed := value.(type) {
+		case []string:
+			setYAMLStringSequence(tun, key, typed)
+		case []int:
+			setYAMLIntSequence(tun, key, typed)
+		default:
+			setYAMLScalar(tun, key, typed)
+		}
+	}
 }
 
 func normalizeCustomRuleRows(rules []CustomRule) []CustomRule {
@@ -2264,6 +2504,14 @@ func setYAMLStringSequence(mapping *yaml.Node, key string, values []string) {
 	node := &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
 	for _, value := range values {
 		node.Content = append(node.Content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: value})
+	}
+	setYAMLNode(mapping, key, node)
+}
+
+func setYAMLIntSequence(mapping *yaml.Node, key string, values []int) {
+	node := &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
+	for _, value := range values {
+		node.Content = append(node.Content, yamlScalar(value))
 	}
 	setYAMLNode(mapping, key, node)
 }

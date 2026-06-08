@@ -95,14 +95,16 @@ import {
     type TabId,
     type UpdateInfo,
 } from './types';
+import {TunPage} from './pages/TunPage';
 
-const tabs: { id: TabId; labelKey: Parameters<ReturnType<typeof getTranslator>>[0]; icon: typeof Gauge }[] = [
+const tabs: { id: TabId; labelKey?: Parameters<ReturnType<typeof getTranslator>>[0]; label?: string; icon: typeof Gauge }[] = [
     {id: 'dashboard', labelKey: 'dashboard', icon: Gauge},
     {id: 'proxies', labelKey: 'proxies', icon: Network},
     {id: 'profiles', labelKey: 'profiles', icon: Cloud},
     {id: 'rules', labelKey: 'rules', icon: ListChecks},
     {id: 'connections', labelKey: 'connections', icon: Activity},
     {id: 'logs', labelKey: 'logs', icon: Bug},
+    {id: 'tun', label: 'TUN', icon: Shield},
     {id: 'settings', labelKey: 'settings', icon: SettingsIcon},
 ];
 
@@ -159,7 +161,7 @@ function App() {
         if (activeTab === 'proxies') setGroups(await FetchProxyGroups() as ProxyGroup[]);
         if (activeTab === 'rules') setRules(await FetchRules() as RuleRow[]);
         if (activeTab === 'profiles') setProviders(await FetchProviders() as ProviderRow[]);
-        if (activeTab === 'settings') {
+        if (activeTab === 'settings' || activeTab === 'tun') {
             const [nextBackgrounds, nextInterfaces] = await Promise.all([
                 ListBackgroundImages() as Promise<BackgroundImage[]>,
                 ListNetworkInterfaces() as Promise<NetworkInterface[]>,
@@ -525,7 +527,7 @@ function App() {
                                 setSidebarFocused(false);
                             }}>
                                 <Icon size={18}/>
-                                <span>{t(item.labelKey)}</span>
+                                <span>{item.label || (item.labelKey ? t(item.labelKey) : item.id)}</span>
                             </button>
                         );
                     })}
@@ -540,7 +542,7 @@ function App() {
             <section className="workspace">
                 <header className="topbar">
                     <div className="topbarTitle">
-                        <h1>{t(tabs.find((item) => item.id === tab)?.labelKey || 'dashboard')}</h1>
+                        <h1>{tabs.find((item) => item.id === tab)?.label || t(tabs.find((item) => item.id === tab)?.labelKey || 'dashboard')}</h1>
                         <p>{snapshot.activeProfile || 'Direct'}</p>
                     </div>
                     <div className="actions">
@@ -677,11 +679,22 @@ function App() {
 
                 {tab === 'logs' && <LogsPage logs={logs.length ? logs : snapshot.recentLogs}/>}
 
+                {tab === 'tun' && (
+                    <TunPage
+                        settings={settingsDraft}
+                        interfaces={networkInterfaces}
+                        onChange={(settings) => {
+                            setSettingsDraft(settings);
+                            setSettingsDirty(true);
+                        }}
+                        onCommit={commitSettings}
+                    />
+                )}
+
                 {tab === 'settings' && (
                     <SettingsPage
                         settings={settingsDraft}
                         backgrounds={backgrounds}
-                        interfaces={networkInterfaces}
                         t={t}
                         onChange={(settings) => {
                             setSettingsDraft(settings);

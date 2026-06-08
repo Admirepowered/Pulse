@@ -1,4 +1,4 @@
-export type TabId = 'dashboard' | 'proxies' | 'profiles' | 'rules' | 'connections' | 'logs' | 'settings';
+export type TabId = 'dashboard' | 'proxies' | 'profiles' | 'rules' | 'connections' | 'logs' | 'tun' | 'settings';
 
 export type WebDAVSettings = {
     enabled: boolean;
@@ -18,6 +18,38 @@ export type Settings = {
     logLevel: string;
     tunEnabled: boolean;
     tunInterface: string;
+    tunStack: string;
+    tunAutoRoute: boolean;
+    tunAutoRedirect: boolean;
+    tunAutoDetectInterface: boolean;
+    tunDNSHijack: string[];
+    tunDevice: string;
+    tunMTU: number;
+    tunStrictRoute: boolean;
+    tunGSO: boolean;
+    tunGSOMaxSize: number;
+    tunInet6Address: string;
+    tunUDPTimeout: number;
+    tunIPRoute2TableIndex: number;
+    tunIPRoute2RuleIndex: number;
+    tunEndpointIndependentNAT: boolean;
+    tunRouteAddressSet: string[];
+    tunRouteExcludeAddressSet: string[];
+    tunRouteAddress: string[];
+    tunRouteExcludeAddress: string[];
+    tunIncludeInterface: string[];
+    tunExcludeInterface: string[];
+    tunIncludeUID: number[];
+    tunIncludeUIDRange: string[];
+    tunExcludeUID: number[];
+    tunExcludeUIDRange: string[];
+    tunIncludeAndroidUser: number[];
+    tunIncludePackage: string[];
+    tunExcludePackage: string[];
+    tunInet4RouteAddress: string[];
+    tunInet6RouteAddress: string[];
+    tunInet4RouteExcludeAddress: string[];
+    tunInet6RouteExcludeAddress: string[];
     systemProxy: boolean;
     delayTestUrl: string;
     language: string;
@@ -193,6 +225,38 @@ export const emptySettings: Settings = {
     logLevel: 'info',
     tunEnabled: false,
     tunInterface: '',
+    tunStack: 'mixed',
+    tunAutoRoute: true,
+    tunAutoRedirect: true,
+    tunAutoDetectInterface: true,
+    tunDNSHijack: ['any:53', 'tcp://any:53'],
+    tunDevice: '',
+    tunMTU: 0,
+    tunStrictRoute: false,
+    tunGSO: false,
+    tunGSOMaxSize: 0,
+    tunInet6Address: '',
+    tunUDPTimeout: 0,
+    tunIPRoute2TableIndex: 0,
+    tunIPRoute2RuleIndex: 0,
+    tunEndpointIndependentNAT: false,
+    tunRouteAddressSet: [],
+    tunRouteExcludeAddressSet: [],
+    tunRouteAddress: [],
+    tunRouteExcludeAddress: [],
+    tunIncludeInterface: [],
+    tunExcludeInterface: [],
+    tunIncludeUID: [],
+    tunIncludeUIDRange: [],
+    tunExcludeUID: [],
+    tunExcludeUIDRange: [],
+    tunIncludeAndroidUser: [],
+    tunIncludePackage: [],
+    tunExcludePackage: [],
+    tunInet4RouteAddress: [],
+    tunInet6RouteAddress: [],
+    tunInet4RouteExcludeAddress: [],
+    tunInet6RouteExcludeAddress: [],
     systemProxy: false,
     delayTestUrl: 'https://www.gstatic.com/generate_204',
     language: 'zh',
@@ -244,13 +308,43 @@ export const emptySnapshot: RuntimeState = {
 };
 
 export function normalizeSettings(settings?: Partial<Settings>): Settings {
-    return {
+    const next = {
         ...emptySettings,
         ...(settings || {}),
         logLevel: settings?.logLevel || 'info',
         language: settings?.language || 'zh',
         webdav: {...emptySettings.webdav, ...(settings?.webdav || {})},
     };
+    return {
+        ...next,
+        tunStack: next.tunStack || 'mixed',
+        tunDNSHijack: stringList(next.tunDNSHijack, emptySettings.tunDNSHijack),
+        tunRouteAddressSet: stringList(next.tunRouteAddressSet),
+        tunRouteExcludeAddressSet: stringList(next.tunRouteExcludeAddressSet),
+        tunRouteAddress: stringList(next.tunRouteAddress),
+        tunRouteExcludeAddress: stringList(next.tunRouteExcludeAddress),
+        tunIncludeInterface: stringList(next.tunIncludeInterface),
+        tunExcludeInterface: stringList(next.tunExcludeInterface),
+        tunIncludeUID: numberList(next.tunIncludeUID),
+        tunIncludeUIDRange: stringList(next.tunIncludeUIDRange),
+        tunExcludeUID: numberList(next.tunExcludeUID),
+        tunExcludeUIDRange: stringList(next.tunExcludeUIDRange),
+        tunIncludeAndroidUser: numberList(next.tunIncludeAndroidUser),
+        tunIncludePackage: stringList(next.tunIncludePackage),
+        tunExcludePackage: stringList(next.tunExcludePackage),
+        tunInet4RouteAddress: stringList(next.tunInet4RouteAddress),
+        tunInet6RouteAddress: stringList(next.tunInet6RouteAddress),
+        tunInet4RouteExcludeAddress: stringList(next.tunInet4RouteExcludeAddress),
+        tunInet6RouteExcludeAddress: stringList(next.tunInet6RouteExcludeAddress),
+    };
+}
+
+function stringList(value: unknown, fallback: string[] = []) {
+    return Array.isArray(value) ? value.map(String).filter(Boolean) : fallback;
+}
+
+function numberList(value: unknown) {
+    return Array.isArray(value) ? value.map(Number).filter(Number.isInteger) : [];
 }
 
 export function normalizeSnapshot(snapshot: Partial<RuntimeState>): RuntimeState {

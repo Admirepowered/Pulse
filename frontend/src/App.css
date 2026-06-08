@@ -1456,6 +1456,42 @@ textarea {
     gap: 12px;
 }
 
+.tunPage {
+    grid-row: 3;
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(320px, .9fr);
+    gap: 14px;
+    overflow-y: auto;
+}
+
+.tunPrimaryPanel {
+    grid-row: span 2;
+}
+
+.tunToggleGrid,
+.tunFieldGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 10px 14px;
+}
+
+.tunDetails {
+    display: block;
+}
+
+.tunDetails > summary {
+    min-height: 34px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    color: #17202a;
+    font-weight: 700;
+}
+
+.tunDetails > .formPanel {
+    margin-top: 12px;
+}
+
 .toggle {
     min-height: 34px;
     display: flex;
@@ -1807,6 +1843,7 @@ textarea {
     }
 
     .split,
+    .tunPage,
     .metricGrid,
     .connectionStats {
         grid-template-columns: 1fr;

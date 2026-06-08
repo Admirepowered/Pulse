@@ -2,14 +2,12 @@ import {Download} from 'lucide-react';
 import {AppearanceSettingsPanel} from './settings/AppearanceSettingsPanel';
 import {CoreSettingsPanel} from './settings/CoreSettingsPanel';
 import {SyncSettingsPanel} from './settings/SyncSettingsPanel';
-import {TunSettingsPanel} from './settings/TunSettingsPanel';
 import type {Translator} from '../i18n';
-import type {BackgroundImage, NetworkInterface, Settings} from '../types';
+import type {BackgroundImage, Settings} from '../types';
 
-export function SettingsPage({settings, backgrounds, interfaces, t, onChange, onApply, onCommit, onOpenDir, onChooseBackground, onClearBackground, onSelectBackground, onDeleteBackground, onCheckUpdates}: {
+export function SettingsPage({settings, backgrounds, t, onChange, onApply, onCommit, onOpenDir, onChooseBackground, onClearBackground, onSelectBackground, onDeleteBackground, onCheckUpdates}: {
     settings: Settings;
     backgrounds: BackgroundImage[];
-    interfaces: NetworkInterface[];
     t: Translator;
     onChange: (settings: Settings) => void;
     onApply: (settings: Settings) => void;
@@ -43,7 +41,6 @@ export function SettingsPage({settings, backgrounds, interfaces, t, onChange, on
                     onSelectBackground={onSelectBackground}
                     onDeleteBackground={onDeleteBackground}
                 />
-                <TunSettingsPanel settings={settings} interfaces={interfaces} t={t} onApply={onApply}/>
                 <SyncSettingsPanel
                     settings={settings}
                     t={t}

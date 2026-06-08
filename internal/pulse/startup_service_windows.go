@@ -37,6 +37,11 @@ type startupServiceConfig struct {
 	Daemon           bool     `json:"daemon"`
 	StopSignal       string   `json:"stopSignal"`
 	UserSession      bool     `json:"userSession"`
+	EmbeddedCore     bool     `json:"embeddedCore"`
+	DataDir          string   `json:"dataDir"`
+	RuntimeConfig    string   `json:"runtimeConfig"`
+	ApiBase          string   `json:"apiBase"`
+	Secret           string   `json:"secret"`
 	UpdatedAt        int64    `json:"updatedAt"`
 }
 
@@ -115,21 +120,20 @@ func setServiceAutoStart(dataDir string, settings Settings, enabled bool) error 
 }
 
 func startServiceCore(dataDir string, settings Settings, runtimeConfig string) error {
-	corePath, err := resolveCorePathStandalone(settings.CorePath)
-	if err != nil {
-		return err
-	}
 	servicePath, err := ensureStartupServiceExecutable(dataDir)
 	if err != nil {
 		return err
 	}
 	config := startupServiceConfig{
-		Executable:       corePath,
-		WorkingDirectory: filepath.Dir(corePath),
-		Arguments:        []string{"-d", dataDir, "-f", runtimeConfig},
+		WorkingDirectory: dataDir,
 		Daemon:           true,
 		StopSignal:       filepath.Join(dataDir, "pulse-core-stop.signal"),
 		UserSession:      false,
+		EmbeddedCore:     true,
+		DataDir:          dataDir,
+		RuntimeConfig:    runtimeConfig,
+		ApiBase:          settings.ApiBase,
+		Secret:           settings.Secret,
 		UpdatedAt:        time.Now().Unix(),
 	}
 	data, err := json.MarshalIndent(config, "", "  ")

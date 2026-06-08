@@ -43,7 +43,7 @@ export function CoreSettingsPanel({settings, platform, t, onDraft, onCommit, onA
                     </button>
                 ))}
             </div>
-            {(settings.coreMode === 'custom' || settings.coreMode === 'service') && (
+            {settings.coreMode === 'custom' && (
                 <>
                     <AutoSaveField label={t('mihomoPath')} value={settings.corePath} onDraft={(value) => draft('corePath', value)} onCommit={(value) => commit('corePath', value)}/>
                     <AutoSaveField label={t('apiAddress')} value={settings.apiBase} onDraft={(value) => draft('apiBase', value)} onCommit={(value) => commit('apiBase', value)}/>

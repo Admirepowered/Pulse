@@ -2388,7 +2388,7 @@ func (a *App) corePathExists(corePath string) bool {
 
 func (a *App) coreAvailable(settings Settings) bool {
 	if settings.CoreMode == "service" && goruntime.GOOS == "windows" {
-		return a.corePathExists(settings.CorePath)
+		return true
 	}
 	if settings.CoreMode != "custom" {
 		return true

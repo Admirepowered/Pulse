@@ -5,6 +5,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,6 +14,12 @@ import (
 	"time"
 	"unsafe"
 
+	mihomoConfig "github.com/metacubex/mihomo/config"
+	mihomoConstant "github.com/metacubex/mihomo/constant"
+	"github.com/metacubex/mihomo/hub"
+	"github.com/metacubex/mihomo/hub/executor"
+	"github.com/metacubex/mihomo/hub/route"
+	mihomoLog "github.com/metacubex/mihomo/log"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/svc"
 )
@@ -30,6 +37,11 @@ type serviceConfig struct {
 	Daemon           bool     `json:"daemon"`
 	StopSignal       string   `json:"stopSignal"`
 	UserSession      bool     `json:"userSession"`
+	EmbeddedCore     bool     `json:"embeddedCore"`
+	DataDir          string   `json:"dataDir"`
+	RuntimeConfig    string   `json:"runtimeConfig"`
+	ApiBase          string   `json:"apiBase"`
+	Secret           string   `json:"secret"`
 	UpdatedAt        int64    `json:"updatedAt"`
 }
 
@@ -65,6 +77,22 @@ func (s pulseService) Execute(args []string, requests <-chan svc.ChangeRequest, 
 
 	lastError := ""
 	for {
+		config, err := readConfig(s.configFile)
+		if err == nil && config.EmbeddedCore {
+			if err := runEmbeddedCore(config, requests); err != nil {
+				if message := err.Error(); message != lastError {
+					writeLog("embedded core failed: " + message)
+					lastError = message
+				}
+				if shouldStop := waitForRetry(requests, 2*time.Second); shouldStop {
+					changes <- svc.Status{State: svc.StopPending}
+					return false, 0
+				}
+				continue
+			}
+			changes <- svc.Status{State: svc.StopPending}
+			return false, 0
+		}
 		process, config, err := launchConfiguredProcess(s.configFile)
 		if err == nil {
 			writeLog("launch requested")
@@ -123,6 +151,9 @@ func launchConfiguredProcess(configFile string) (*launchedProcess, serviceConfig
 	if err != nil {
 		return nil, config, err
 	}
+	if config.EmbeddedCore {
+		return nil, config, fmt.Errorf("embedded core config cannot be launched as a child process")
+	}
 	if strings.TrimSpace(config.Executable) == "" {
 		return nil, config, fmt.Errorf("missing executable in %s", configFile)
 	}
@@ -155,6 +186,71 @@ func readConfig(configFile string) (serviceConfig, error) {
 		return serviceConfig{}, err
 	}
 	return config, nil
+}
+
+func runEmbeddedCore(config serviceConfig, requests <-chan svc.ChangeRequest) error {
+	if strings.TrimSpace(config.DataDir) == "" {
+		return fmt.Errorf("missing dataDir in %s", defaultConfigFile)
+	}
+	if strings.TrimSpace(config.RuntimeConfig) == "" {
+		return fmt.Errorf("missing runtimeConfig in %s", defaultConfigFile)
+	}
+	configBytes, err := os.ReadFile(config.RuntimeConfig)
+	if err != nil {
+		return err
+	}
+	stopLogForwarder := startMihomoLogForwarder()
+	defer stopLogForwarder()
+
+	mihomoConstant.SetHomeDir(config.DataDir)
+	mihomoConstant.SetConfig(config.RuntimeConfig)
+	if err := mihomoConfig.Init(mihomoConstant.Path.HomeDir()); err != nil {
+		return err
+	}
+	route.SetEmbedMode(true)
+	controller := "127.0.0.1:9090"
+	if parsed, err := url.Parse(config.ApiBase); err == nil && parsed.Host != "" {
+		controller = parsed.Host
+	}
+	if err := hub.Parse(configBytes, hub.WithExternalController(controller), hub.WithSecret(config.Secret)); err != nil {
+		return err
+	}
+	writeLog("embedded core started")
+	waitForEmbeddedCoreStop(config, requests)
+	route.ReCreateServer(&route.Config{})
+	executor.Shutdown()
+	writeLog("embedded core stopped")
+	return nil
+}
+
+func startMihomoLogForwarder() func() {
+	sub := mihomoLog.Subscribe()
+	go func() {
+		for event := range sub {
+			writeLog("mihomo " + event.Type() + ": " + event.Payload)
+		}
+	}()
+	return func() {
+		mihomoLog.UnSubscribe(sub)
+	}
+}
+
+func waitForEmbeddedCoreStop(config serviceConfig, requests <-chan svc.ChangeRequest) {
+	stopMarker := signalModTime(config.StopSignal)
+	for {
+		if signalModTime(config.StopSignal).After(stopMarker) {
+			writeLog("embedded core stop signal received")
+			return
+		}
+		select {
+		case request := <-requests:
+			if request.Cmd == svc.Stop || request.Cmd == svc.Shutdown {
+				writeLog("embedded core service stop received")
+				return
+			}
+		case <-time.After(time.Second):
+		}
+	}
 }
 
 type launchedProcess struct {

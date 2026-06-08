@@ -20,7 +20,7 @@ export function DashboardPage({snapshot, connections, t, onRestart, onOpenMihomo
     const coreLabel = snapshot.settings.coreMode === 'embedded'
         ? t('embedded')
         : snapshot.settings.coreMode === 'service'
-            ? `${t('serviceCore')} · ${snapshot.settings.corePath}`
+            ? t('serviceCore')
             : snapshot.settings.corePath;
 
     useEffect(() => {

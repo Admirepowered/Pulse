@@ -25,3 +25,11 @@ func isProcessElevated() bool {
 func relaunchAsAdministrator() error {
 	return nil
 }
+
+// relaunchAsAdministratorWithArgs is unreachable on non-Windows because
+// isProcessElevated() always returns true there (the surrounding caller
+// only triggers the relaunch when not elevated). The stub exists so
+// app.go compiles cross-platform.
+func relaunchAsAdministratorWithArgs(extraArgs []string) error {
+	return nil
+}

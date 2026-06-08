@@ -223,6 +223,7 @@ func (a *App) quitForUpdate() error {
 func pickUpdateAsset(release githubRelease) releaseAsset {
 	wantOS := goruntime.GOOS
 	wantArch := goruntime.GOARCH
+	wantVariant := preferredUpdateVariant()
 	var fallback releaseAsset
 	fallbackPriority := 99
 	for _, candidate := range release.Assets {
@@ -230,7 +231,7 @@ func pickUpdateAsset(release githubRelease) releaseAsset {
 		if !matchesRuntimeOS(name, wantOS) || !strings.Contains(name, wantArch) {
 			continue
 		}
-		priority, ok := updateAssetPriority(name)
+		priority, ok := updateAssetPriority(name, wantVariant)
 		if !ok {
 			continue
 		}
@@ -245,6 +246,20 @@ func pickUpdateAsset(release githubRelease) releaseAsset {
 	return fallback
 }
 
+// preferredUpdateVariant returns the substring the running build wants
+// in an update asset name. App-embedded wants "app-embedded",
+// service-embedded wants "service-embedded", everything else has no
+// preference (returns "").
+func preferredUpdateVariant() string {
+	if appHasEmbeddedCore() {
+		return "app-embedded"
+	}
+	if serviceHelperHasEmbeddedCore() {
+		return "service-embedded"
+	}
+	return ""
+}
+
 func matchesRuntimeOS(name string, wantOS string) bool {
 	if strings.Contains(name, wantOS) {
 		return true
@@ -252,9 +267,15 @@ func matchesRuntimeOS(name string, wantOS string) bool {
 	return wantOS == "linux" && strings.Contains(name, "ubuntu")
 }
 
-func updateAssetPriority(name string) (int, bool) {
+func updateAssetPriority(name string, wantVariant string) (int, bool) {
 	if strings.Contains(name, "installer") {
 		return 0, false
+	}
+	// Strongest preference: an asset whose name contains the variant
+	// tag for the running build. The .zip containing that variant is
+	// what the user actually wants.
+	if wantVariant != "" && strings.Contains(name, wantVariant) {
+		return 0, true
 	}
 	switch goruntime.GOOS {
 	case "windows":

@@ -3,9 +3,6 @@ name: Build
 permissions:
   contents: write
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 on:
   push:
     branches:
@@ -52,19 +49,19 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
           submodules: recursive
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: false
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 24
 
@@ -126,6 +123,8 @@ jobs:
         run: |
           echo "x64=$(make print-windows-artifact)" >> "$GITHUB_OUTPUT"
           echo "x86=$(make print-windows-386-artifact)" >> "$GITHUB_OUTPUT"
+          echo "app_embedded=$(make print-windows-app-embedded-artifact)" >> "$GITHUB_OUTPUT"
+          echo "service_embedded=$(make print-windows-service-embedded-artifact)" >> "$GITHUB_OUTPUT"
 
       - name: Build Wails App
         if: runner.os != 'Linux' && matrix.kind != 'windows'
@@ -140,6 +139,8 @@ jobs:
           for target in ${{ matrix.target }}; do
             make "$target"
           done
+          make build-windows-app-mihomo
+          make build-windows-service-mihomo
 
       - name: Build Wails App
         if: runner.os == 'Linux'
@@ -175,7 +176,7 @@ jobs:
           case "${{ matrix.kind }}" in
             windows)
               sevenzip="$(find_7z)"
-              for name in "$(make print-windows-artifact)" "$(make print-windows-386-artifact)"; do
+              for name in "$(make print-windows-artifact)" "$(make print-windows-386-artifact)" "$(make print-windows-app-embedded-artifact)" "$(make print-windows-service-embedded-artifact)"; do
                 (cd build/bin && "$sevenzip" a -tzip "../../release/$name.zip" "$name")
               done
               ;;
@@ -198,7 +199,7 @@ jobs:
 
       - name: Upload Artifact
         if: matrix.kind != 'windows'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ${{ steps.artifact.outputs.name }}
           path: |
@@ -208,7 +209,7 @@ jobs:
 
       - name: Upload Windows x64 Artifact
         if: matrix.kind == 'windows'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ${{ steps.windows-artifacts.outputs.x64 }}
           path: release/${{ steps.windows-artifacts.outputs.x64 }}.zip
@@ -216,10 +217,26 @@ jobs:
 
       - name: Upload Windows x86 Artifact
         if: matrix.kind == 'windows'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ${{ steps.windows-artifacts.outputs.x86 }}
           path: release/${{ steps.windows-artifacts.outputs.x86 }}.zip
+          if-no-files-found: error
+
+      - name: Upload Windows App Embedded x64 Artifact
+        if: matrix.kind == 'windows'
+        uses: actions/upload-artifact@v5
+        with:
+          name: ${{ steps.windows-artifacts.outputs.app_embedded }}
+          path: release/${{ steps.windows-artifacts.outputs.app_embedded }}.zip
+          if-no-files-found: error
+
+      - name: Upload Windows Service Embedded x64 Artifact
+        if: matrix.kind == 'windows'
+        uses: actions/upload-artifact@v5
+        with:
+          name: ${{ steps.windows-artifacts.outputs.service_embedded }}
+          path: release/${{ steps.windows-artifacts.outputs.service_embedded }}.zip
           if-no-files-found: error
 
   release:
@@ -232,7 +249,7 @@ jobs:
 
     steps:
       - name: Download Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           path: release
           merge-multiple: true

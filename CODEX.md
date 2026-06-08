@@ -79,7 +79,8 @@ This file is for future Codex sessions working on Pulse.
   - `make build-windows` on Windows when frontend or Go runtime code changed
 - Local Windows builds output to `build/bin/Pulse-P<COUNT>-windows-amd64.exe`.
 - `make build-windows` cleans old Pulse Windows binaries first, builds the default Windows package without linking mihomo into Pulse/PulseStartupService, and runs UPX `--best` when UPX is available.
-- Use `make build-windows-with-mihomo` only when a Windows package should explicitly embed mihomo in both Pulse and `PulseStartupService`.
+- Use `make build-windows-app-mihomo` only when mihomo should be embedded into the Pulse app itself.
+- Use `make build-windows-service-mihomo` only when mihomo should be embedded into `PulseStartupService`; CI publishes both app-embedded and service-embedded Windows x64 artifacts.
 - Version format is `P<commit-count>`. After committing, build again if the local artifact should contain the new version number.
 
 ## Git

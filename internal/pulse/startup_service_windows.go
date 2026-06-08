@@ -73,8 +73,7 @@ func syncStartupServicePayload(dataDir string, settings Settings) error {
 	if err != nil {
 		return err
 	}
-	servicePath, err := ensureStartupServiceExecutable(dataDir)
-	if err != nil {
+	if _, err := ensureStartupServiceExecutable(dataDir); err != nil {
 		return err
 	}
 	config := startupServiceConfig{
@@ -90,7 +89,7 @@ func syncStartupServicePayload(dataDir string, settings Settings) error {
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(filepath.Dir(servicePath), startupServiceConfigFile), data, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dataDir, startupServiceConfigFile), data, 0o644); err != nil {
 		return err
 	}
 	return nil
@@ -144,15 +143,15 @@ func startServiceCore(dataDir string, settings Settings, runtimeConfig string) e
 	if err != nil {
 		return err
 	}
-	if !isProcessElevated() {
-		if relaunchErr := relaunchAsAdministratorWithArgs([]string{coreServiceStartFlag}); relaunchErr == nil {
-			return errors.New("服务模式需要管理员权限，正在触发 UAC 提示并以提权进程拉起服务")
-		} else {
-			return fmt.Errorf("服务模式需要管理员权限，请求 UAC 失败: %w", relaunchErr)
-		}
-	}
+	// The service is registered the first time the user flips the
+	// AutoStartService toggle, so by the time we get here the
+	// PulseCoreService SCM entry should already exist. ensureCoreService
+	// Registered is a no-op when the service exists and would only need
+	// admin to create a fresh entry, which we deliberately do not
+	// trigger here. If the entry is missing we ask the user to enable
+	// the toggle first instead of silently elevating.
 	if err := ensureCoreServiceRegistered(servicePath); err != nil {
-		return err
+		return errors.New("服务未注册，请先在设置中开启 AutoStartService 之后再启动核心")
 	}
 	return startRegisteredService(coreServiceName)
 }
@@ -202,7 +201,7 @@ func writeCoreServiceConfig(dataDir string, settings Settings, runtimeConfig str
 	if err != nil {
 		return "", err
 	}
-	if err := os.WriteFile(filepath.Join(filepath.Dir(servicePath), coreServiceConfigFile), data, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dataDir, coreServiceConfigFile), data, 0o644); err != nil {
 		return "", err
 	}
 	return servicePath, nil

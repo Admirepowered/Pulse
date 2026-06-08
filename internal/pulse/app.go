@@ -679,6 +679,14 @@ func mergeSettings(current, defaults Settings) Settings {
 		current.CoreMode = "embedded"
 		current.AutoStartService = true
 	}
+	if appHasEmbeddedCore() && current.AutoStartService {
+		// App-embedded builds do not ship PulseStartupService.exe, so the
+		// boot autostart service has no helper to register. Auto-disable
+		// the toggle so legacy configs do not try to install a service
+		// that the binary cannot run.
+		current.AutoStartService = false
+		current.AutoStartServiceDaemon = false
+	}
 	current.BackgroundBlur = clampBackgroundBlur(current.BackgroundBlur)
 	current.BackgroundOpacity = clampBackgroundOpacity(current.BackgroundOpacity)
 	return current

@@ -6,6 +6,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
+	"syscall"
 	"time"
 )
 
@@ -19,17 +21,25 @@ func AcquireSingleInstance() (func(), bool, error) {
 		return nil, false, err
 	}
 	lockPath := filepath.Join(dir, "pulse.lock")
-	file, err := os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
-	if errors.Is(err, os.ErrExist) {
-		signalRunningInstance(os.Args[1:])
-		return func() {}, false, nil
-	}
+	// Use flock(LOCK_EX|LOCK_NB) instead of O_EXCL. The kernel releases
+	// the lock automatically when the process dies (clean exit, crash,
+	// SIGKILL, or system reboot), so a stale pulse.lock can never block
+	// a new launch. The file itself is harmless if left behind.
+	file, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o644)
 	if err != nil {
 		return nil, false, err
 	}
+	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		file.Close()
+		signalRunningInstance(os.Args[1:])
+		return func() {}, false, nil
+	}
+	// Best-effort: write our PID so a human can inspect who holds the
+	// lock. The lock itself is the kernel's, not the file contents.
+	_, _ = file.WriteString(strconv.Itoa(os.Getpid()))
 	return func() {
+		_ = syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
 		_ = file.Close()
-		_ = os.Remove(lockPath)
 	}, true, nil
 }
 
@@ -61,3 +71,6 @@ func signalRunningInstance(args []string) {
 	}
 	_ = os.WriteFile(filepath.Join(dir, "show.signal"), []byte(value), 0o644)
 }
+
+// avoid unused import errors when errcheck sweeps the file
+var _ = errors.New

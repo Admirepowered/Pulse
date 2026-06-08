@@ -194,64 +194,50 @@ func relaunchAsAdministratorWithArgs(extraArgs []string) error {
 	if len(extraArgs) > 0 {
 		args = append(args, extraArgs...)
 	}
-	script, err := writeAdminRelaunchScript(executable, directory, args)
+	currentPid := os.Getpid()
+	script := buildAdminRelaunchScript(executable, directory, args, currentPid)
+	scriptFile, err := os.CreateTemp("", "pulse-admin-relaunch-*.ps1")
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command("cmd.exe", "/C", "start", "", "/MIN", script)
+	scriptPath := scriptFile.Name()
+	if _, err := scriptFile.WriteString(script); err != nil {
+		scriptFile.Close()
+		os.Remove(scriptPath)
+		return err
+	}
+	scriptFile.Close()
+	cmd := exec.Command("powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", scriptPath)
 	setCoreProcessOptions(cmd)
 	return cmd.Start()
 }
 
-func writeAdminRelaunchScript(executable, directory string, args []string) (string, error) {
-	file, err := os.CreateTemp("", "pulse-admin-relaunch-*.cmd")
-	if err != nil {
-		return "", err
-	}
-	defer file.Close()
-	powerShellCommand := adminRelaunchPowerShellCommand(executable, directory, args)
-	content := fmt.Sprintf(
-		`@echo off
-setlocal
-taskkill /PID %d /F >nul 2>nul
-:wait_process
-tasklist /FI "PID eq %d" | find "%d" >nul 2>nul
-if not errorlevel 1 (
-    timeout /t 1 /nobreak >nul
-    goto wait_process
-)
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "%s"
-start "" /b cmd.exe /c "timeout /t 2 /nobreak >nul & del ""%%~f0"" >nul 2>nul"
-`,
-		os.Getpid(),
-		os.Getpid(),
-		os.Getpid(),
-		escapeBatchPercent(powerShellCommand),
-	)
-	if _, err := file.WriteString(content); err != nil {
-		return "", err
-	}
-	return file.Name(), nil
-}
-
-func adminRelaunchPowerShellCommand(executable, directory string, args []string) string {
-	if len(args) == 0 {
-		return fmt.Sprintf(
-			"Start-Process -FilePath %s -WorkingDirectory %s -Verb RunAs",
-			powerShellString(executable),
-			powerShellString(directory),
-		)
+func buildAdminRelaunchScript(executable, directory string, args []string, currentPid int) string {
+	argsLiteral := powerShellStringList(args)
+	argsLine := ""
+	if len(args) > 0 {
+		argsLine = fmt.Sprintf("$args = @(%s)\n", argsLiteral)
 	}
 	return fmt.Sprintf(
-		"Start-Process -FilePath %s -ArgumentList @(%s) -WorkingDirectory %s -Verb RunAs",
+		`$ErrorActionPreference = 'SilentlyContinue'
+$exe = %s
+$dir = %s
+%s$currentPid = %d
+# Give the calling Go process a moment to return its Wails response.
+Start-Sleep -Milliseconds 500
+# Stop the non-elevated instance so the elevated one can take over.
+Stop-Process -Id $currentPid -Force -ErrorAction SilentlyContinue
+# Trigger the UAC prompt and start the elevated instance.
+Start-Process -FilePath $exe -ArgumentList $args -WorkingDirectory $dir -Verb RunAs
+# Give the new process time to load before we delete this script.
+Start-Sleep -Seconds 2
+Remove-Item -Path $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue
+`,
 		powerShellString(executable),
-		powerShellStringList(args),
 		powerShellString(directory),
+		argsLine,
+		currentPid,
 	)
-}
-
-func escapeBatchPercent(value string) string {
-	return strings.ReplaceAll(value, "%", "%%")
 }
 
 func filepathForShellExecute(executable string) string {

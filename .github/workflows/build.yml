@@ -136,9 +136,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for target in ${{ matrix.target }}; do
-            make "$target"
-          done
+          # Generate every Windows service helper variant before wails build
+          # runs. The helpers are gitignored, so a fresh CI checkout has no
+          # copy until the Makefile produces them. build-windows-service-*
+          # all write to the same SERVICE_ARTIFACT path, so we must run
+          # the dependency-generating target once per wails build that
+          # embeds a helper.
+          make build-windows-service-amd64
+          make build-windows
+          make build-windows-service-386
+          make build-windows-386
+          make build-windows-service-embedded-amd64
           make build-windows-app-mihomo
           make build-windows-service-mihomo
 

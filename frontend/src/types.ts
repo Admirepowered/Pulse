@@ -55,6 +55,7 @@ export type Settings = {
     language: string;
     theme: string;
     autoStart: boolean;
+    autoStartService: boolean;
     autoStartCore: boolean;
     closeBehavior: string;
     subscriptionProxy: boolean;
@@ -262,6 +263,7 @@ export const emptySettings: Settings = {
     language: 'zh',
     theme: 'system',
     autoStart: false,
+    autoStartService: false,
     autoStartCore: true,
     closeBehavior: 'minimize',
     subscriptionProxy: false,

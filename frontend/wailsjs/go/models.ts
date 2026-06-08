@@ -429,6 +429,7 @@ export namespace pulse {
 	    language: string;
 	    theme: string;
 	    autoStart: boolean;
+	    autoStartService: boolean;
 	    autoStartCore: boolean;
 	    closeBehavior: string;
 	    subscriptionProxy: boolean;
@@ -490,6 +491,7 @@ export namespace pulse {
 	        this.language = source["language"];
 	        this.theme = source["theme"];
 	        this.autoStart = source["autoStart"];
+	        this.autoStartService = source["autoStartService"];
 	        this.autoStartCore = source["autoStartCore"];
 	        this.closeBehavior = source["closeBehavior"];
 	        this.subscriptionProxy = source["subscriptionProxy"];

@@ -153,6 +153,7 @@ type Settings struct {
 	Language             string         `json:"language"`
 	Theme                string         `json:"theme"`
 	AutoStart            bool           `json:"autoStart"`
+	AutoStartService     bool           `json:"autoStartService"`
 	AutoStartCore        bool           `json:"autoStartCore"`
 	CloseBehavior        string         `json:"closeBehavior"`
 	SubscriptionProxy    bool           `json:"subscriptionProxy"`
@@ -339,15 +340,28 @@ func (a *App) Startup(ctx context.Context) {
 func (a *App) syncAutoStartPath() {
 	a.mu.Lock()
 	enabled := a.store.Settings.AutoStart
+	serviceEnabled := a.store.Settings.AutoStartService
+	dataDir := a.dataDir
 	a.mu.Unlock()
-	if !enabled {
-		return
+	if enabled {
+		if err := setAutoStart(true); err != nil {
+			a.appendLog("error", "auto-start path sync failed: "+err.Error())
+		} else {
+			a.appendLog("info", "auto-start path synced to current executable")
+		}
 	}
-	if err := setAutoStart(true); err != nil {
-		a.appendLog("error", "auto-start path sync failed: "+err.Error())
-		return
+	if serviceEnabled {
+		if err := syncStartupServicePayload(dataDir); err != nil {
+			a.appendLog("error", "service startup payload sync failed: "+err.Error())
+		} else {
+			a.appendLog("info", "service startup config synced to current executable")
+		}
+		if isProcessElevated() {
+			if err := setServiceAutoStart(dataDir, true); err != nil {
+				a.appendLog("error", "service startup registration sync failed: "+err.Error())
+			}
+		}
 	}
-	a.appendLog("info", "auto-start path synced to current executable")
 }
 
 func (a *App) Shutdown(ctx context.Context) {
@@ -731,11 +745,12 @@ func (a *App) SaveSettings(settings Settings) error {
 	settings = mergeSettings(settings, defaultSettings())
 	settings.LogLevel = normalizeLogLevel(settings.LogLevel)
 	a.appendLog("info", fmt.Sprintf(
-		"save settings requested: store=%s coreMode=%s autoStartCore=%t autoStart=%t systemProxy=%t allowLan=%t mixedPort=%d tun=%t interface=%s",
+		"save settings requested: store=%s coreMode=%s autoStartCore=%t autoStart=%t serviceStartup=%t systemProxy=%t allowLan=%t mixedPort=%d tun=%t interface=%s",
 		a.storePath,
 		settings.CoreMode,
 		settings.AutoStartCore,
 		settings.AutoStart,
+		settings.AutoStartService,
 		settings.SystemProxy,
 		settings.AllowLan,
 		settings.MixedPort,
@@ -753,6 +768,32 @@ func (a *App) SaveSettings(settings Settings) error {
 	requiresRestart := running && settingsRequireCoreRestart(previous, settings)
 	requiresRuntimeApply := running && settingsRequireRuntimeApply(previous, settings)
 	requiresSystemProxyApply := running || previous.SystemProxy != settings.SystemProxy || (settings.SystemProxy && previous.MixedPort != settings.MixedPort)
+	requiresAutoStartApply := previous.AutoStart != settings.AutoStart || (settings.AutoStart && isProcessElevated())
+	requiresServiceStartupApply := previous.AutoStartService != settings.AutoStartService
+	requiresServiceStartupSync := !requiresServiceStartupApply && settings.AutoStartService
+	dataDir := a.dataDir
+	a.mu.Unlock()
+
+	if requiresAutoStartApply {
+		if err := setAutoStart(settings.AutoStart); err != nil {
+			a.appendLog("error", "save settings auto-start apply failed: "+err.Error())
+			return err
+		}
+		a.appendLog("info", fmt.Sprintf("save settings auto-start applied: enabled=%t", settings.AutoStart))
+	}
+	if requiresServiceStartupApply {
+		if err := setServiceAutoStart(dataDir, settings.AutoStartService); err != nil {
+			a.appendLog("error", "save settings service startup apply failed: "+err.Error())
+			return err
+		}
+		a.appendLog("info", fmt.Sprintf("save settings service startup applied: enabled=%t", settings.AutoStartService))
+	} else if requiresServiceStartupSync {
+		if err := syncStartupServicePayload(dataDir); err != nil {
+			a.appendLog("warn", "save settings service startup sync failed: "+err.Error())
+		}
+	}
+
+	a.mu.Lock()
 	a.store.Settings = settings
 	err := a.saveStoreLocked()
 	a.mu.Unlock()
@@ -761,13 +802,6 @@ func (a *App) SaveSettings(settings Settings) error {
 		return err
 	}
 	a.appendLog("info", "save settings store write complete")
-	if previous.AutoStart != settings.AutoStart || (settings.AutoStart && isProcessElevated()) {
-		if err := setAutoStart(settings.AutoStart); err != nil {
-			a.appendLog("error", "save settings auto-start apply failed: "+err.Error())
-			return err
-		}
-		a.appendLog("info", fmt.Sprintf("save settings auto-start applied: enabled=%t", settings.AutoStart))
-	}
 	if requiresRestart {
 		a.appendLog("info", "settings require mihomo restart, restarting core")
 		if previous.SystemProxy {
@@ -834,6 +868,14 @@ func (a *App) SetAutoStart(enabled bool) error {
 	settings := a.store.Settings
 	a.mu.Unlock()
 	settings.AutoStart = enabled
+	return a.SaveSettings(settings)
+}
+
+func (a *App) SetAutoStartService(enabled bool) error {
+	a.mu.Lock()
+	settings := a.store.Settings
+	a.mu.Unlock()
+	settings.AutoStartService = enabled
 	return a.SaveSettings(settings)
 }
 

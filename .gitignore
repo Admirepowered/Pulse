@@ -1,6 +1,7 @@
 # Wails / Go
 /build/bin/
 /frontend/dist/
+internal/pulse/assets/PulseStartupService.exe
 *.test
 
 # Node

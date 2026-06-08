@@ -14,6 +14,7 @@ import {
     RefreshCcw,
     Save,
     Settings as SettingsIcon,
+    Shield,
     X,
 } from 'lucide-react';
 import './App.css';
@@ -46,6 +47,7 @@ import {
     ReadProfileCustomRules,
     ReadProfileRulePolicies,
     RenameProfile,
+    RelaunchAsAdministrator,
     RestartCore,
     SaveProfileContent,
     SaveProfileCustomRules,
@@ -135,6 +137,7 @@ function App() {
     const [providerUpdateStatus, setProviderUpdateStatus] = useState<Record<string, InlineActionState>>({});
     const [profileDropActive, setProfileDropActive] = useState(false);
     const t = useMemo(() => getTranslator(settingsDraft.language || snapshot.settings.language), [settingsDraft.language, snapshot.settings.language]);
+    const adminNotice = notice.includes('管理员') || notice.toLowerCase().includes('administrator');
 
     const refreshSnapshot = useCallback(async () => {
         const next = await GetSnapshot();
@@ -506,7 +509,17 @@ function App() {
 
                 {(notice || geodataVisible) && (
                     <div className="noticeStack">
-                        {notice && <div className={noticeError(notice) ? 'notice error' : 'notice'}>{notice}</div>}
+                        {notice && (
+                            <div className={noticeError(notice) ? 'notice error' : 'notice'}>
+                                <span>{notice}</span>
+                                {adminNotice && (
+                                    <button className="noticeAction" onClick={() => run(RelaunchAsAdministrator)}>
+                                        <Shield size={14}/>
+                                        {settingsDraft.language === 'en' ? 'Restart as admin' : '管理员重启'}
+                                    </button>
+                                )}
+                            </div>
+                        )}
                         {geodataVisible && (
                             <div className={snapshot.geodata.checking ? 'notice geodataNotice' : 'notice geodataNotice error'}>
                                 <div>

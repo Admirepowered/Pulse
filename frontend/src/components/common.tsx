@@ -84,7 +84,7 @@ export function SubscriptionUsage({info, t}: { info?: SubscriptionInfo; t: Trans
 
 export function noticeError(value: string) {
     const lower = value.toLowerCase();
-    return lower.includes('error') || lower.includes('not') || lower.includes('empty') || lower.includes('failed');
+    return lower.includes('error') || lower.includes('not') || lower.includes('empty') || lower.includes('failed') || value.includes('管理员');
 }
 
 export function formatBytes(bytes: number) {

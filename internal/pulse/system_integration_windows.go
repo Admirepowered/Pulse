@@ -8,6 +8,7 @@ import (
 	"strings"
 	"syscall"
 
+	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 )
 
@@ -126,9 +127,64 @@ func systemProxyState() string {
 	return fmt.Sprintf("ProxyEnable=%d ProxyServer=%q ProxyOverride=%q AutoConfigURL=%q", enabled, server, override, autoConfig)
 }
 
+func isProcessElevated() bool {
+	return windows.GetCurrentProcessToken().IsElevated()
+}
+
+func relaunchAsAdministrator() error {
+	executable, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	params := strings.Join(quoteWindowsArgs(os.Args[1:]), " ")
+	verb, err := windows.UTF16PtrFromString("runas")
+	if err != nil {
+		return err
+	}
+	file, err := windows.UTF16PtrFromString(executable)
+	if err != nil {
+		return err
+	}
+	var parameters *uint16
+	if params != "" {
+		parameters, err = windows.UTF16PtrFromString(params)
+		if err != nil {
+			return err
+		}
+	}
+	directory := filepathForShellExecute(executable)
+	var directoryPtr *uint16
+	if directory != "" {
+		directoryPtr, err = windows.UTF16PtrFromString(directory)
+		if err != nil {
+			return err
+		}
+	}
+	return windows.ShellExecute(0, verb, file, parameters, directoryPtr, windows.SW_SHOWNORMAL)
+}
+
+func filepathForShellExecute(executable string) string {
+	if executable == "" {
+		return ""
+	}
+	lastSlash := strings.LastIndexAny(executable, `\/`)
+	if lastSlash < 0 {
+		return ""
+	}
+	return executable[:lastSlash]
+}
+
 func quoteWindowsArg(value string) string {
 	if value == "" || (strings.HasPrefix(value, `"`) && strings.HasSuffix(value, `"`)) {
 		return value
 	}
 	return `"` + strings.ReplaceAll(value, `"`, `\"`) + `"`
+}
+
+func quoteWindowsArgs(values []string) []string {
+	quoted := make([]string, 0, len(values))
+	for _, value := range values {
+		quoted = append(quoted, quoteWindowsArg(value))
+	}
+	return quoted
 }

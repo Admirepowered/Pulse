@@ -94,6 +94,8 @@ type connectionSample struct {
 	At  time.Time
 }
 
+const tunAdminRequiredMessage = "TUN 模式需要管理员权限，请以管理员身份重新启动 Pulse"
+
 type Store struct {
 	ActiveProfileID string    `json:"activeProfileId"`
 	Profiles        []Profile `json:"profiles"`
@@ -343,6 +345,21 @@ func (a *App) CloseWindow() {
 
 func (a *App) MinimizeWindow() {
 	wailsruntime.WindowHide(a.ctx)
+}
+
+func (a *App) IsAdministrator() bool {
+	return isProcessElevated()
+}
+
+func (a *App) RelaunchAsAdministrator() error {
+	if isProcessElevated() {
+		return nil
+	}
+	if err := relaunchAsAdministrator(); err != nil {
+		return err
+	}
+	wailsruntime.Quit(a.ctx)
+	return nil
 }
 
 func (a *App) ShowWindow() {
@@ -671,6 +688,11 @@ func (a *App) SaveSettings(settings Settings) error {
 	a.mu.Lock()
 	previous := a.store.Settings
 	running := a.coreRunningLocked()
+	if settingsNeedTunAdmin(previous, settings, running) && !isProcessElevated() {
+		a.mu.Unlock()
+		a.appendLog("error", tunAdminRequiredMessage)
+		return errors.New(tunAdminRequiredMessage)
+	}
 	requiresRestart := running && settingsRequireCoreRestart(previous, settings)
 	requiresRuntimeApply := running && settingsRequireRuntimeApply(previous, settings)
 	requiresSystemProxyApply := running || previous.SystemProxy != settings.SystemProxy || (settings.SystemProxy && previous.MixedPort != settings.MixedPort)
@@ -790,6 +812,13 @@ func settingsRequireCoreRestart(previous, next Settings) bool {
 		previous.MixedPort != next.MixedPort ||
 		previous.TunEnabled != next.TunEnabled ||
 		previous.TunInterface != next.TunInterface
+}
+
+func settingsNeedTunAdmin(previous, next Settings, running bool) bool {
+	if !next.TunEnabled {
+		return false
+	}
+	return running || !previous.TunEnabled || previous.TunInterface != next.TunInterface
 }
 
 func settingsRequireRuntimeApply(previous, next Settings) bool {
@@ -1115,6 +1144,10 @@ func (a *App) StartCore() error {
 	a.mu.Unlock()
 	if !ok {
 		return errors.New("no active profile")
+	}
+	if settings.TunEnabled && !isProcessElevated() {
+		a.appendLog("error", tunAdminRequiredMessage)
+		return errors.New(tunAdminRequiredMessage)
 	}
 	if err := a.EnsureGeodata(); err != nil {
 		return err

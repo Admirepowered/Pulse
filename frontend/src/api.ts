@@ -24,6 +24,7 @@ export {
     ReadProfileCustomRules,
     ReadProfileRulePolicies,
     RenameProfile,
+    RelaunchAsAdministrator,
     RestartCore,
     SaveProfileContent,
     SaveProfileCustomRules,

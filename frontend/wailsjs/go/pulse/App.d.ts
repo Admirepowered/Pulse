@@ -36,6 +36,8 @@ export function ImportProfile(arg1:string,arg2:string):Promise<pulse.Profile>;
 
 export function ImportProfileFromFile(arg1:string):Promise<pulse.Profile>;
 
+export function IsAdministrator():Promise<boolean>;
+
 export function ListBackgroundImages():Promise<Array<pulse.BackgroundImage>>;
 
 export function ListNetworkInterfaces():Promise<Array<pulse.NetworkInterface>>;
@@ -55,6 +57,8 @@ export function ReadProfileCustomRules(arg1:string):Promise<Array<pulse.CustomRu
 export function ReadProfileRulePolicies(arg1:string):Promise<Array<string>>;
 
 export function RenameProfile(arg1:string,arg2:string):Promise<void>;
+
+export function RelaunchAsAdministrator():Promise<void>;
 
 export function RestartCore():Promise<void>;
 

@@ -70,6 +70,10 @@ export function ImportProfileFromFile(arg1) {
   return window['go']['pulse']['App']['ImportProfileFromFile'](arg1);
 }
 
+export function IsAdministrator() {
+  return window['go']['pulse']['App']['IsAdministrator']();
+}
+
 export function ListBackgroundImages() {
   return window['go']['pulse']['App']['ListBackgroundImages']();
 }
@@ -108,6 +112,10 @@ export function ReadProfileRulePolicies(arg1) {
 
 export function RenameProfile(arg1, arg2) {
   return window['go']['pulse']['App']['RenameProfile'](arg1, arg2);
+}
+
+export function RelaunchAsAdministrator() {
+  return window['go']['pulse']['App']['RelaunchAsAdministrator']();
 }
 
 export function RestartCore() {

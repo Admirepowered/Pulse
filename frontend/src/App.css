@@ -466,6 +466,158 @@ h2 {
     background: rgba(232, 250, 246, var(--surface-success-alpha));
 }
 
+.shell.darkTheme {
+    color: #e7e9ee;
+    background: #151515;
+}
+
+.shell.darkTheme .backgroundOverlay {
+    background: rgba(8, 8, 8, .40);
+}
+
+.shell.darkTheme .sidebar {
+    background: #111111;
+    color: #f5f5f5;
+}
+
+.shell.darkTheme.hasBackground .sidebar {
+    background: rgba(12, 12, 12, var(--surface-strong-alpha));
+}
+
+.shell.darkTheme .brand {
+    border-bottom-color: rgba(255, 255, 255, .10);
+}
+
+.shell.darkTheme .brand span,
+.shell.darkTheme .topbar p,
+.shell.darkTheme .panelHead span,
+.shell.darkTheme .proxyGroupTitle span,
+.shell.darkTheme .profileRow span,
+.shell.darkTheme .connectionRow span,
+.shell.darkTheme .field span,
+.shell.darkTheme .metric span,
+.shell.darkTheme .node small,
+.shell.darkTheme .compactLogs,
+.shell.darkTheme .connectionMeta,
+.shell.darkTheme .connectionTraffic small,
+.shell.darkTheme .logLine span,
+.shell.darkTheme .logLine strong {
+    color: #a8adb7;
+}
+
+.shell.darkTheme button,
+.shell.darkTheme .panel,
+.shell.darkTheme .metric,
+.shell.darkTheme .networkCard,
+.shell.darkTheme .search,
+.shell.darkTheme .field input,
+.shell.darkTheme textarea,
+.shell.darkTheme .pathPreview,
+.shell.darkTheme .profileRow,
+.shell.darkTheme .connectionRow,
+.shell.darkTheme .ruleRow,
+.shell.darkTheme .tableRow,
+.shell.darkTheme .node,
+.shell.darkTheme .contextMenu,
+.shell.darkTheme .sortMenu,
+.shell.darkTheme .selectControl {
+    color: #e7e9ee;
+    background: #202020;
+    border-color: #343434;
+}
+
+.shell.darkTheme.hasBackground .panel,
+.shell.darkTheme.hasBackground .metric,
+.shell.darkTheme.hasBackground .networkCard,
+.shell.darkTheme.hasBackground .search,
+.shell.darkTheme.hasBackground button,
+.shell.darkTheme.hasBackground .field input,
+.shell.darkTheme.hasBackground textarea,
+.shell.darkTheme.hasBackground .pathPreview,
+.shell.darkTheme.hasBackground .profileRow,
+.shell.darkTheme.hasBackground .connectionRow,
+.shell.darkTheme.hasBackground .ruleRow,
+.shell.darkTheme.hasBackground .tableRow,
+.shell.darkTheme.hasBackground .node,
+.shell.darkTheme.hasBackground .pill {
+    background: rgba(26, 26, 26, var(--surface-alpha));
+}
+
+.shell.darkTheme button:hover,
+.shell.darkTheme .proxyGroupHead:hover,
+.shell.darkTheme .contextMenu button:hover,
+.shell.darkTheme .sortMenu button:hover {
+    background: #2a2a2a;
+    border-color: #4a4a4a;
+}
+
+.shell.darkTheme .sidebar button {
+    background: transparent;
+    border-color: transparent;
+    color: #d6d9df;
+}
+
+.shell.darkTheme .sidebar button.active,
+.shell.darkTheme .sidebar button:hover {
+    color: #ffffff;
+    background: #282828;
+}
+
+.shell.darkTheme .primary,
+.shell.darkTheme.hasBackground .primary {
+    color: #ffffff;
+    background: #0f766e;
+    border-color: #15998f;
+}
+
+.shell.darkTheme .danger,
+.shell.darkTheme.hasBackground .danger {
+    color: #ffb6ab;
+    background: #321b17;
+    border-color: #704037;
+}
+
+.shell.darkTheme .pill {
+    color: #c5cad2;
+    background: #2d2d2d;
+}
+
+.shell.darkTheme .pill.ok,
+.shell.darkTheme .node.selected,
+.shell.darkTheme .profileRow.active,
+.shell.darkTheme .segmented button.active,
+.shell.darkTheme .connectionTabs button.active,
+.shell.darkTheme .sortButton.active,
+.shell.darkTheme .sortMenu button.active {
+    color: #8ee5d6;
+    background: #123b37;
+    border-color: #17988d;
+}
+
+.shell.darkTheme .usageBar {
+    background: #343434;
+}
+
+.shell.darkTheme .notice {
+    color: #9ee9c6;
+    background: #102b1f;
+    border-color: #276649;
+}
+
+.shell.darkTheme .notice.error {
+    color: #ffb6ab;
+    background: #321b17;
+    border-color: #704037;
+}
+
+.shell.darkTheme .windowControls {
+    border-left-color: #343434;
+}
+
+.shell.darkTheme .chromeButton:hover {
+    background: #2f2f2f;
+}
+
 .panel {
     padding: 14px;
 }

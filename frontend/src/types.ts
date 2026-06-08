@@ -196,7 +196,7 @@ export const emptySettings: Settings = {
     systemProxy: false,
     delayTestUrl: 'https://www.gstatic.com/generate_204',
     language: 'zh',
-    theme: 'light',
+    theme: 'system',
     autoStart: false,
     autoStartCore: true,
     closeBehavior: 'minimize',

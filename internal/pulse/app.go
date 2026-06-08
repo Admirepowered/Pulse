@@ -711,11 +711,13 @@ func (a *App) SaveSettings(settings Settings) error {
 		return err
 	}
 	a.appendLog("info", "save settings store write complete")
-	if err := setAutoStart(settings.AutoStart); err != nil {
-		a.appendLog("error", "save settings auto-start apply failed: "+err.Error())
-		return err
+	if previous.AutoStart != settings.AutoStart || (settings.AutoStart && isProcessElevated()) {
+		if err := setAutoStart(settings.AutoStart); err != nil {
+			a.appendLog("error", "save settings auto-start apply failed: "+err.Error())
+			return err
+		}
+		a.appendLog("info", fmt.Sprintf("save settings auto-start applied: enabled=%t", settings.AutoStart))
 	}
-	a.appendLog("info", fmt.Sprintf("save settings auto-start applied: enabled=%t", settings.AutoStart))
 	if requiresRestart {
 		a.appendLog("info", "settings require mihomo restart, restarting core")
 		if previous.SystemProxy {

@@ -27,6 +27,11 @@ jobs:
             target: build-windows
             print: print-windows-artifact
             kind: windows
+          - name: Windows x86
+            os: windows-latest
+            target: build-windows-386
+            print: print-windows-386-artifact
+            kind: windows
           - name: Linux Ubuntu 22.04 x64
             os: ubuntu-22.04
             target: build-linux-ubuntu22

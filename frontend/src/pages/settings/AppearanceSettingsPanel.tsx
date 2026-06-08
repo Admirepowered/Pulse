@@ -19,6 +19,20 @@ export function AppearanceSettingsPanel({settings, backgrounds, t, onDraft, onCo
     return (
         <article className="panel formPanel">
             <div className="panelHead"><h2>{t('appearance')}</h2></div>
+            <label className="field">
+                <span>{t('themeMode')}</span>
+                <div className="segmented">
+                    {[
+                        {id: 'light', label: t('lightTheme')},
+                        {id: 'dark', label: t('darkTheme')},
+                        {id: 'system', label: t('systemTheme')},
+                    ].map((theme) => (
+                        <button className={settings.theme === theme.id ? 'active' : ''} key={theme.id} onClick={() => onCommit({...settings, theme: theme.id})}>
+                            {theme.label}
+                        </button>
+                    ))}
+                </div>
+            </label>
             <div className="backgroundPicker">
                 <div className="pathPreview">
                     <ImageIcon size={17}/>

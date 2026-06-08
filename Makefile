@@ -5,20 +5,25 @@ BASE_VERSION := $(patsubst v%,%,$(TAG))
 VERSION := $(if $(TAG),$(BASE_VERSION)-P$(COUNT),P$(COUNT))
 LD_FLAGS := -X Pulse/internal/pulse.AppVersion=$(VERSION) -X Pulse/internal/pulse.BuildNumber=$(COUNT)
 WINDOWS_ARTIFACT := Pulse-$(VERSION)-windows-amd64.exe
+WINDOWS_386_ARTIFACT := Pulse-$(VERSION)-windows-386.exe
 LINUX_ARTIFACT := Pulse-$(VERSION)-linux-amd64
 LINUX_UBUNTU22_ARTIFACT := Pulse-$(VERSION)-linux-ubuntu22-amd64
 LINUX_UBUNTU24_ARTIFACT := Pulse-$(VERSION)-linux-ubuntu24-amd64
 MACOS_AMD64_ARTIFACT := Pulse-$(VERSION)-darwin-amd64
 MACOS_ARM64_ARTIFACT := Pulse-$(VERSION)-darwin-arm64
 WINDOWS_ARTIFACT_PATH := build/bin/$(WINDOWS_ARTIFACT)
+WINDOWS_386_ARTIFACT_PATH := build/bin/$(WINDOWS_386_ARTIFACT)
 
-.PHONY: version print-windows-artifact print-linux-artifact print-linux-ubuntu22-artifact print-linux-ubuntu24-artifact print-macos-amd64-artifact print-macos-arm64-artifact clean clean-windows clean-linux clean-macos clean-pulse compress-windows build build-windows build-linux build-linux-ubuntu22 build-linux-ubuntu24 build-macos build-macos-amd64 build-macos-arm64 test frontend
+.PHONY: version print-windows-artifact print-windows-386-artifact print-linux-artifact print-linux-ubuntu22-artifact print-linux-ubuntu24-artifact print-macos-amd64-artifact print-macos-arm64-artifact clean clean-windows clean-linux clean-macos clean-pulse compress-windows compress-windows-386 build build-windows build-windows-386 build-linux build-linux-ubuntu22 build-linux-ubuntu24 build-macos build-macos-amd64 build-macos-arm64 test frontend
 
 version:
 	@echo Pulse $(VERSION) build $(COUNT)
 
 print-windows-artifact:
 	@echo $(WINDOWS_ARTIFACT)
+
+print-windows-386-artifact:
+	@echo $(WINDOWS_386_ARTIFACT)
 
 print-linux-artifact:
 	@echo $(LINUX_ARTIFACT)
@@ -47,7 +52,7 @@ clean-pulse:
 	rm -f build/bin/Pulse-*
 
 clean-windows:
-	rm -f build/bin/Pulse-*-windows-amd64.exe
+	rm -f build/bin/Pulse-*-windows-amd64.exe build/bin/Pulse-*-windows-386.exe
 
 clean-linux:
 	rm -f build/bin/Pulse-*-linux-amd64
@@ -58,11 +63,19 @@ clean-macos:
 compress-windows:
 	@if command -v upx >/dev/null 2>&1; then upx --best "$(WINDOWS_ARTIFACT_PATH)"; else echo "upx not found, skip compression"; fi
 
+compress-windows-386:
+	@if command -v upx >/dev/null 2>&1; then upx --best "$(WINDOWS_386_ARTIFACT_PATH)"; else echo "upx not found, skip compression"; fi
+
 build: build-windows
 
 build-windows: clean-windows
 	wails build -platform windows/amd64 -ldflags "$(LD_FLAGS)" -o $(WINDOWS_ARTIFACT)
 	$(MAKE) compress-windows
+
+build-windows-386:
+	rm -f build/bin/Pulse-*-windows-386.exe
+	wails build -platform windows/386 -ldflags "$(LD_FLAGS)" -o $(WINDOWS_386_ARTIFACT)
+	$(MAKE) compress-windows-386
 
 build-linux: clean-linux
 	wails build -platform linux/amd64 -ldflags "$(LD_FLAGS)" -o $(LINUX_ARTIFACT)

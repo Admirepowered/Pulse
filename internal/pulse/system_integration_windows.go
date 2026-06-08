@@ -20,27 +20,58 @@ const (
 	runKeyPath              = `Software\Microsoft\Windows\CurrentVersion\Run`
 	internetSettingsKeyPath = `Software\Microsoft\Windows\CurrentVersion\Internet Settings`
 	startupValueName        = "Pulse"
+	startupTaskName         = "Pulse"
 	clashURLProtocolKeyPath = `Software\Classes\clash`
 	adminRelaunchArg        = "--pulse-admin-relaunch"
 )
 
 func setAutoStart(enabled bool) error {
-	key, err := registry.OpenKey(registry.CURRENT_USER, runKeyPath, registry.SET_VALUE)
-	if err != nil {
+	if err := deleteRunStartupValue(); err != nil {
 		return err
 	}
-	defer key.Close()
 	if !enabled {
-		if err := key.DeleteValue(startupValueName); err != nil && err != registry.ErrNotExist {
-			return err
-		}
-		return nil
+		return deleteElevatedStartupTask()
+	}
+	if !isProcessElevated() {
+		return fmt.Errorf("开机启动需要管理员权限以注册最高权限启动任务，请以管理员身份重新启动 Pulse 后再开启")
 	}
 	executable, err := os.Executable()
 	if err != nil {
 		return err
 	}
-	return key.SetStringValue(startupValueName, quoteWindowsArg(executable))
+	taskCommand := fmt.Sprintf(`"%s"`, executable)
+	cmd := exec.Command("schtasks.exe", "/Create", "/F", "/TN", startupTaskName, "/SC", "ONLOGON", "/RL", "HIGHEST", "/TR", taskCommand)
+	setCoreProcessOptions(cmd)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("register elevated startup task failed: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
+func deleteRunStartupValue() error {
+	key, err := registry.OpenKey(registry.CURRENT_USER, runKeyPath, registry.SET_VALUE)
+	if err != nil {
+		return err
+	}
+	defer key.Close()
+	if err := key.DeleteValue(startupValueName); err != nil && err != registry.ErrNotExist {
+		return err
+	}
+	return nil
+}
+
+func deleteElevatedStartupTask() error {
+	cmd := exec.Command("schtasks.exe", "/Delete", "/F", "/TN", startupTaskName)
+	setCoreProcessOptions(cmd)
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		return nil
+	}
+	text := strings.ToLower(string(output))
+	if strings.Contains(text, "cannot find") || strings.Contains(text, "找不到") || strings.Contains(text, "不存在") {
+		return nil
+	}
+	return fmt.Errorf("delete elevated startup task failed: %w: %s", err, strings.TrimSpace(string(output)))
 }
 
 func registerURLProtocol() error {

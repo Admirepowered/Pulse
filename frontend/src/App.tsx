@@ -136,6 +136,7 @@ function App() {
     const [profileUpdateStatus, setProfileUpdateStatus] = useState<Record<string, InlineActionState>>({});
     const [providerUpdateStatus, setProviderUpdateStatus] = useState<Record<string, InlineActionState>>({});
     const [profileDropActive, setProfileDropActive] = useState(false);
+    const [systemDark, setSystemDark] = useState(false);
     const t = useMemo(() => getTranslator(settingsDraft.language || snapshot.settings.language), [settingsDraft.language, snapshot.settings.language]);
     const adminNotice = notice.includes('管理员') || notice.toLowerCase().includes('administrator');
 
@@ -212,6 +213,15 @@ function App() {
     useEffect(() => {
         refreshSnapshot().catch((error) => setNotice(String(error)));
     }, [refreshSnapshot]);
+
+    useEffect(() => {
+        const media = window.matchMedia?.('(prefers-color-scheme: dark)');
+        if (!media) return;
+        const update = () => setSystemDark(media.matches);
+        update();
+        media.addEventListener('change', update);
+        return () => media.removeEventListener('change', update);
+    }, []);
 
     useEffect(() => {
         const timer = window.setTimeout(() => {
@@ -427,8 +437,16 @@ function App() {
         ? Math.min(100, Math.max(0, (snapshot.geodata.downloaded / snapshot.geodata.total) * 100))
         : 0;
 
+    const selectedTheme = settingsDraft.theme || 'system';
+    const themeMode = selectedTheme === 'system' ? (systemDark ? 'dark' : 'light') : selectedTheme;
+    const shellClass = [
+        'shell',
+        themeMode === 'dark' ? 'darkTheme' : 'lightTheme',
+        backgroundDataURL ? 'hasBackground' : '',
+    ].filter(Boolean).join(' ');
+
     return (
-        <main className={backgroundDataURL ? 'shell hasBackground' : 'shell'} style={shellStyle}>
+        <main className={shellClass} style={shellStyle}>
             <div className="backgroundLayer" aria-hidden="true" style={backgroundStyle}/>
             <div className="backgroundOverlay" aria-hidden="true"/>
             <aside

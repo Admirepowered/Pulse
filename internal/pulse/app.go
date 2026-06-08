@@ -817,8 +817,8 @@ func (a *App) SaveSettings(settings Settings) error {
 	requiresRuntimeApply := running && settingsRequireRuntimeApply(previous, settings)
 	requiresSystemProxyApply := running || previous.SystemProxy != settings.SystemProxy || (settings.SystemProxy && previous.MixedPort != settings.MixedPort)
 	requiresAutoStartApply := previous.AutoStart != settings.AutoStart || (settings.AutoStart && isProcessElevated())
-	requiresServiceStartupApply := previous.AutoStartService != settings.AutoStartService || previous.AutoStartServiceDaemon != settings.AutoStartServiceDaemon
-	requiresServiceStartupSync := !requiresServiceStartupApply && settings.AutoStartService
+	requiresServiceStartupApply := previous.AutoStartService != settings.AutoStartService
+	requiresServiceStartupSync := settings.AutoStartService && (previous.AutoStartServiceDaemon != settings.AutoStartServiceDaemon || !requiresServiceStartupApply)
 	dataDir := a.dataDir
 	a.mu.Unlock()
 

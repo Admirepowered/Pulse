@@ -16,7 +16,7 @@ MACOS_ARM64_ARTIFACT := Pulse-$(VERSION)-darwin-arm64
 WINDOWS_ARTIFACT_PATH := build/bin/$(WINDOWS_ARTIFACT)
 WINDOWS_386_ARTIFACT_PATH := build/bin/$(WINDOWS_386_ARTIFACT)
 
-.PHONY: version print-windows-artifact print-windows-386-artifact print-linux-artifact print-linux-ubuntu22-artifact print-linux-ubuntu24-artifact print-macos-amd64-artifact print-macos-arm64-artifact clean clean-windows clean-windows-amd64 clean-windows-386 clean-linux clean-macos clean-pulse compress-windows compress-windows-386 build build-windows build-windows-386 build-windows-service-amd64 build-windows-service-386 build-linux build-linux-ubuntu22 build-linux-ubuntu24 build-macos build-macos-amd64 build-macos-arm64 test frontend
+.PHONY: version print-windows-artifact print-windows-386-artifact print-linux-artifact print-linux-ubuntu22-artifact print-linux-ubuntu24-artifact print-macos-amd64-artifact print-macos-arm64-artifact clean clean-windows clean-windows-amd64 clean-windows-386 clean-linux clean-macos clean-pulse compress-windows compress-windows-386 build build-windows build-windows-with-mihomo build-windows-386 build-windows-service-amd64 build-windows-service-embedded-amd64 build-windows-service-386 build-linux build-linux-ubuntu22 build-linux-ubuntu24 build-macos build-macos-amd64 build-macos-arm64 test frontend
 
 version:
 	@echo Pulse $(VERSION) build $(COUNT)
@@ -79,11 +79,18 @@ build: build-windows
 build-windows-service-amd64:
 	GOOS=windows GOARCH=amd64 go build -buildvcs=false -trimpath -ldflags "$(SERVICE_LD_FLAGS)" -o $(SERVICE_ARTIFACT) ./cmd/pulse-service
 
+build-windows-service-embedded-amd64:
+	GOOS=windows GOARCH=amd64 go build -buildvcs=false -trimpath -tags pulse_service_embed_mihomo -ldflags "$(SERVICE_LD_FLAGS)" -o $(SERVICE_ARTIFACT) ./cmd/pulse-service
+
 build-windows-service-386:
 	GOOS=windows GOARCH=386 go build -buildvcs=false -trimpath -ldflags "$(SERVICE_LD_FLAGS)" -o $(SERVICE_ARTIFACT) ./cmd/pulse-service
 
 build-windows: clean-windows-amd64 build-windows-service-amd64
 	wails build -platform windows/amd64 -ldflags "$(LD_FLAGS)" -o $(WINDOWS_ARTIFACT)
+	$(MAKE) compress-windows
+
+build-windows-with-mihomo: clean-windows-amd64 build-windows-service-embedded-amd64
+	wails build -platform windows/amd64 -tags "pulse_embed_mihomo pulse_service_embed_mihomo" -ldflags "$(LD_FLAGS)" -o $(WINDOWS_ARTIFACT)
 	$(MAKE) compress-windows
 
 build-windows-386: clean-windows-386 build-windows-service-386

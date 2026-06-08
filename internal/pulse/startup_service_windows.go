@@ -125,27 +125,8 @@ func setServiceAutoStart(dataDir string, settings Settings, enabled bool) error 
 }
 
 func startServiceCore(dataDir string, settings Settings, runtimeConfig string) error {
-	servicePath, err := ensureStartupServiceExecutable(dataDir)
+	servicePath, err := writeCoreServiceConfig(dataDir, settings, runtimeConfig)
 	if err != nil {
-		return err
-	}
-	config := startupServiceConfig{
-		WorkingDirectory: dataDir,
-		Daemon:           true,
-		StopSignal:       filepath.Join(dataDir, "pulse-core-stop.signal"),
-		UserSession:      false,
-		EmbeddedCore:     true,
-		DataDir:          dataDir,
-		RuntimeConfig:    runtimeConfig,
-		ApiBase:          settings.ApiBase,
-		Secret:           settings.Secret,
-		UpdatedAt:        time.Now().Unix(),
-	}
-	data, err := json.MarshalIndent(config, "", "  ")
-	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(filepath.Dir(servicePath), coreServiceConfigFile), data, 0o644); err != nil {
 		return err
 	}
 	if isProcessElevated() {
@@ -154,6 +135,57 @@ func startServiceCore(dataDir string, settings Settings, runtimeConfig string) e
 		}
 	}
 	return startRegisteredService(coreServiceName)
+}
+
+func startManagedHelperCore(dataDir string, settings Settings, runtimeConfig string) (*exec.Cmd, error) {
+	servicePath, err := writeCoreServiceConfig(dataDir, settings, runtimeConfig)
+	if err != nil {
+		return nil, err
+	}
+	cmd := exec.Command(servicePath, "run", "--config", coreServiceConfigFile)
+	cmd.Dir = filepath.Dir(servicePath)
+	setCoreProcessOptions(cmd)
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	return cmd, nil
+}
+
+func writeCoreServiceConfig(dataDir string, settings Settings, runtimeConfig string) (string, error) {
+	servicePath, err := ensureStartupServiceExecutable(dataDir)
+	if err != nil {
+		return "", err
+	}
+	config := startupServiceConfig{
+		WorkingDirectory: dataDir,
+		Daemon:           true,
+		StopSignal:       filepath.Join(dataDir, "pulse-core-stop.signal"),
+		UserSession:      false,
+		DataDir:          dataDir,
+		RuntimeConfig:    runtimeConfig,
+		ApiBase:          settings.ApiBase,
+		Secret:           settings.Secret,
+		UpdatedAt:        time.Now().Unix(),
+	}
+	if serviceHelperHasEmbeddedCore() {
+		config.EmbeddedCore = true
+	} else {
+		corePath, err := resolveCorePathStandalone(settings.CorePath)
+		if err != nil {
+			return "", err
+		}
+		config.Executable = corePath
+		config.WorkingDirectory = filepath.Dir(corePath)
+		config.Arguments = []string{"-d", dataDir, "-f", runtimeConfig}
+	}
+	data, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(filepath.Join(filepath.Dir(servicePath), coreServiceConfigFile), data, 0o644); err != nil {
+		return "", err
+	}
+	return servicePath, nil
 }
 
 func stopServiceCore(dataDir string) error {

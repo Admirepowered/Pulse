@@ -29,7 +29,7 @@ This file is for future Codex sessions working on Pulse.
 - If a setting needs mihomo restart, let the backend decide and log the restart reason.
 - Keep user-visible notices short and auto-dismissed.
 - Settings should display clash modes as Chinese labels: `规则`, `全局`, `直连`, while saving API values as `rule`, `global`, `direct`.
-- In embedded core mode, hide custom mihomo path and API address fields. Show them only for custom core mode.
+- In embedded core mode, hide custom mihomo path and API address fields. On default Windows builds, embedded mode is managed through `PulseStartupService` and does not link mihomo into the UI process.
 
 ## Lists And Pagination
 
@@ -78,7 +78,8 @@ This file is for future Codex sessions working on Pulse.
   - `git diff --check`
   - `make build-windows` on Windows when frontend or Go runtime code changed
 - Local Windows builds output to `build/bin/Pulse-P<COUNT>-windows-amd64.exe`.
-- `make build-windows` cleans old Pulse Windows binaries first and runs UPX `--best` when UPX is available.
+- `make build-windows` cleans old Pulse Windows binaries first, builds the default Windows package without linking mihomo into Pulse/PulseStartupService, and runs UPX `--best` when UPX is available.
+- Use `make build-windows-with-mihomo` only when a Windows package should explicitly embed mihomo in both Pulse and `PulseStartupService`.
 - Version format is `P<commit-count>`. After committing, build again if the local artifact should contain the new version number.
 
 ## Git

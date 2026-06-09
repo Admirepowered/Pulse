@@ -85,7 +85,7 @@ func writeStartupServicePayload(dataDir string, settings Settings) error {
 		Executable:       executable,
 		WorkingDirectory: filepath.Dir(executable),
 		Arguments:        []string{"--start-hidden"},
-		Daemon:           settings.AutoStartServiceDaemon,
+		Daemon:           false,
 		StopSignal:       filepath.Join(dataDir, "pulse-service-stop.signal"),
 		UserSession:      true,
 		UpdatedAt:        time.Now().Unix(),
@@ -141,9 +141,6 @@ func setServiceAutoStart(dataDir string, settings Settings, enabled bool) error 
 		return fmt.Errorf("create startup service: %w", err)
 	}
 	defer service.Close()
-	if err := configureServiceRecovery(service); err != nil {
-		return fmt.Errorf("configure startup service recovery: %w", err)
-	}
 	if err := ensureCoreServiceRegistered(servicePath, true); err != nil {
 		return err
 	}

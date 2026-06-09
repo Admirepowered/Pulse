@@ -34,54 +34,53 @@ import (
 )
 
 type App struct {
-	ctx                   context.Context
-	mu                    sync.Mutex
-	dataDir               string
-	storePath             string
-	store                 Store
-	coreCmd               *exec.Cmd
-	embeddedCoreRunning   bool
-	serviceCoreRunning    bool
-	embeddedLogSub        any
-	startedAt             int64
-	logLines              []LogLine
-	geodataStatus         GeodataStatus
-	geodataRunning        bool
-	httpClient            *http.Client
-	forceQuit             bool
-	trayOnce              sync.Once
-	trayMu                sync.Mutex
-	trayReady             bool
-	trayShowItem          *trayMenuItem
-	trayCoreItem          *trayMenuItem
-	trayStatusItem        *trayMenuItem
-	trayModeMenu          *trayMenuItem
-	trayRuleModeItem      *trayMenuItem
-	trayGlobalModeItem    *trayMenuItem
-	trayDirectModeItem    *trayMenuItem
-	trayAllowLanItem      *trayMenuItem
-	traySystemProxyItem   *trayMenuItem
-	traySubProxyItem      *trayMenuItem
-	trayAutoStartItem     *trayMenuItem
-	trayProfilesMenu      *trayMenuItem
-	trayProfileIDs        []string
-	trayProfileItems      []*trayMenuItem
-	trayNodesMenu         *trayMenuItem
-	trayNodeStatusItem    *trayMenuItem
-	trayNodeGroupNames    []string
-	trayNodeNamesByGroup  [][]string
-	trayNodeGroupItems    []*trayMenuItem
-	trayNodeItems         [][]*trayMenuItem
-	trayRefreshItem       *trayMenuItem
-	trayQuitItem          *trayMenuItem
-	trayWndProc           uintptr
-	trayPrevWndProc       uintptr
-	trayLastLeftClick     int64
-	showSignalPath        string
-	serviceStopSignalPath string
-	lastShowSignalTime    time.Time
-	connectionSamples     map[string]connectionSample
-	closedConnections     []ConnectionRow
+	ctx                  context.Context
+	mu                   sync.Mutex
+	dataDir              string
+	storePath            string
+	store                Store
+	coreCmd              *exec.Cmd
+	embeddedCoreRunning  bool
+	serviceCoreRunning   bool
+	embeddedLogSub       any
+	startedAt            int64
+	logLines             []LogLine
+	geodataStatus        GeodataStatus
+	geodataRunning       bool
+	httpClient           *http.Client
+	forceQuit            bool
+	trayOnce             sync.Once
+	trayMu               sync.Mutex
+	trayReady            bool
+	trayShowItem         *trayMenuItem
+	trayCoreItem         *trayMenuItem
+	trayStatusItem       *trayMenuItem
+	trayModeMenu         *trayMenuItem
+	trayRuleModeItem     *trayMenuItem
+	trayGlobalModeItem   *trayMenuItem
+	trayDirectModeItem   *trayMenuItem
+	trayAllowLanItem     *trayMenuItem
+	traySystemProxyItem  *trayMenuItem
+	traySubProxyItem     *trayMenuItem
+	trayAutoStartItem    *trayMenuItem
+	trayProfilesMenu     *trayMenuItem
+	trayProfileIDs       []string
+	trayProfileItems     []*trayMenuItem
+	trayNodesMenu        *trayMenuItem
+	trayNodeStatusItem   *trayMenuItem
+	trayNodeGroupNames   []string
+	trayNodeNamesByGroup [][]string
+	trayNodeGroupItems   []*trayMenuItem
+	trayNodeItems        [][]*trayMenuItem
+	trayRefreshItem      *trayMenuItem
+	trayQuitItem         *trayMenuItem
+	trayWndProc          uintptr
+	trayPrevWndProc      uintptr
+	trayLastLeftClick    int64
+	showSignalPath       string
+	lastShowSignalTime   time.Time
+	connectionSamples    map[string]connectionSample
+	closedConnections    []ConnectionRow
 }
 
 type connectionSample struct {
@@ -355,11 +354,10 @@ func (a *App) syncAutoStartPath() {
 }
 
 func (a *App) Shutdown(ctx context.Context) {
-	a.writeServiceStopSignalIfNeeded()
 	a.mu.Lock()
-	serviceCore := a.serviceCoreRunning
+	settings := a.store.Settings
 	a.mu.Unlock()
-	if !serviceCore {
+	if !coreRunsAsRegisteredWindowsService(settings) {
 		_ = a.StopCore()
 	}
 	quitTray()
@@ -491,25 +489,8 @@ func (a *App) quitApplication() {
 	a.mu.Lock()
 	a.forceQuit = true
 	a.mu.Unlock()
-	a.writeServiceStopSignal()
 	quitTray()
 	wailsruntime.Quit(a.ctx)
-}
-
-func (a *App) writeServiceStopSignalIfNeeded() {
-	a.mu.Lock()
-	forceQuit := a.forceQuit
-	a.mu.Unlock()
-	if forceQuit {
-		a.writeServiceStopSignal()
-	}
-}
-
-func (a *App) writeServiceStopSignal() {
-	if a.serviceStopSignalPath == "" {
-		return
-	}
-	_ = os.WriteFile(a.serviceStopSignalPath, []byte(fmt.Sprintf("%d", time.Now().UnixNano())), 0o644)
 }
 
 func (a *App) initStore() error {
@@ -520,7 +501,6 @@ func (a *App) initStore() error {
 	a.dataDir = filepath.Join(configDir, "Pulse")
 	a.storePath = filepath.Join(a.dataDir, "store.json")
 	a.showSignalPath = filepath.Join(a.dataDir, "show.signal")
-	a.serviceStopSignalPath = filepath.Join(a.dataDir, "pulse-service-stop.signal")
 	if err := os.MkdirAll(filepath.Join(a.dataDir, "profiles"), 0o755); err != nil {
 		return err
 	}
@@ -1484,8 +1464,7 @@ func (a *App) StartCore() error {
 		}
 	}
 	if err := a.waitForAPIReady(8 * time.Second); err != nil {
-		if settings.CoreMode == "service" {
-			_ = stopServiceCore(a.dataDir)
+		if useService {
 			a.mu.Lock()
 			a.serviceCoreRunning = false
 			a.startedAt = 0

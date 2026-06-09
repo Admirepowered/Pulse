@@ -7,10 +7,12 @@ import com.admirepowered.pulse.core.PulseCoreBridge
 import com.admirepowered.pulse.core.PulseMihomoApi
 import com.admirepowered.pulse.core.PulseProfileRecord
 import com.admirepowered.pulse.core.PulseProfileStore
+import com.admirepowered.pulse.vpn.PulseVpnService
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -100,6 +102,7 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
             result.onSuccess { record ->
                 reloadProfiles(record.id, "订阅已导入")
                 _state.update { it.copy(importUrl = "") }
+                reloadCoreIfRunning("订阅已导入")
             }.onFailure { error ->
                 _state.update { it.copy(profileMessage = error.message ?: "导入失败") }
             }
@@ -108,8 +111,10 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun selectProfile(profileId: String) {
+        if (profileId == _state.value.selectedProfileId) return
         PulseProfileStore.select(getApplication(), profileId)
         _state.update { it.copy(selectedProfileId = profileId, profileMessage = "") }
+        reloadCoreIfRunning("订阅已切换")
     }
 
     fun selectProxy(proxyId: String) {
@@ -229,6 +234,9 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
             }
             result.onSuccess {
                 reloadProfiles(profileId, "订阅已更新")
+                if (profileId == _state.value.selectedProfileId) {
+                    reloadCoreIfRunning("订阅已更新")
+                }
             }.onFailure { error ->
                 _state.update { it.copy(profileMessage = error.message ?: "更新失败") }
             }
@@ -249,6 +257,26 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
                 selectedProfileId = selectedId,
                 profileMessage = message,
             )
+        }
+    }
+
+    private fun reloadCoreIfRunning(message: String) {
+        if (!PulseCoreBridge.isRunning()) {
+            _state.update { it.copy(profileMessage = message) }
+            return
+        }
+        PulseVpnService.restart(getApplication())
+        _state.update {
+            it.copy(
+                profileMessage = "$message，正在重载代理",
+                vpnRunning = true,
+                loadingProxies = true,
+            )
+        }
+        viewModelScope.launch {
+            delay(1_200)
+            refreshRuntimeStatus()
+            refreshProxies()
         }
     }
 

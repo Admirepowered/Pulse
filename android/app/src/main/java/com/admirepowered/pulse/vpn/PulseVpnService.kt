@@ -30,14 +30,15 @@ class PulseVpnService : VpnService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_STOP -> stopVpn()
+            ACTION_STOP -> stopVpn(stopService = true)
+            ACTION_RESTART -> restartVpn()
             else -> startVpn()
         }
         return START_STICKY
     }
 
     override fun onDestroy() {
-        stopVpn()
+        stopVpn(stopService = false)
         super.onDestroy()
     }
 
@@ -56,7 +57,7 @@ class PulseVpnService : VpnService() {
         tunFd = establishedTun
 
         if (establishedTun == null) {
-            stopVpn()
+            stopVpn(stopService = true)
             return
         }
         val profile = PulseProfileStore.active(this)
@@ -64,13 +65,18 @@ class PulseVpnService : VpnService() {
         val result = PulseCoreBridge.start(profile.path, filesDir.absolutePath, coreFd)
         if (result.isFailure) {
             closeDetachedFd(coreFd)
-            stopVpn()
+            stopVpn(stopService = true)
         } else {
             requestTileRefresh(this)
         }
     }
 
-    private fun stopVpn() {
+    private fun restartVpn() {
+        stopVpn(stopService = false)
+        startVpn()
+    }
+
+    private fun stopVpn(stopService: Boolean) {
         PulseCoreBridge.stop()
         try {
             tunFd?.close()
@@ -78,8 +84,10 @@ class PulseVpnService : VpnService() {
         } finally {
             tunFd = null
             stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
             requestTileRefresh(this)
+            if (stopService) {
+                stopSelf()
+            }
         }
     }
 
@@ -140,6 +148,7 @@ class PulseVpnService : VpnService() {
         private const val NOTIFICATION_ID = 1001
         private const val ACTION_START = "com.admirepowered.pulse.START_VPN"
         private const val ACTION_STOP = "com.admirepowered.pulse.STOP_VPN"
+        private const val ACTION_RESTART = "com.admirepowered.pulse.RESTART_VPN"
 
         fun start(context: Context) {
             val intent = Intent(context, PulseVpnService::class.java).setAction(ACTION_START)
@@ -152,6 +161,15 @@ class PulseVpnService : VpnService() {
 
         fun stop(context: Context) {
             context.startService(Intent(context, PulseVpnService::class.java).setAction(ACTION_STOP))
+        }
+
+        fun restart(context: Context) {
+            val intent = Intent(context, PulseVpnService::class.java).setAction(ACTION_RESTART)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
         }
 
         fun isCoreRunning(): Boolean {

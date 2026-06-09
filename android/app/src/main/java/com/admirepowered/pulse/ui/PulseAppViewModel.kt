@@ -257,6 +257,8 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
 
     fun refreshProfile(profileId: String) {
         val profile = _state.value.profiles.firstOrNull { it.id == profileId } ?: return
+        val selectedProfileId = _state.value.selectedProfileId
+        val refreshesSelectedProfile = profileId == selectedProfileId
         if (profile.url.isBlank()) {
             _state.update { it.copy(profileMessage = "本地配置没有订阅 URL") }
             return
@@ -264,11 +266,17 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             _state.update { it.copy(refreshingProfileId = profileId, profileMessage = "") }
             val result = withContext(Dispatchers.IO) {
-                runCatching { PulseProfileStore.importFromUrl(getApplication(), profile.url) }
+                runCatching {
+                    PulseProfileStore.importFromUrl(
+                        context = getApplication(),
+                        profileUrl = profile.url,
+                        activate = refreshesSelectedProfile,
+                    )
+                }
             }
             result.onSuccess {
-                reloadProfiles(profileId, "订阅已更新")
-                if (profileId == _state.value.selectedProfileId) {
+                reloadProfiles(selectedProfileId, "订阅已更新")
+                if (refreshesSelectedProfile) {
                     reloadCoreIfRunning("订阅已更新")
                 }
             }.onFailure { error ->

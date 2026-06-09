@@ -41,7 +41,7 @@ object PulseProfileStore {
             .apply()
     }
 
-    fun importFromUrl(context: Context, profileUrl: String): PulseProfileRecord {
+    fun importFromUrl(context: Context, profileUrl: String, activate: Boolean = true): PulseProfileRecord {
         val trimmedUrl = profileUrl.trim()
         require(trimmedUrl.startsWith("http://") || trimmedUrl.startsWith("https://")) {
             "请输入 http 或 https 订阅地址"
@@ -58,11 +58,12 @@ object PulseProfileStore {
             path = file.absolutePath,
             updatedAt = System.currentTimeMillis(),
         )
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit()
+        val editor = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putString(PROFILE_PREFIX + id, encodeRecord(record))
-            .putString(ACTIVE_ID, id)
-            .apply()
+        if (activate) {
+            editor.putString(ACTIVE_ID, id)
+        }
+        editor.apply()
         return record
     }
 

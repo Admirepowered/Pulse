@@ -26,8 +26,6 @@ jobs:
     name: Android APK
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    env:
-      SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
 
     steps:
       - name: Checkout
@@ -86,23 +84,11 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleRelease
 
-      - name: Sign Release
-        if: ${{ env.SIGNING_KEY != '' }}
-        continue-on-error: true
-        uses: kevin-david/zipalign-sign-android-release@v2
-        with:
-          releaseDirectory: android/app/build/outputs/apk/release
-          signingKeyBase64: ${{ env.SIGNING_KEY }}
-          alias: ${{ secrets.ALIAS }}
-          keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
-          keyPassword: ${{ secrets.KEY_PASSWORD }}
-          zipAlign: true
-
       - name: Upload APK artifact
         uses: actions/upload-artifact@v5
         with:
           name: pulse-android-apk
-          path: android/app/build/outputs/apk/release/*.apk
+          path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 30
 

@@ -12,10 +12,13 @@ import android.os.ParcelFileDescriptor
 import androidx.core.app.NotificationCompat
 import com.admirepowered.pulse.MainActivity
 import com.admirepowered.pulse.R
+import com.admirepowered.pulse.core.PulseCoreBridge
+import com.admirepowered.pulse.core.PulseProfileStore
 import java.io.IOException
 
 class PulseVpnService : VpnService() {
     private var tunFd: ParcelFileDescriptor? = null
+    private var coreFd: Int = -1
 
     override fun onCreate() {
         super.onCreate()
@@ -38,7 +41,7 @@ class PulseVpnService : VpnService() {
     private fun startVpn() {
         if (tunFd != null) return
         startForeground(NOTIFICATION_ID, buildNotification())
-        tunFd = Builder()
+        val establishedTun = Builder()
             .setSession("Pulse")
             .setMtu(9000)
             .addAddress("10.255.0.2", 32)
@@ -46,12 +49,24 @@ class PulseVpnService : VpnService() {
             .addDnsServer("1.1.1.1")
             .addDnsServer("8.8.8.8")
             .establish()
+        tunFd = establishedTun
 
-        // The descriptor is intentionally held open here. The Go mihomo
-        // bridge will take ownership of packet processing in the next layer.
+        if (establishedTun == null) {
+            stopVpn()
+            return
+        }
+        val profile = PulseProfileStore.active(this)
+        coreFd = ParcelFileDescriptor.dup(establishedTun.fileDescriptor).detachFd()
+        val result = PulseCoreBridge.start(profile.path, filesDir.absolutePath, coreFd)
+        if (result.isFailure) {
+            closeCoreFd()
+            stopVpn()
+        }
     }
 
     private fun stopVpn() {
+        PulseCoreBridge.stop()
+        closeCoreFd()
         try {
             tunFd?.close()
         } catch (_: IOException) {
@@ -59,6 +74,16 @@ class PulseVpnService : VpnService() {
             tunFd = null
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
+        }
+    }
+
+    private fun closeCoreFd() {
+        if (coreFd < 0) return
+        try {
+            ParcelFileDescriptor.adoptFd(coreFd).close()
+        } catch (_: IOException) {
+        } finally {
+            coreFd = -1
         }
     }
 
@@ -107,6 +132,10 @@ class PulseVpnService : VpnService() {
 
         fun stop(context: Context) {
             context.startService(Intent(context, PulseVpnService::class.java).setAction(ACTION_STOP))
+        }
+
+        fun isCoreRunning(): Boolean {
+            return PulseCoreBridge.isRunning()
         }
     }
 }

@@ -4,20 +4,26 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.admirepowered.pulse.ui.ProfileItem
@@ -28,8 +34,13 @@ fun ProfilesScreen(
     profiles: List<ProfileItem>,
     selectedProfileId: String,
     refreshingProfileId: String?,
+    importUrl: String,
+    importBusy: Boolean,
+    message: String,
     onProfileSelect: (String) -> Unit,
     onRefreshProfile: (String) -> Unit,
+    onImportUrlChange: (String) -> Unit,
+    onImportProfile: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -44,6 +55,44 @@ fun ProfilesScreen(
                 style = MaterialTheme.typography.headlineSmall,
             )
         }
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                OutlinedTextField(
+                    value = importUrl,
+                    onValueChange = onImportUrlChange,
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    label = { Text("订阅 URL") },
+                    placeholder = { Text("https://example.com/config.yaml") },
+                )
+                FilledIconButton(
+                    onClick = onImportProfile,
+                    enabled = !importBusy,
+                ) {
+                    if (importBusy) {
+                        CircularProgressIndicator(strokeWidth = 2.dp)
+                    } else {
+                        Icon(Icons.Filled.Add, contentDescription = "导入订阅")
+                    }
+                }
+            }
+        }
+        if (message.isNotBlank()) {
+            item {
+                Text(
+                    message,
+                    modifier = Modifier.padding(horizontal = 20.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.secondary,
+                )
+            }
+        }
         items(profiles, key = { it.id }) { profile ->
             val selected = profile.id == selectedProfileId
             Surface(
@@ -55,7 +104,11 @@ fun ProfilesScreen(
             ) {
                 PulseRow(
                     title = profile.name,
-                    subtitle = "${profile.providerCount} 个策略组 / ${profile.ruleCount} 条规则 / ${profile.updatedAt}",
+                    subtitle = if (profile.url.isBlank()) {
+                        "本地配置 / ${profile.updatedAt}"
+                    } else {
+                        "远程订阅 / ${profile.updatedAt}"
+                    },
                     trailing = {
                         if (refreshingProfileId == profile.id) {
                             CircularProgressIndicator(strokeWidth = 2.dp)

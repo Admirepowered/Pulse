@@ -45,20 +45,28 @@ CI 使用 `.github/workflows/build-android.yml`，只在 `android/**` 或 Androi
 - Android 使用 `VpnService`，不迁移 Windows 的 TUN 管理项。
 - UI 保持桌面版主要动线：主页、订阅、节点、连接、设置。
 - 主题支持浅色、深色、跟随系统。
-- 订阅、节点、连接当前是本地示例数据，后续接入配置存储和 mihomo API。
-- VPNService 当前会建立 TUN fd 并保持前台服务，真正的 packet loop 需要在 Go mihomo bridge 中接管 fd 后实现。
+- 订阅 URL 会下载到 app 数据目录 `files/profiles/`，当前订阅会写入 SharedPreferences。
+- VPNService 会建立 TUN fd，并把 fd 复制后交给 Go mihomo core。
+- Go core 启动前会读取当前 YAML，注入 Android `tun.file-descriptor`、`tun.enable`、`dns-hijack` 和 `external-controller: 127.0.0.1:9090`。
+- 节点页通过 mihomo API `/proxies` 读取策略组节点，点击节点会调用 `/proxies/{group}` 切换。
+- Android 快捷启动使用 Quick Settings Tile。首次使用仍需先进入 App 完成 VPN 权限授权。
 
 ## Native Core 接口
 
-Go library 当前导出：
+Go library 当前导出 C/JNI 两类入口：
 
 - `PulseCoreMihomoVersion`
 - `PulseCoreStart`
 - `PulseCoreStop`
 - `PulseCoreRunning`
 - `PulseCoreFreeString`
+- `PulseCoreBridge.nativeVersion`
+- `PulseCoreBridge.nativeStart`
+- `PulseCoreBridge.nativeStop`
+- `PulseCoreBridge.nativeRunning`
+- `PulseCoreBridge.nativeLastError`
 
-后续接 mihomo 时优先沿用这些入口：Android 将配置路径和 TUN fd 传给 Go core，Go core 负责启动 mihomo、处理 TUN 包、暴露状态和日志。
+Android 将配置路径、home 目录和 TUN fd 传给 Go core，Go core 负责启动 mihomo、处理 TUN 包、暴露状态和错误信息。
 
 ## Review 重点
 
@@ -66,3 +74,4 @@ Go library 当前导出：
 - TUN fd 的生命周期是否只由 VPNService 管理。
 - Go bridge 接 mihomo 时不要把桌面端 Windows service 逻辑带入 Android。
 - Compose 页面继续拆分，不要把新功能堆到单个 Kotlin 文件里。
+- 正式发布证书建议进入 Gradle signingConfig，不再用 GitHub Action 二次签名 APK。

@@ -23,21 +23,23 @@ import com.admirepowered.pulse.ui.screens.SettingsScreen
 @Composable
 fun PulseApp(
     state: PulseAppState,
+    onScreenChange: (PulseScreen) -> Unit,
     onToggleVpn: (Boolean) -> Unit,
     onModeChange: (ProxyMode) -> Unit,
     onThemeChange: (ThemeMode) -> Unit,
     onProfileSelect: (String) -> Unit,
     onProxySelect: (String) -> Unit,
     onRefreshProfile: (String) -> Unit,
+    onImportUrlChange: (String) -> Unit,
+    onImportProfile: () -> Unit,
 ) {
-    val viewModel = androidx.lifecycle.viewmodel.compose.viewModel<PulseAppViewModel>()
     Scaffold(
         bottomBar = {
             NavigationBar {
                 PulseScreen.entries.forEach { screen ->
                     NavigationBarItem(
                         selected = state.screen == screen,
-                        onClick = { viewModel.setScreen(screen) },
+                        onClick = { onScreenChange(screen) },
                         icon = { Icon(screen.icon(), contentDescription = screen.label) },
                         label = { Text(screen.label) },
                     )
@@ -58,13 +60,20 @@ fun PulseApp(
                 profiles = state.profiles,
                 selectedProfileId = state.selectedProfileId,
                 refreshingProfileId = state.refreshingProfileId,
+                importUrl = state.importUrl,
+                importBusy = state.importBusy,
+                message = state.profileMessage,
                 onProfileSelect = onProfileSelect,
                 onRefreshProfile = onRefreshProfile,
+                onImportUrlChange = onImportUrlChange,
+                onImportProfile = onImportProfile,
                 modifier = modifier,
             )
 
             PulseScreen.Proxies -> ProxiesScreen(
                 proxies = state.proxies,
+                loading = state.loadingProxies,
+                message = state.proxyMessage,
                 onProxySelect = onProxySelect,
                 modifier = modifier,
             )

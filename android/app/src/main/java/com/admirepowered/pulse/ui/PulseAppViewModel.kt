@@ -4,16 +4,22 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.admirepowered.pulse.core.PulseCoreBridge
-import kotlinx.coroutines.delay
+import com.admirepowered.pulse.core.PulseMihomoApi
+import com.admirepowered.pulse.core.PulseProfileRecord
+import com.admirepowered.pulse.core.PulseProfileStore
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class PulseAppViewModel(application: Application) : AndroidViewModel(application) {
     private val _state = MutableStateFlow(
         PulseAppState(
-            profiles = sampleProfiles,
             proxies = sampleProxies,
             connections = sampleConnections,
             coreStatus = PulseCoreBridge.statusText(),
@@ -21,12 +27,22 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
     )
     val state: StateFlow<PulseAppState> = _state
 
+    init {
+        loadProfiles()
+    }
+
     fun setScreen(screen: PulseScreen) {
         _state.update { it.copy(screen = screen) }
+        if (screen == PulseScreen.Proxies) {
+            refreshProxies()
+        }
     }
 
     fun setVpnRunning(running: Boolean) {
-        _state.update { it.copy(vpnRunning = running) }
+        _state.update { it.copy(vpnRunning = running, coreStatus = PulseCoreBridge.statusText()) }
+        if (running) {
+            refreshProxies()
+        }
     }
 
     fun setProxyMode(mode: ProxyMode) {
@@ -37,33 +53,134 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
         _state.update { it.copy(themeMode = mode) }
     }
 
+    fun updateImportUrl(value: String) {
+        _state.update { it.copy(importUrl = value, profileMessage = "") }
+    }
+
+    fun importProfileFromUrl() {
+        val url = _state.value.importUrl
+        if (url.isBlank()) {
+            _state.update { it.copy(profileMessage = "请输入订阅 URL") }
+            return
+        }
+        viewModelScope.launch {
+            _state.update { it.copy(importBusy = true, profileMessage = "") }
+            val result = withContext(Dispatchers.IO) {
+                runCatching { PulseProfileStore.importFromUrl(getApplication(), url) }
+            }
+            result.onSuccess { record ->
+                reloadProfiles(record.id, "订阅已导入")
+                _state.update { it.copy(importUrl = "") }
+            }.onFailure { error ->
+                _state.update { it.copy(profileMessage = error.message ?: "导入失败") }
+            }
+            _state.update { it.copy(importBusy = false) }
+        }
+    }
+
     fun selectProfile(profileId: String) {
-        _state.update { it.copy(selectedProfileId = profileId) }
+        PulseProfileStore.select(getApplication(), profileId)
+        _state.update { it.copy(selectedProfileId = profileId, profileMessage = "") }
     }
 
     fun selectProxy(proxyId: String) {
-        _state.update {
-            it.copy(
-                selectedProxyId = proxyId,
-                proxies = it.proxies.map { proxy -> proxy.copy(selected = proxy.id == proxyId) },
-            )
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching { PulseMihomoApi.selectProxy(proxyId) }
+            }
+            result.onSuccess {
+                _state.update {
+                    it.copy(
+                        selectedProxyId = proxyId,
+                        proxyMessage = "",
+                        proxies = it.proxies.map { proxy -> proxy.copy(selected = proxy.id == proxyId) },
+                    )
+                }
+            }.onFailure { error ->
+                _state.update { it.copy(proxyMessage = error.message ?: "切换节点失败") }
+            }
+        }
+    }
+
+    fun refreshProxies() {
+        if (!PulseCoreBridge.isRunning()) {
+            _state.update { it.copy(proxyMessage = "请先启动 Pulse VPN") }
+            return
+        }
+        viewModelScope.launch {
+            _state.update { it.copy(loadingProxies = true, proxyMessage = "") }
+            val result = withContext(Dispatchers.IO) {
+                runCatching { PulseMihomoApi.proxies() }
+            }
+            result.onSuccess { proxies ->
+                _state.update {
+                    it.copy(
+                        proxies = proxies.ifEmpty { sampleProxies },
+                        loadingProxies = false,
+                        proxyMessage = if (proxies.isEmpty()) "没有可切换的策略组" else "",
+                    )
+                }
+            }.onFailure { error ->
+                _state.update {
+                    it.copy(
+                        loadingProxies = false,
+                        proxyMessage = error.message ?: "读取节点失败",
+                    )
+                }
+            }
         }
     }
 
     fun refreshProfile(profileId: String) {
+        val profile = _state.value.profiles.firstOrNull { it.id == profileId } ?: return
+        if (profile.url.isBlank()) {
+            _state.update { it.copy(profileMessage = "本地配置没有订阅 URL") }
+            return
+        }
         viewModelScope.launch {
-            _state.update { it.copy(refreshingProfileId = profileId) }
-            delay(900)
+            _state.update { it.copy(refreshingProfileId = profileId, profileMessage = "") }
+            val result = withContext(Dispatchers.IO) {
+                runCatching { PulseProfileStore.importFromUrl(getApplication(), profile.url) }
+            }
+            result.onSuccess {
+                reloadProfiles(profileId, "订阅已更新")
+            }.onFailure { error ->
+                _state.update { it.copy(profileMessage = error.message ?: "更新失败") }
+            }
             _state.update { it.copy(refreshingProfileId = null) }
         }
     }
 
-    companion object {
-        private val sampleProfiles = listOf(
-            ProfileItem("default", "主订阅", 3, 168, "今天 16:08"),
-            ProfileItem("work", "工作线路", 2, 92, "昨天 21:30"),
-            ProfileItem("local", "本地配置", 1, 44, "6 月 8 日"),
+    private fun loadProfiles() {
+        val active = PulseProfileStore.active(getApplication())
+        reloadProfiles(active.id, "")
+    }
+
+    private fun reloadProfiles(selectedId: String, message: String) {
+        val profiles = PulseProfileStore.list(getApplication()).map(::toProfileItem)
+        _state.update {
+            it.copy(
+                profiles = profiles,
+                selectedProfileId = selectedId,
+                profileMessage = message,
+            )
+        }
+    }
+
+    private fun toProfileItem(record: PulseProfileRecord): ProfileItem {
+        return ProfileItem(
+            id = record.id,
+            name = record.name,
+            url = record.url,
+            path = record.path,
+            providerCount = 0,
+            ruleCount = 0,
+            updatedAt = dateFormat.format(Date(record.updatedAt)),
         )
+    }
+
+    companion object {
+        private val dateFormat = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
 
         private val sampleProxies = listOf(
             ProxyItem("auto", "自动选择", "Proxy", 128, true),

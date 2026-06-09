@@ -23,6 +23,8 @@ enum class ThemeMode(val label: String) {
 data class ProfileItem(
     val id: String,
     val name: String,
+    val url: String,
+    val path: String,
     val providerCount: Int,
     val ruleCount: Int,
     val updatedAt: String,
@@ -56,5 +58,10 @@ data class PulseAppState(
     val profiles: List<ProfileItem> = emptyList(),
     val proxies: List<ProxyItem> = emptyList(),
     val connections: List<ConnectionItem> = emptyList(),
+    val loadingProxies: Boolean = false,
+    val proxyMessage: String = "",
+    val importUrl: String = "",
+    val importBusy: Boolean = false,
+    val profileMessage: String = "",
     val coreStatus: String = "",
 )

@@ -3,13 +3,13 @@ package com.admirepowered.pulse.ui.screens
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -23,11 +23,13 @@ import com.admirepowered.pulse.ui.components.PulseRow
 @Composable
 fun ProxiesScreen(
     proxies: List<ProxyItem>,
+    loading: Boolean,
+    message: String,
     onProxySelect: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier,
         contentPadding = PaddingValues(vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -37,6 +39,21 @@ fun ProxiesScreen(
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
                 style = MaterialTheme.typography.headlineSmall,
             )
+        }
+        if (loading) {
+            item {
+                CircularProgressIndicator(modifier = Modifier.padding(horizontal = 20.dp))
+            }
+        }
+        if (message.isNotBlank()) {
+            item {
+                Text(
+                    message,
+                    modifier = Modifier.padding(horizontal = 20.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.secondary,
+                )
+            }
         }
         items(proxies, key = { it.id }) { proxy ->
             Surface(

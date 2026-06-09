@@ -61,6 +61,7 @@ private fun PulseAndroidApp(
     PulseTheme(themeMode = state.themeMode) {
         PulseApp(
             state = state,
+            onScreenChange = viewModel::setScreen,
             onToggleVpn = { enabled ->
                 if (enabled) {
                     if (onRequestVpn()) {
@@ -78,6 +79,8 @@ private fun PulseAndroidApp(
             onProfileSelect = viewModel::selectProfile,
             onProxySelect = viewModel::selectProxy,
             onRefreshProfile = viewModel::refreshProfile,
+            onImportUrlChange = viewModel::updateImportUrl,
+            onImportProfile = viewModel::importProfileFromUrl,
         )
     }
 }

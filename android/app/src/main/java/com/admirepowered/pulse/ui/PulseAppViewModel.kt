@@ -36,6 +36,9 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
         if (screen == PulseScreen.Proxies) {
             refreshProxies()
         }
+        if (screen == PulseScreen.Connections) {
+            refreshConnections()
+        }
     }
 
     fun setVpnRunning(running: Boolean) {
@@ -46,7 +49,20 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun setProxyMode(mode: ProxyMode) {
-        _state.update { it.copy(proxyMode = mode) }
+        if (!PulseCoreBridge.isRunning()) {
+            _state.update { it.copy(proxyMode = mode) }
+            return
+        }
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching { PulseMihomoApi.setMode(mode) }
+            }
+            result.onSuccess {
+                _state.update { it.copy(proxyMode = mode) }
+            }.onFailure { error ->
+                _state.update { it.copy(proxyMessage = error.message ?: "切换模式失败") }
+            }
+        }
     }
 
     fun setThemeMode(mode: ThemeMode) {
@@ -125,6 +141,35 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
                     it.copy(
                         loadingProxies = false,
                         proxyMessage = error.message ?: "读取节点失败",
+                    )
+                }
+            }
+        }
+    }
+
+    fun refreshConnections() {
+        if (!PulseCoreBridge.isRunning()) {
+            _state.update { it.copy(connectionMessage = "请先启动 Pulse VPN") }
+            return
+        }
+        viewModelScope.launch {
+            _state.update { it.copy(loadingConnections = true, connectionMessage = "") }
+            val result = withContext(Dispatchers.IO) {
+                runCatching { PulseMihomoApi.connections() }
+            }
+            result.onSuccess { connections ->
+                _state.update {
+                    it.copy(
+                        connections = connections,
+                        loadingConnections = false,
+                        connectionMessage = if (connections.isEmpty()) "当前没有活动连接" else "",
+                    )
+                }
+            }.onFailure { error ->
+                _state.update {
+                    it.copy(
+                        loadingConnections = false,
+                        connectionMessage = error.message ?: "读取连接失败",
                     )
                 }
             }

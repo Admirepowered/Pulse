@@ -80,6 +80,8 @@ fun PulseApp(
 
             PulseScreen.Connections -> ConnectionsScreen(
                 connections = state.connections,
+                loading = state.loadingConnections,
+                message = state.connectionMessage,
                 modifier = modifier,
             )
 

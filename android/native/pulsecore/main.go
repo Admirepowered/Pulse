@@ -38,6 +38,7 @@ import (
 	mihomoConstant "github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/hub"
 	"github.com/metacubex/mihomo/hub/executor"
+	"github.com/metacubex/mihomo/tunnel"
 	"gopkg.in/yaml.v3"
 )
 
@@ -60,6 +61,14 @@ func PulseCoreStart(configPath *C.char, tunFD C.int) C.int {
 //export PulseCoreStop
 func PulseCoreStop() {
 	stopMihomo()
+}
+
+//export PulseCoreSetMode
+func PulseCoreSetMode(mode *C.char) C.int {
+	if mode == nil {
+		return 2
+	}
+	return C.int(setMode(C.GoString(mode)))
 }
 
 //export PulseCoreRunning
@@ -113,6 +122,18 @@ func Java_com_admirepowered_pulse_core_PulseCoreBridge_nativeRunning(env *C.JNIE
 	return 0
 }
 
+//export Java_com_admirepowered_pulse_core_PulseCoreBridge_nativeSetMode
+func Java_com_admirepowered_pulse_core_PulseCoreBridge_nativeSetMode(env *C.JNIEnv, obj C.jobject, mode C.jstring) C.jint {
+	_ = obj
+	cMode := C.pulse_jstring_to_c(env, mode)
+	defer C.free(unsafe.Pointer(cMode))
+	if cMode == nil {
+		setLastError(fmt.Errorf("mode is empty"))
+		return 2
+	}
+	return C.jint(setMode(C.GoString(cMode)))
+}
+
 //export Java_com_admirepowered_pulse_core_PulseCoreBridge_nativeLastError
 func Java_com_admirepowered_pulse_core_PulseCoreBridge_nativeLastError(env *C.JNIEnv, obj C.jobject) C.jstring {
 	value, _ := lastError.Load().(string)
@@ -154,6 +175,17 @@ func stopMihomo() {
 	if running.Swap(0) == 1 {
 		executor.Shutdown()
 	}
+}
+
+func setMode(modeName string) int {
+	var mode tunnel.TunnelMode
+	if err := mode.UnmarshalText([]byte(modeName)); err != nil {
+		setLastError(err)
+		return 2
+	}
+	tunnel.SetMode(mode)
+	setLastError(nil)
+	return 0
 }
 
 func androidConfigBytes(configPath string, tunFD int) ([]byte, error) {

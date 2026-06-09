@@ -9,6 +9,7 @@ object PulseCoreBridge {
     private external fun nativeStart(configPath: String, homeDir: String, tunFd: Int): Int
     private external fun nativeStop()
     private external fun nativeRunning(): Boolean
+    private external fun nativeSetMode(mode: String): Int
     private external fun nativeLastError(): String
 
     fun start(configPath: String, homeDir: String, tunFd: Int): Result<Unit> {
@@ -27,6 +28,16 @@ object PulseCoreBridge {
 
     fun isRunning(): Boolean {
         return isAvailable && nativeRunning()
+    }
+
+    fun setMode(mode: String): Result<Unit> {
+        if (!isAvailable) return Result.failure(IllegalStateException("Go mihomo core 未加载"))
+        val code = nativeSetMode(mode)
+        return if (code == 0) {
+            Result.success(Unit)
+        } else {
+            Result.failure(IllegalStateException(nativeLastError().ifBlank { "切换模式失败: $code" }))
+        }
     }
 
     fun statusText(): String {

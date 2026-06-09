@@ -60,6 +60,8 @@ data class PulseAppState(
     val connections: List<ConnectionItem> = emptyList(),
     val loadingProxies: Boolean = false,
     val proxyMessage: String = "",
+    val loadingConnections: Boolean = false,
+    val connectionMessage: String = "",
     val importUrl: String = "",
     val importBusy: Boolean = false,
     val profileMessage: String = "",

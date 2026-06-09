@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -18,6 +19,8 @@ import com.admirepowered.pulse.ui.components.PulseRow
 @Composable
 fun ConnectionsScreen(
     connections: List<ConnectionItem>,
+    loading: Boolean,
+    message: String,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -31,6 +34,21 @@ fun ConnectionsScreen(
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
                 style = MaterialTheme.typography.headlineSmall,
             )
+        }
+        if (loading) {
+            item {
+                CircularProgressIndicator(modifier = Modifier.padding(horizontal = 20.dp))
+            }
+        }
+        if (message.isNotBlank()) {
+            item {
+                Text(
+                    message,
+                    modifier = Modifier.padding(horizontal = 20.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.secondary,
+                )
+            }
         }
         items(connections, key = { it.id }) { connection ->
             PulseRow(

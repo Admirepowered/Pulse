@@ -1,6 +1,8 @@
 package com.admirepowered.pulse.core
 
 import com.admirepowered.pulse.ui.ProxyItem
+import com.admirepowered.pulse.ui.ConnectionItem
+import com.admirepowered.pulse.ui.ProxyMode
 import java.net.HttpURLConnection
 import java.net.URLEncoder
 import java.net.URL
@@ -41,11 +43,59 @@ object PulseMihomoApi {
         request("PUT", "/proxies/$group", body)
     }
 
+    fun setMode(mode: ProxyMode) {
+        val mihomoMode = when (mode) {
+            ProxyMode.Rule -> "rule"
+            ProxyMode.Global -> "global"
+            ProxyMode.Direct -> "direct"
+        }
+        PulseCoreBridge.setMode(mihomoMode).getOrThrow()
+    }
+
+    fun connections(): List<ConnectionItem> {
+        val json = JSONObject(request("GET", "/connections"))
+        val connections = json.optJSONArray("connections") ?: return emptyList()
+        return buildList {
+            for (index in 0 until connections.length()) {
+                val connection = connections.getJSONObject(index)
+                val metadata = connection.optJSONObject("metadata")
+                val host = metadata?.optString("host")?.takeIf { it.isNotBlank() }
+                    ?: metadata?.optString("destinationIP")?.takeIf { it.isNotBlank() }
+                    ?: connection.optString("id")
+                add(
+                    ConnectionItem(
+                        id = connection.optString("id", "$index"),
+                        host = host,
+                        rule = connection.optString("rule", "-"),
+                        download = formatBytes(connection.optLong("download")),
+                        upload = formatBytes(connection.optLong("upload")),
+                        speed = "-",
+                    ),
+                )
+            }
+        }
+    }
+
     private fun delayFor(proxy: JSONObject?): Int? {
         val history = proxy?.optJSONArray("history") ?: return null
         if (history.length() == 0) return null
         val delay = history.optJSONObject(history.length() - 1)?.optInt("delay", -1) ?: -1
         return delay.takeIf { it >= 0 }
+    }
+
+    private fun formatBytes(value: Long): String {
+        val units = arrayOf("B", "KB", "MB", "GB", "TB")
+        var size = value.toDouble()
+        var index = 0
+        while (size >= 1024 && index < units.lastIndex) {
+            size /= 1024
+            index++
+        }
+        return if (index == 0) {
+            "${size.toLong()} ${units[index]}"
+        } else {
+            "%.1f %s".format(size, units[index])
+        }
     }
 
     private fun request(method: String, path: String, body: String? = null): String {

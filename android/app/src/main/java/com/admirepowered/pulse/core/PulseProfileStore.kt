@@ -43,6 +43,25 @@ object PulseProfileStore {
             .apply()
     }
 
+    fun delete(context: Context, profileId: String): PulseProfileRecord {
+        require(profileId != "default") { "默认配置不能删除" }
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val record = prefs.getString(PROFILE_PREFIX + profileId, null)
+            ?.let(::decodeRecord)
+            ?: return active(context)
+        runCatching { File(record.path).delete() }
+        prefs.edit().remove(PROFILE_PREFIX + profileId).apply()
+        val profiles = list(context)
+        val activeId = prefs.getString(ACTIVE_ID, null)
+        val next = if (activeId == profileId) {
+            profiles.first()
+        } else {
+            profiles.firstOrNull { it.id == activeId } ?: profiles.first()
+        }
+        select(context, next.id)
+        return next
+    }
+
     fun importFromUrl(
         context: Context,
         profileUrl: String,

@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledIconButton
@@ -39,6 +40,7 @@ fun ProfilesScreen(
     message: String,
     onProfileSelect: (String) -> Unit,
     onRefreshProfile: (String) -> Unit,
+    onDeleteProfile: (String) -> Unit,
     onImportUrlChange: (String) -> Unit,
     onImportProfile: () -> Unit,
     modifier: Modifier = Modifier,
@@ -115,6 +117,11 @@ fun ProfilesScreen(
                         } else {
                             IconButton(onClick = { onRefreshProfile(profile.id) }) {
                                 Icon(Icons.Filled.Refresh, contentDescription = "更新订阅")
+                            }
+                        }
+                        if (profile.id != "default") {
+                            IconButton(onClick = { onDeleteProfile(profile.id) }) {
+                                Icon(Icons.Filled.Delete, contentDescription = "删除订阅")
                             }
                         }
                         AnimatedVisibility(selected) {

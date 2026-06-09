@@ -368,6 +368,19 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun deleteProfile(profileId: String) {
+        val deletingSelectedProfile = profileId == _state.value.selectedProfileId
+        val result = runCatching { PulseProfileStore.delete(getApplication(), profileId) }
+        result.onSuccess { active ->
+            reloadProfiles(active.id, "订阅已删除")
+            if (deletingSelectedProfile) {
+                reloadCoreIfRunning("订阅已切换")
+            }
+        }.onFailure { error ->
+            _state.update { it.copy(profileMessage = error.message ?: "删除失败") }
+        }
+    }
+
     private fun loadProfiles() {
         val active = PulseProfileStore.active(getApplication())
         reloadProfiles(active.id, "")

@@ -145,6 +145,7 @@ private fun PulseAndroidApp(
             onTestProxyDelays = viewModel::testProxyDelays,
             onTestProxyDelay = viewModel::testProxyDelay,
             onRefreshProfile = viewModel::refreshProfile,
+            onDeleteProfile = viewModel::deleteProfile,
             onImportUrlChange = viewModel::updateImportUrl,
             onImportProfile = viewModel::importProfileFromUrl,
             canRequestQuickTile = canRequestQuickTile,

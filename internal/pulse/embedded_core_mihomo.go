@@ -60,6 +60,22 @@ func (a *App) stopEmbeddedCore() {
 	a.stopMihomoLogSubscription()
 }
 
+func (a *App) reloadManagedRuntimeConfig(runtimeConfig string, settings Settings) (bool, error) {
+	configBytes, err := os.ReadFile(runtimeConfig)
+	if err != nil {
+		return true, err
+	}
+	controller := "127.0.0.1:9090"
+	if parsed, err := url.Parse(settings.ApiBase); err == nil && parsed.Host != "" {
+		controller = parsed.Host
+	}
+	if err := hub.Parse(configBytes, hub.WithExternalController(controller), hub.WithSecret(settings.Secret)); err != nil {
+		return true, err
+	}
+	a.appendLog("info", "embedded mihomo config reloaded")
+	return true, nil
+}
+
 func (a *App) startMihomoLogSubscription() {
 	a.mu.Lock()
 	if a.embeddedLogSub != nil {

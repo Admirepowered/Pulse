@@ -52,6 +52,7 @@ type startupServiceConfig struct {
 	Arguments        []string `json:"arguments"`
 	Daemon           bool     `json:"daemon"`
 	StopSignal       string   `json:"stopSignal"`
+	ReloadSignal     string   `json:"reloadSignal"`
 	UserSession      bool     `json:"userSession"`
 	EmbeddedCore     bool     `json:"embeddedCore"`
 	DataDir          string   `json:"dataDir"`
@@ -190,6 +191,7 @@ func writeCoreServiceConfig(dataDir string, settings Settings, runtimeConfig str
 		WorkingDirectory: dataDir,
 		Daemon:           true,
 		StopSignal:       filepath.Join(dataDir, "pulse-core-stop.signal"),
+		ReloadSignal:     filepath.Join(dataDir, "pulse-core-reload.signal"),
 		UserSession:      false,
 		DataDir:          dataDir,
 		RuntimeConfig:    runtimeConfig,

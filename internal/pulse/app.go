@@ -1566,6 +1566,13 @@ func (a *App) reloadActiveRuntimeConfig() error {
 	if err != nil {
 		return err
 	}
+	if handled, err := a.reloadManagedRuntimeConfig(runtimeConfig, settings); handled {
+		if err != nil {
+			return err
+		}
+		a.updateTrayMenuState()
+		return nil
+	}
 	body := map[string]any{"path": runtimeConfig}
 	if err := a.apiRequest(http.MethodPut, "/configs?force=true", body, nil); err != nil {
 		return err

@@ -29,6 +29,7 @@ type serviceConfig struct {
 	Arguments        []string `json:"arguments"`
 	Daemon           bool     `json:"daemon"`
 	StopSignal       string   `json:"stopSignal"`
+	ReloadSignal     string   `json:"reloadSignal"`
 	UserSession      bool     `json:"userSession"`
 	EmbeddedCore     bool     `json:"embeddedCore"`
 	DataDir          string   `json:"dataDir"`

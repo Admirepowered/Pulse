@@ -25,10 +25,6 @@ func runEmbeddedCore(config serviceConfig, requests <-chan svc.ChangeRequest) er
 	if strings.TrimSpace(config.RuntimeConfig) == "" {
 		return fmt.Errorf("missing runtimeConfig in %s", defaultConfigFile)
 	}
-	configBytes, err := os.ReadFile(config.RuntimeConfig)
-	if err != nil {
-		return err
-	}
 	stopLogForwarder := startMihomoLogForwarder()
 	defer stopLogForwarder()
 
@@ -38,11 +34,7 @@ func runEmbeddedCore(config serviceConfig, requests <-chan svc.ChangeRequest) er
 		return err
 	}
 	route.SetEmbedMode(true)
-	controller := "127.0.0.1:9090"
-	if parsed, err := url.Parse(config.ApiBase); err == nil && parsed.Host != "" {
-		controller = parsed.Host
-	}
-	if err := hub.Parse(configBytes, hub.WithExternalController(controller), hub.WithSecret(config.Secret)); err != nil {
+	if err := applyEmbeddedCoreConfig(config); err != nil {
 		return err
 	}
 	writeLog("embedded core started")
@@ -51,6 +43,18 @@ func runEmbeddedCore(config serviceConfig, requests <-chan svc.ChangeRequest) er
 	executor.Shutdown()
 	writeLog("embedded core stopped")
 	return nil
+}
+
+func applyEmbeddedCoreConfig(config serviceConfig) error {
+	configBytes, err := os.ReadFile(config.RuntimeConfig)
+	if err != nil {
+		return err
+	}
+	controller := "127.0.0.1:9090"
+	if parsed, err := url.Parse(config.ApiBase); err == nil && parsed.Host != "" {
+		controller = parsed.Host
+	}
+	return hub.Parse(configBytes, hub.WithExternalController(controller), hub.WithSecret(config.Secret))
 }
 
 func startMihomoLogForwarder() func() {
@@ -67,10 +71,19 @@ func startMihomoLogForwarder() func() {
 
 func waitForEmbeddedCoreStop(config serviceConfig, requests <-chan svc.ChangeRequest) {
 	stopMarker := signalModTime(config.StopSignal)
+	reloadMarker := signalModTime(config.ReloadSignal)
 	for {
 		if signalModTime(config.StopSignal).After(stopMarker) {
 			writeLog("embedded core stop signal received")
 			return
+		}
+		if nextReloadMarker := signalModTime(config.ReloadSignal); nextReloadMarker.After(reloadMarker) {
+			reloadMarker = nextReloadMarker
+			if err := applyEmbeddedCoreConfig(config); err != nil {
+				writeLog("embedded core reload failed: " + err.Error())
+			} else {
+				writeLog("embedded core config reloaded")
+			}
 		}
 		select {
 		case request := <-requests:

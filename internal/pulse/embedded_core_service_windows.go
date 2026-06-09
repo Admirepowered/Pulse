@@ -13,6 +13,8 @@ package pulse
 
 import (
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -64,6 +66,18 @@ func (a *App) stopEmbeddedCore() {
 		return
 	}
 	a.appendLog("info", "managed core stop requested")
+}
+
+func (a *App) reloadManagedRuntimeConfig(runtimeConfig string, settings Settings) (bool, error) {
+	if !serviceHelperHasEmbeddedCore() || settings.CoreMode == "custom" {
+		return false, nil
+	}
+	signalPath := filepath.Join(a.dataDir, "pulse-core-reload.signal")
+	if err := os.WriteFile(signalPath, []byte(time.Now().Format(time.RFC3339Nano)), 0o644); err != nil {
+		return true, err
+	}
+	a.appendLog("info", "managed core config reload requested")
+	return true, nil
 }
 
 func (a *App) coreMemoryUsage() uint64 {

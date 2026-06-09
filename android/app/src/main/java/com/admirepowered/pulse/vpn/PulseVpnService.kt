@@ -18,7 +18,6 @@ import java.io.IOException
 
 class PulseVpnService : VpnService() {
     private var tunFd: ParcelFileDescriptor? = null
-    private var coreFd: Int = -1
 
     override fun onCreate() {
         super.onCreate()
@@ -56,17 +55,16 @@ class PulseVpnService : VpnService() {
             return
         }
         val profile = PulseProfileStore.active(this)
-        coreFd = ParcelFileDescriptor.dup(establishedTun.fileDescriptor).detachFd()
+        val coreFd = ParcelFileDescriptor.dup(establishedTun.fileDescriptor).detachFd()
         val result = PulseCoreBridge.start(profile.path, filesDir.absolutePath, coreFd)
         if (result.isFailure) {
-            closeCoreFd()
+            closeDetachedFd(coreFd)
             stopVpn()
         }
     }
 
     private fun stopVpn() {
         PulseCoreBridge.stop()
-        closeCoreFd()
         try {
             tunFd?.close()
         } catch (_: IOException) {
@@ -77,13 +75,11 @@ class PulseVpnService : VpnService() {
         }
     }
 
-    private fun closeCoreFd() {
-        if (coreFd < 0) return
+    private fun closeDetachedFd(fd: Int) {
+        if (fd < 0) return
         try {
-            ParcelFileDescriptor.adoptFd(coreFd).close()
+            ParcelFileDescriptor.adoptFd(fd).close()
         } catch (_: IOException) {
-        } finally {
-            coreFd = -1
         }
     }
 

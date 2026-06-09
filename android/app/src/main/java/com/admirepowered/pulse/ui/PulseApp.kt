@@ -85,7 +85,7 @@ fun PulseApp(
             )
 
             PulseScreen.Proxies -> ProxiesScreen(
-                proxies = state.proxies,
+                groups = state.proxyGroups,
                 loading = state.loadingProxies,
                 measuring = state.measuringProxies,
                 measuringProxyId = state.measuringProxyId,

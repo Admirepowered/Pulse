@@ -26,8 +26,6 @@ import kotlinx.coroutines.withContext
 class PulseAppViewModel(application: Application) : AndroidViewModel(application) {
     private val _state = MutableStateFlow(
         PulseAppState(
-            proxies = sampleProxies,
-            connections = sampleConnections,
             coreStatus = PulseCoreBridge.statusText(),
         ),
     )
@@ -236,13 +234,8 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
             }
             result.onSuccess {
                 PulseLogStore.info(getApplication(), "切换节点: $proxyId")
-                _state.update {
-                    it.copy(
-                        selectedProxyId = proxyId,
-                        proxyMessage = "",
-                        proxies = it.proxies.map { proxy -> proxy.copy(selected = proxy.id == proxyId) },
-                    )
-                }
+                _state.update { it.copy(selectedProxyId = proxyId, proxyMessage = "") }
+                refreshProxies()
             }.onFailure { error ->
                 PulseLogStore.error(getApplication(), error.message ?: "切换节点失败")
                 _state.update { it.copy(proxyMessage = error.message ?: "切换节点失败") }
@@ -263,7 +256,7 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
             result.onSuccess { proxies ->
                 _state.update {
                     it.copy(
-                        proxies = proxies.ifEmpty { sampleProxies },
+                        proxyGroups = proxies,
                         loadingProxies = false,
                         proxyMessage = if (proxies.isEmpty()) "没有可切换的策略组" else "",
                     )
@@ -285,7 +278,9 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
             _state.update { it.copy(proxyMessage = "请先启动 Pulse VPN") }
             return
         }
-        val targets = _state.value.proxies
+        val targets = _state.value.proxyGroups
+            .flatMap { it.proxies }
+            .distinctBy { it.name }
         if (targets.isEmpty()) {
             _state.update { it.copy(proxyMessage = "没有可测速的节点") }
             return
@@ -315,7 +310,9 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
             _state.update { it.copy(proxyMessage = "请先启动 Pulse VPN") }
             return
         }
-        val proxy = _state.value.proxies.firstOrNull { it.id == proxyId } ?: return
+        val proxy = _state.value.proxyGroups
+            .flatMap { it.proxies }
+            .firstOrNull { it.id == proxyId } ?: return
         viewModelScope.launch {
             _state.update { it.copy(measuringProxyId = proxyId, proxyMessage = "") }
             val result = withContext(Dispatchers.IO) {
@@ -511,18 +508,5 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
 
     companion object {
         private val dateFormat = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
-
-        private val sampleProxies = listOf(
-            ProxyItem("auto", "自动选择", "Proxy", 128, true),
-            ProxyItem("hk-01", "香港 01", "Proxy", 86, false),
-            ProxyItem("jp-02", "日本 02", "Proxy", 142, false),
-            ProxyItem("sg-01", "新加坡 01", "Proxy", null, false),
-        )
-
-        private val sampleConnections = listOf(
-            ConnectionItem("1", "github.com", "DOMAIN-SUFFIX", "28.4 MB", "2.1 MB", "1.4 MB/s"),
-            ConnectionItem("2", "api.openai.com", "DOMAIN", "12.8 MB", "814 KB", "320 KB/s"),
-            ConnectionItem("3", "cloudflare.com", "MATCH", "5.7 MB", "440 KB", "0 KB/s"),
-        )
     }
 }

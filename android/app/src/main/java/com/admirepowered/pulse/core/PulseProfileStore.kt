@@ -9,6 +9,7 @@ import java.net.InetSocketAddress
 import java.net.Proxy
 import java.net.URL
 import java.security.MessageDigest
+import java.util.Base64
 
 data class PulseProfileRecord(
     val id: String,
@@ -22,6 +23,7 @@ object PulseProfileStore {
     private const val PREFS = "pulse_profiles"
     private const val ACTIVE_ID = "active_profile_id"
     private const val PROFILE_PREFIX = "profile_"
+    private const val SUBSCRIPTION_USER_AGENT = "clash-verge/v2.5.2"
 
     fun list(context: Context): List<PulseProfileRecord> {
         ensureDefaultProfile(context)
@@ -161,7 +163,10 @@ object PulseProfileStore {
     private fun download(context: Context, profileUrl: String, useProxy: Boolean): String {
         if (useProxy) {
             val proxy = Proxy(Proxy.Type.HTTP, InetSocketAddress("127.0.0.1", localProxyPort(context)))
-            runCatching { download(profileUrl, proxy) }.getOrNull()?.let { return it }
+            runCatching { download(profileUrl, proxy) }
+                .onFailure { PulseLogStore.warn(context, "代理更新订阅失败，已尝试直连: ${it.message}") }
+                .getOrNull()
+                ?.let { return it }
         }
         return download(profileUrl, Proxy.NO_PROXY)
     }
@@ -171,10 +176,54 @@ object PulseProfileStore {
         connection.connectTimeout = 15_000
         connection.readTimeout = 30_000
         connection.requestMethod = "GET"
-        connection.setRequestProperty("User-Agent", "Pulse-Android")
-        connection.inputStream.use { input ->
-            return input.bufferedReader(Charsets.UTF_8).readText()
+        connection.setRequestProperty("User-Agent", SUBSCRIPTION_USER_AGENT)
+        connection.setRequestProperty("Accept", "text/yaml, application/yaml, text/plain, */*")
+        val code = connection.responseCode
+        val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+        val body = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+        connection.disconnect()
+        if (code !in 200..299) {
+            throw IllegalStateException("订阅请求返回 $code: ${body.preview()}")
         }
+        return normalizeProfileBody(body)
+    }
+
+    private fun normalizeProfileBody(body: String): String {
+        val trimmed = body.trimStart('\uFEFF').trim()
+        require(trimmed.isNotBlank()) { "订阅内容为空" }
+        if (looksLikeMihomoConfig(trimmed)) return body
+
+        val decoded = decodeBase64Text(trimmed)
+        if (decoded != null) {
+            val decodedText = decoded.trimStart('\uFEFF').trim()
+            if (looksLikeMihomoConfig(decodedText)) {
+                return decodedText
+            }
+            throw IllegalStateException("订阅返回了 Base64 节点列表，不是 mihomo YAML 配置，请检查订阅链接或服务端 UA 识别")
+        }
+
+        throw IllegalStateException("订阅内容不是 mihomo YAML 配置: ${trimmed.preview()}")
+    }
+
+    private fun looksLikeMihomoConfig(value: String): Boolean {
+        return yamlConfigKeys.any { key -> Regex("""(?m)^\s*$key\s*:""").containsMatchIn(value) }
+    }
+
+    private fun decodeBase64Text(value: String): String? {
+        val compact = value.replace(Regex("""\s+"""), "")
+        if (compact.length < 32 || !Regex("""^[A-Za-z0-9+/=_-]+$""").matches(compact)) return null
+        val variants = listOf(
+            compact,
+            compact.padEnd(compact.length + (4 - compact.length % 4) % 4, '='),
+        ).distinct()
+        for (candidate in variants) {
+            for (decoder in listOf(Base64.getDecoder(), Base64.getUrlDecoder())) {
+                val decoded = runCatching { decoder.decode(candidate) }.getOrNull() ?: continue
+                val text = decoded.toString(Charsets.UTF_8)
+                if (text.any { it == '\n' || it == ':' || it == '/' }) return text
+            }
+        }
+        return null
     }
 
     private fun localProxyPort(context: Context): Int {
@@ -245,4 +294,17 @@ object PulseProfileStore {
 
     private val mixedPortPattern = Regex("""(?m)^\s*mixed-port\s*:\s*(\d+)\s*$""")
     private val portPattern = Regex("""(?m)^\s*port\s*:\s*(\d+)\s*$""")
+    private val yamlConfigKeys = listOf(
+        "mixed-port",
+        "port",
+        "socks-port",
+        "proxies",
+        "proxy-groups",
+        "proxy-providers",
+        "rules",
+    )
+
+    private fun String.preview(): String {
+        return replace(Regex("""\s+"""), " ").take(120)
+    }
 }

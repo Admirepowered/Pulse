@@ -39,6 +39,13 @@ data class ProxyItem(
     val selected: Boolean,
 )
 
+data class ProxyGroupItem(
+    val name: String,
+    val type: String,
+    val selectedName: String,
+    val proxies: List<ProxyItem>,
+)
+
 data class ConnectionItem(
     val id: String,
     val host: String,
@@ -70,7 +77,7 @@ data class PulseAppState(
     val selectedProxyId: String = "auto",
     val refreshingProfileId: String? = null,
     val profiles: List<ProfileItem> = emptyList(),
-    val proxies: List<ProxyItem> = emptyList(),
+    val proxyGroups: List<ProxyGroupItem> = emptyList(),
     val connections: List<ConnectionItem> = emptyList(),
     val traffic: TrafficSnapshot = TrafficSnapshot(),
     val loadingProxies: Boolean = false,

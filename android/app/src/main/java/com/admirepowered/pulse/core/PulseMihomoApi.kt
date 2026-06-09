@@ -1,6 +1,7 @@
 package com.admirepowered.pulse.core
 
 import com.admirepowered.pulse.ui.ConnectionItem
+import com.admirepowered.pulse.ui.ProxyGroupItem
 import com.admirepowered.pulse.ui.ProxyItem
 import com.admirepowered.pulse.ui.ProxyMode
 import com.admirepowered.pulse.ui.TrafficSnapshot
@@ -13,26 +14,36 @@ object PulseMihomoApi {
     private const val BASE_URL = "http://127.0.0.1:9090"
     private const val DEFAULT_DELAY_URL = "https://www.gstatic.com/generate_204"
 
-    fun proxies(): List<ProxyItem> {
+    fun proxies(): List<ProxyGroupItem> {
         val json = JSONObject(request("GET", "/proxies"))
         val proxies = json.getJSONObject("proxies")
-        val result = mutableListOf<ProxyItem>()
+        val result = mutableListOf<ProxyGroupItem>()
         val names = proxies.keys()
         while (names.hasNext()) {
             val groupName = names.next()
             val group = proxies.getJSONObject(groupName)
             val all = group.optJSONArray("all") ?: continue
             val selected = group.optString("now")
-            for (index in 0 until all.length()) {
-                val name = all.getString(index)
-                result += ProxyItem(
-                    id = "$groupName|$name",
-                    name = name,
-                    group = groupName,
-                    delayMs = delayFor(proxies.optJSONObject(name)),
-                    selected = name == selected,
-                )
+            val proxyItems = buildList {
+                for (index in 0 until all.length()) {
+                    val name = all.getString(index)
+                    add(
+                        ProxyItem(
+                            id = "$groupName|$name",
+                            name = name,
+                            group = groupName,
+                            delayMs = delayFor(proxies.optJSONObject(name)),
+                            selected = name == selected,
+                        ),
+                    )
+                }
             }
+            result += ProxyGroupItem(
+                name = groupName,
+                type = group.optString("type", "Selector"),
+                selectedName = selected,
+                proxies = proxyItems,
+            )
         }
         return result
     }

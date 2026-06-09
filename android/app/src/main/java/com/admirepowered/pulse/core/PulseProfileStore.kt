@@ -68,11 +68,15 @@ object PulseProfileStore {
 
     private fun ensureDefaultProfile(context: Context) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        if (prefs.all.keys.any { it.startsWith(PROFILE_PREFIX) }) return
+        if (prefs.all.keys.any { it.startsWith(PROFILE_PREFIX) }) {
+            repairDefaultProfile(context)
+            return
+        }
         val file = profileFile(context, "default")
         if (!file.exists()) {
             file.writeText(defaultConfig(), Charsets.UTF_8)
         }
+        repairDefaultProfile(context)
         val record = PulseProfileRecord(
             id = "default",
             name = "默认直连",
@@ -84,6 +88,15 @@ object PulseProfileStore {
             .putString(PROFILE_PREFIX + record.id, encodeRecord(record))
             .putString(ACTIVE_ID, record.id)
             .apply()
+    }
+
+    private fun repairDefaultProfile(context: Context) {
+        val file = profileFile(context, "default")
+        if (!file.exists()) return
+        val content = runCatching { file.readText(Charsets.UTF_8) }.getOrNull() ?: return
+        if ("- name: DIRECT" in content) {
+            file.writeText(defaultConfig(), Charsets.UTF_8)
+        }
     }
 
     private fun profileFile(context: Context, id: String): File {
@@ -136,7 +149,7 @@ object PulseProfileStore {
         log-level: info
         proxies: []
         proxy-groups:
-          - name: DIRECT
+          - name: Proxy
             type: select
             proxies:
               - DIRECT

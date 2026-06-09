@@ -8,6 +8,14 @@ internal/pulse/assets/PulseStartupService.exe
 /frontend/node_modules/
 /frontend/.vite/
 
+# Android
+/android/.gradle/
+/android/.kotlin/
+/android/local.properties
+/android/app/build/
+/android/app/src/main/jniLibs/
+/android/native/build/
+
 # Local runtime
 /data/
 /profiles/

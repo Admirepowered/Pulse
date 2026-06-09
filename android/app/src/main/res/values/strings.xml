@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Pulse</string>
+    <string name="vpn_notification_channel">Pulse VPN</string>
+    <string name="vpn_notification_title">Pulse 正在接管网络</string>
+    <string name="vpn_notification_text">VPNService 已启动，等待 mihomo core 接管 TUN 数据。</string>
+</resources>

@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
@@ -40,14 +41,15 @@ class PulseVpnService : VpnService() {
     private fun startVpn() {
         if (tunFd != null) return
         startForeground(NOTIFICATION_ID, buildNotification())
-        val establishedTun = Builder()
+        val builder = Builder()
             .setSession("Pulse")
             .setMtu(9000)
             .addAddress("10.255.0.2", 32)
             .addRoute("0.0.0.0", 0)
             .addDnsServer("1.1.1.1")
             .addDnsServer("8.8.8.8")
-            .establish()
+        excludeSelfFromVpn(builder)
+        val establishedTun = builder.establish()
         tunFd = establishedTun
 
         if (establishedTun == null) {
@@ -91,13 +93,29 @@ class PulseVpnService : VpnService() {
             intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
+        val stopIntent = Intent(this, PulseVpnService::class.java).setAction(ACTION_STOP)
+        val stopPendingIntent = PendingIntent.getService(
+            this,
+            1,
+            stopIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_vpn_status)
             .setContentTitle(getString(R.string.vpn_notification_title))
             .setContentText(getString(R.string.vpn_notification_text))
             .setOngoing(true)
             .setContentIntent(pendingIntent)
+            .addAction(R.drawable.ic_vpn_status, "停止", stopPendingIntent)
             .build()
+    }
+
+    private fun excludeSelfFromVpn(builder: Builder) {
+        try {
+            builder.addDisallowedApplication(packageName)
+        } catch (_: PackageManager.NameNotFoundException) {
+        } catch (_: UnsupportedOperationException) {
+        }
     }
 
     private fun ensureNotificationChannel() {

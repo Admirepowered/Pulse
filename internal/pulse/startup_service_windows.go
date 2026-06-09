@@ -122,6 +122,10 @@ func setServiceAutoStart(dataDir string, settings Settings, enabled bool) error 
 	if err := writeStartupServicePayload(dataDir, settings); err != nil {
 		return err
 	}
+	runtimeConfig := filepath.Join(dataDir, "pulse-runtime.yaml")
+	if _, err := writeCoreServiceConfig(dataDir, settings, runtimeConfig); err != nil {
+		return err
+	}
 
 	config := mgr.Config{
 		ServiceType:      windows.SERVICE_WIN32_OWN_PROCESS,
@@ -137,6 +141,15 @@ func setServiceAutoStart(dataDir string, settings Settings, enabled bool) error 
 		return fmt.Errorf("create startup service: %w", err)
 	}
 	defer service.Close()
+	if err := configureServiceRecovery(service); err != nil {
+		return fmt.Errorf("configure startup service recovery: %w", err)
+	}
+	if err := ensureCoreServiceRegistered(servicePath, true); err != nil {
+		return err
+	}
+	if err := startRegisteredService(coreServiceName); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -151,7 +164,7 @@ func startServiceCore(dataDir string, settings Settings, runtimeConfig string) e
 	if isCoreServiceRunning() {
 		return nil
 	}
-	if err := ensureCoreServiceRegistered(servicePath); err != nil {
+	if err := ensureCoreServiceRegistered(servicePath, true); err != nil {
 		return errors.New("服务未注册，请先在设置中开启 AutoStartService 之后再启动核心")
 	}
 	return startRegisteredService(coreServiceName)
@@ -218,15 +231,19 @@ func stopServiceCore(dataDir string) error {
 	return stopRegisteredService(coreServiceName)
 }
 
-func ensureCoreServiceRegistered(servicePath string) error {
+func ensureCoreServiceRegistered(servicePath string, automatic bool) error {
 	manager, err := mgr.Connect()
 	if err != nil {
 		return fmt.Errorf("connect service manager: %w", err)
 	}
 	defer manager.Disconnect()
+	startType := uint32(mgr.StartManual)
+	if automatic {
+		startType = uint32(mgr.StartAutomatic)
+	}
 	config := mgr.Config{
 		ServiceType:    windows.SERVICE_WIN32_OWN_PROCESS,
-		StartType:      mgr.StartManual,
+		StartType:      startType,
 		ErrorControl:   mgr.ErrorNormal,
 		DisplayName:    coreServiceDisplayName,
 		Description:    coreServiceDescription,
@@ -240,13 +257,14 @@ func ensureCoreServiceRegistered(servicePath string) error {
 		return fmt.Errorf("open or create core service: %w", err)
 	}
 	defer service.Close()
+	if err := configureServiceRecovery(service); err != nil {
+		return fmt.Errorf("configure core service recovery: %w", err)
+	}
 	// UpdateConfig can fail when the service is running; only update when
 	// the service is stopped, so we don't break reconnection after an
 	// app restart.
-	if status, err := service.Query(); err == nil && status.State != svc.Running {
-		if err := service.UpdateConfig(config); err != nil {
-			return fmt.Errorf("update core service: %w", err)
-		}
+	if err := service.UpdateConfig(config); err != nil {
+		return fmt.Errorf("update core service: %w", err)
 	}
 	return nil
 }
@@ -267,12 +285,16 @@ func startRegisteredService(name string) error {
 		return fmt.Errorf("connect service manager: %w", err)
 	}
 	defer manager.Disconnect()
-	service, err := manager.OpenService(name)
+	namePtr, err := windows.UTF16PtrFromString(name)
+	if err != nil {
+		return err
+	}
+	h, err := windows.OpenService(manager.Handle, namePtr, windows.SERVICE_START|windows.SERVICE_QUERY_STATUS)
 	if err != nil {
 		return fmt.Errorf("open service %s: %w", name, err)
 	}
-	defer service.Close()
-	if err := service.Start(); err != nil && !errors.Is(err, windows.ERROR_SERVICE_ALREADY_RUNNING) {
+	defer windows.CloseHandle(h)
+	if err := windows.StartService(h, 0, nil); err != nil && !errors.Is(err, windows.ERROR_SERVICE_ALREADY_RUNNING) {
 		return fmt.Errorf("start service %s: %w", name, err)
 	}
 	return nil
@@ -321,6 +343,18 @@ func deleteServiceIfExists(manager *mgr.Mgr, name string, timeout time.Duration)
 		return fmt.Errorf("delete service %s: %w", name, err)
 	}
 	return nil
+}
+
+func configureServiceRecovery(service *mgr.Service) error {
+	actions := []mgr.RecoveryAction{
+		{Type: mgr.ServiceRestart, Delay: time.Second},
+		{Type: mgr.ServiceRestart, Delay: 3 * time.Second},
+		{Type: mgr.ServiceRestart, Delay: 10 * time.Second},
+	}
+	if err := service.SetRecoveryActions(actions, 60); err != nil {
+		return err
+	}
+	return service.SetRecoveryActionsOnNonCrashFailures(true)
 }
 
 func coreAPIIsReachable(apiBase, secret string) bool {
@@ -397,31 +431,11 @@ func uninstallStartupService(dataDir string) error {
 		return fmt.Errorf("connect service manager: %w", err)
 	}
 	defer manager.Disconnect()
-	service, err := manager.OpenService(startupServiceName)
-	if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
-		return removeStartupServiceFiles(dataDir)
+	if err := deleteServiceIfExists(manager, coreServiceName, 8*time.Second); err != nil {
+		return err
 	}
-	if err != nil {
-		return fmt.Errorf("open startup service: %w", err)
-	}
-	defer service.Close()
-	if _, err := service.Control(svc.Stop); err != nil &&
-		!errors.Is(err, windows.ERROR_SERVICE_NOT_ACTIVE) {
-		return fmt.Errorf("stop startup service: %w", err)
-	}
-	// Service.Control(svc.Stop) is async: the SCM marks the request
-	// pending, the service process gets a stop notification, and only
-	// when the process actually exits does the SCM mark the service
-	// Stopped. While the process is still running it holds the
-	// PulseStartupService.exe binary open, so calling
-	// removeStartupServiceFiles before that yields
-	// "Access is denied" on Windows. Poll the state until it reaches
-	// Stopped (or a 5s deadline) and then clean up the file.
-	if err := waitForServiceState(service, svc.Stopped, 5*time.Second); err != nil {
-		return fmt.Errorf("wait for startup service stopped: %w", err)
-	}
-	if err := service.Delete(); err != nil {
-		return fmt.Errorf("delete startup service: %w", err)
+	if err := deleteServiceIfExists(manager, startupServiceName, 8*time.Second); err != nil {
+		return err
 	}
 	return removeStartupServiceFiles(dataDir)
 }

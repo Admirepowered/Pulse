@@ -834,6 +834,7 @@ func (a *App) SaveSettings(settings Settings) error {
 		return errors.New(tunAdminRequiredMessage)
 	}
 	requiresRestart := running && settingsRequireCoreRestart(previous, settings)
+	requiresConfigReload := running && settingsRequireConfigReload(previous, settings)
 	requiresRuntimeApply := running && settingsRequireRuntimeApply(previous, settings)
 	requiresSystemProxyApply := running || previous.SystemProxy != settings.SystemProxy || (settings.SystemProxy && previous.MixedPort != settings.MixedPort)
 	requiresAutoStartApply := previous.AutoStart != settings.AutoStart || (settings.AutoStart && isProcessElevated())
@@ -897,6 +898,13 @@ func (a *App) SaveSettings(settings Settings) error {
 			return err
 		}
 		return nil
+	}
+	if requiresConfigReload {
+		a.appendLog("info", "settings require mihomo config reload")
+		if err := a.reloadActiveRuntimeConfig(); err != nil {
+			a.appendLog("error", "reload config after settings change failed: "+err.Error())
+			return err
+		}
 	}
 	if requiresRuntimeApply {
 		if err := a.applyRuntimeSettings(settings); err != nil {
@@ -992,9 +1000,11 @@ func settingsRequireCoreRestart(previous, next Settings) bool {
 	return previous.CoreMode != next.CoreMode ||
 		previous.CorePath != next.CorePath ||
 		previous.ApiBase != next.ApiBase ||
-		previous.Secret != next.Secret ||
-		previous.MixedPort != next.MixedPort ||
-		previous.AutoStartService != next.AutoStartService ||
+		previous.Secret != next.Secret
+}
+
+func settingsRequireConfigReload(previous, next Settings) bool {
+	return previous.MixedPort != next.MixedPort ||
 		tunSettingsChanged(previous, next)
 }
 

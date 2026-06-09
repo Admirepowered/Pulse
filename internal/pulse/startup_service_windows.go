@@ -67,14 +67,18 @@ func syncStartupServiceExecutable(dataDir string) error {
 }
 
 func syncStartupServicePayload(dataDir string, settings Settings) error {
+	if _, err := ensureStartupServiceExecutable(dataDir); err != nil {
+		return err
+	}
+	return writeStartupServicePayload(dataDir, settings)
+}
+
+func writeStartupServicePayload(dataDir string, settings Settings) error {
 	if dataDir == "" {
 		return errors.New("data directory is not initialized")
 	}
 	executable, err := os.Executable()
 	if err != nil {
-		return err
-	}
-	if _, err := ensureStartupServiceExecutable(dataDir); err != nil {
 		return err
 	}
 	config := startupServiceConfig{
@@ -103,18 +107,21 @@ func setServiceAutoStart(dataDir string, settings Settings, enabled bool) error 
 	if !isProcessElevated() {
 		return errors.New("服务启动需要管理员权限进行首次注册，请以管理员身份重新启动 Pulse 后再开启")
 	}
-	servicePath, err := ensureStartupServiceExecutable(dataDir)
-	if err != nil {
-		return err
-	}
-	if err := syncStartupServicePayload(dataDir, settings); err != nil {
-		return err
-	}
 	manager, err := mgr.Connect()
 	if err != nil {
 		return fmt.Errorf("connect service manager: %w", err)
 	}
 	defer manager.Disconnect()
+	if err := deleteServiceIfExists(manager, startupServiceName, 8*time.Second); err != nil {
+		return fmt.Errorf("remove old startup service: %w", err)
+	}
+	servicePath, err := ensureStartupServiceExecutable(dataDir)
+	if err != nil {
+		return err
+	}
+	if err := writeStartupServicePayload(dataDir, settings); err != nil {
+		return err
+	}
 
 	config := mgr.Config{
 		ServiceType:      windows.SERVICE_WIN32_OWN_PROCESS,
@@ -125,31 +132,21 @@ func setServiceAutoStart(dataDir string, settings Settings, enabled bool) error 
 		BinaryPathName:   servicePath,
 		DelayedAutoStart: false,
 	}
-	service, err := manager.OpenService(startupServiceName)
-	if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
-		service, err = manager.CreateService(startupServiceName, servicePath, config)
-	}
+	service, err := manager.CreateService(startupServiceName, servicePath, config)
 	if err != nil {
-		return fmt.Errorf("open or create startup service: %w", err)
+		return fmt.Errorf("create startup service: %w", err)
 	}
 	defer service.Close()
-	if err := service.UpdateConfig(config); err != nil {
-		return fmt.Errorf("update startup service: %w", err)
-	}
 	return nil
 }
 
 func startServiceCore(dataDir string, settings Settings, runtimeConfig string) error {
+	if coreAPIIsReachable(settings.ApiBase, settings.Secret) {
+		return nil
+	}
 	servicePath, err := writeCoreServiceConfig(dataDir, settings, runtimeConfig)
 	if err != nil {
 		return err
-	}
-	// If the core is already running (e.g. from a previous app session),
-	// we are done — the config has been written and the API is reachable.
-	// Check the API directly: this is more reliable than SCM queries,
-	// which need admin rights the process may not have.
-	if coreAPIIsReachable(settings.ApiBase, settings.Secret) {
-		return nil
 	}
 	if isCoreServiceRunning() {
 		return nil
@@ -214,6 +211,9 @@ func writeCoreServiceConfig(dataDir string, settings Settings, runtimeConfig str
 func stopServiceCore(dataDir string) error {
 	if dataDir != "" {
 		_ = os.WriteFile(filepath.Join(dataDir, "pulse-core-stop.signal"), []byte(fmt.Sprintf("%d", time.Now().UnixNano())), 0o644)
+	}
+	if !isProcessElevated() {
+		return nil
 	}
 	return stopRegisteredService(coreServiceName)
 }
@@ -294,6 +294,31 @@ func stopRegisteredService(name string) error {
 	defer service.Close()
 	if _, err := service.Control(svc.Stop); err != nil && !errors.Is(err, windows.ERROR_SERVICE_NOT_ACTIVE) {
 		return fmt.Errorf("stop service %s: %w", name, err)
+	}
+	return nil
+}
+
+func deleteServiceIfExists(manager *mgr.Mgr, name string, timeout time.Duration) error {
+	service, err := manager.OpenService(name)
+	if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("open service %s: %w", name, err)
+	}
+	defer service.Close()
+	status, queryErr := service.Query()
+	if queryErr == nil && status.State != svc.Stopped {
+		if _, err := service.Control(svc.Stop); err != nil &&
+			!errors.Is(err, windows.ERROR_SERVICE_NOT_ACTIVE) {
+			return fmt.Errorf("stop service %s: %w", name, err)
+		}
+		if err := waitForServiceState(service, svc.Stopped, timeout); err != nil {
+			return fmt.Errorf("wait for service %s stopped: %w", name, err)
+		}
+	}
+	if err := service.Delete(); err != nil {
+		return fmt.Errorf("delete service %s: %w", name, err)
 	}
 	return nil
 }

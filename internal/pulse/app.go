@@ -199,23 +199,23 @@ type SubscriptionInfo struct {
 }
 
 type RuntimeState struct {
-	Running       bool            `json:"running"`
-	ApiReachable  bool            `json:"apiReachable"`
-	CoreFound     bool            `json:"coreFound"`
-	Version       string          `json:"version"`
-	BuildNumber   string          `json:"buildNumber"`
-	Platform      string          `json:"platform"`
-	AppEmbeddedCore     bool      `json:"appEmbeddedCore"`
-	ServiceEmbeddedCore bool      `json:"serviceEmbeddedCore"`
-	CoreModeImplementation string  `json:"coreModeImplementation"`
-	StartedAt     int64           `json:"startedAt"`
-	DataDir       string          `json:"dataDir"`
-	ActiveProfile string          `json:"activeProfile"`
-	Profiles      []Profile       `json:"profiles"`
-	Settings      Settings        `json:"settings"`
-	Traffic       TrafficSnapshot `json:"traffic"`
-	RecentLogs    []LogLine       `json:"recentLogs"`
-	Geodata       GeodataStatus   `json:"geodata"`
+	Running                bool            `json:"running"`
+	ApiReachable           bool            `json:"apiReachable"`
+	CoreFound              bool            `json:"coreFound"`
+	Version                string          `json:"version"`
+	BuildNumber            string          `json:"buildNumber"`
+	Platform               string          `json:"platform"`
+	AppEmbeddedCore        bool            `json:"appEmbeddedCore"`
+	ServiceEmbeddedCore    bool            `json:"serviceEmbeddedCore"`
+	CoreModeImplementation string          `json:"coreModeImplementation"`
+	StartedAt              int64           `json:"startedAt"`
+	DataDir                string          `json:"dataDir"`
+	ActiveProfile          string          `json:"activeProfile"`
+	Profiles               []Profile       `json:"profiles"`
+	Settings               Settings        `json:"settings"`
+	Traffic                TrafficSnapshot `json:"traffic"`
+	RecentLogs             []LogLine       `json:"recentLogs"`
+	Geodata                GeodataStatus   `json:"geodata"`
 }
 
 type LogLine struct {
@@ -294,7 +294,7 @@ type ConnectionSnapshot struct {
 const (
 	subscriptionUserAgent = "clash-verge/v2.5.2"
 	defaultDelayTestURL   = "https://www.gstatic.com/generate_204"
-	coreServiceStartFlag = "--start-core-service"
+	coreServiceStartFlag  = "--start-core-service"
 )
 
 var (
@@ -344,32 +344,12 @@ func (a *App) Startup(ctx context.Context) {
 func (a *App) syncAutoStartPath() {
 	a.mu.Lock()
 	enabled := a.store.Settings.AutoStart
-	serviceEnabled := a.store.Settings.AutoStartService
-	settings := a.store.Settings
-	dataDir := a.dataDir
 	a.mu.Unlock()
-	if err := syncStartupServiceExecutable(dataDir); err != nil {
-		a.appendLog("warn", "startup service helper sync failed: "+err.Error())
-	} else {
-		a.appendLog("debug", "startup service helper synced")
-	}
 	if enabled {
 		if err := setAutoStart(true); err != nil {
 			a.appendLog("error", "auto-start path sync failed: "+err.Error())
 		} else {
 			a.appendLog("info", "auto-start path synced to current executable")
-		}
-	}
-	if serviceEnabled {
-		if err := syncStartupServicePayload(dataDir, settings); err != nil {
-			a.appendLog("error", "service startup payload sync failed: "+err.Error())
-		} else {
-			a.appendLog("info", "service startup config synced to current executable")
-		}
-		if isProcessElevated() {
-			if err := setServiceAutoStart(dataDir, settings, true); err != nil {
-				a.appendLog("error", "service startup registration sync failed: "+err.Error())
-			}
 		}
 	}
 }
@@ -801,23 +781,23 @@ func (a *App) GetSnapshot() RuntimeState {
 
 	traffic, apiOK := a.fetchTraffic()
 	return RuntimeState{
-		Running:       running,
-		ApiReachable:  apiOK,
-		CoreFound:     a.coreAvailable(settings),
-		Version:       AppVersion,
-		BuildNumber:   BuildNumber,
-		Platform:      goruntime.GOOS,
-		AppEmbeddedCore:     appHasEmbeddedCore(),
-		ServiceEmbeddedCore: serviceHelperHasEmbeddedCore(),
+		Running:                running,
+		ApiReachable:           apiOK,
+		CoreFound:              a.coreAvailable(settings),
+		Version:                AppVersion,
+		BuildNumber:            BuildNumber,
+		Platform:               goruntime.GOOS,
+		AppEmbeddedCore:        appHasEmbeddedCore(),
+		ServiceEmbeddedCore:    serviceHelperHasEmbeddedCore(),
 		CoreModeImplementation: coreModeImplementation(settings),
-		StartedAt:     startedAt,
-		DataDir:       dataDir,
-		ActiveProfile: active,
-		Profiles:      profiles,
-		Settings:      settings,
-		Traffic:       traffic,
-		RecentLogs:    logs,
-		Geodata:       geodata,
+		StartedAt:              startedAt,
+		DataDir:                dataDir,
+		ActiveProfile:          active,
+		Profiles:               profiles,
+		Settings:               settings,
+		Traffic:                traffic,
+		RecentLogs:             logs,
+		Geodata:                geodata,
 	}
 }
 
@@ -858,7 +838,7 @@ func (a *App) SaveSettings(settings Settings) error {
 	requiresSystemProxyApply := running || previous.SystemProxy != settings.SystemProxy || (settings.SystemProxy && previous.MixedPort != settings.MixedPort)
 	requiresAutoStartApply := previous.AutoStart != settings.AutoStart || (settings.AutoStart && isProcessElevated())
 	requiresServiceStartupApply := previous.AutoStartService != settings.AutoStartService
-	requiresServiceStartupSync := settings.AutoStartService && (previous.AutoStartServiceDaemon != settings.AutoStartServiceDaemon || !requiresServiceStartupApply)
+	requiresServiceStartupSync := settings.AutoStartService && previous.AutoStartServiceDaemon != settings.AutoStartServiceDaemon
 	dataDir := a.dataDir
 	a.mu.Unlock()
 

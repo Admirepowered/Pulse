@@ -22,6 +22,14 @@ func appHasEmbeddedCore() bool {
 }
 
 func (a *App) startEmbeddedCore(runtimeConfig string, settings Settings) error {
+	if coreAPIIsReachable(settings.ApiBase, settings.Secret) {
+		a.mu.Lock()
+		a.embeddedCoreRunning = true
+		a.startedAt = time.Now().Unix()
+		a.mu.Unlock()
+		a.appendLog("info", "managed core already reachable through PulseStartupService")
+		return nil
+	}
 	cmd, err := startManagedHelperCore(a.dataDir, settings, runtimeConfig)
 	if err != nil {
 		return err

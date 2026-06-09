@@ -55,7 +55,7 @@ func PulseCoreStart(configPath *C.char, tunFD C.int) C.int {
 	if configPath == nil || tunFD < 0 {
 		return 2
 	}
-	return C.int(startMihomo(C.GoString(configPath), filepath.Dir(C.GoString(configPath)), int(tunFD)))
+	return C.int(startMihomo(C.GoString(configPath), filepath.Dir(C.GoString(configPath)), int(tunFD), false))
 }
 
 //export PulseCoreStop
@@ -94,7 +94,7 @@ func Java_com_admirepowered_pulse_core_PulseCoreBridge_nativeVersion(env *C.JNIE
 }
 
 //export Java_com_admirepowered_pulse_core_PulseCoreBridge_nativeStart
-func Java_com_admirepowered_pulse_core_PulseCoreBridge_nativeStart(env *C.JNIEnv, obj C.jobject, configPath C.jstring, homeDir C.jstring, tunFD C.jint) C.jint {
+func Java_com_admirepowered_pulse_core_PulseCoreBridge_nativeStart(env *C.JNIEnv, obj C.jobject, configPath C.jstring, homeDir C.jstring, tunFD C.jint, allowLan C.jboolean) C.jint {
 	_ = obj
 	cConfigPath := C.pulse_jstring_to_c(env, configPath)
 	defer C.free(unsafe.Pointer(cConfigPath))
@@ -104,7 +104,7 @@ func Java_com_admirepowered_pulse_core_PulseCoreBridge_nativeStart(env *C.JNIEnv
 		setLastError(fmt.Errorf("config path or home dir is empty"))
 		return 2
 	}
-	return C.jint(startMihomo(C.GoString(cConfigPath), C.GoString(cHomeDir), int(tunFD)))
+	return C.jint(startMihomo(C.GoString(cConfigPath), C.GoString(cHomeDir), int(tunFD), allowLan != 0))
 }
 
 //export Java_com_admirepowered_pulse_core_PulseCoreBridge_nativeStop
@@ -143,7 +143,7 @@ func Java_com_admirepowered_pulse_core_PulseCoreBridge_nativeLastError(env *C.JN
 	return C.pulse_new_jstring(env, cValue)
 }
 
-func startMihomo(configPath string, homeDir string, tunFD int) int {
+func startMihomo(configPath string, homeDir string, tunFD int, allowLan bool) int {
 	if configPath == "" || homeDir == "" || tunFD < 0 {
 		setLastError(fmt.Errorf("invalid start arguments"))
 		return 2
@@ -157,7 +157,7 @@ func startMihomo(configPath string, homeDir string, tunFD int) int {
 		return 3
 	}
 
-	configBytes, err := androidConfigBytes(configPath, tunFD)
+	configBytes, err := androidConfigBytes(configPath, tunFD, allowLan)
 	if err != nil {
 		setLastError(err)
 		return 4
@@ -188,7 +188,7 @@ func setMode(modeName string) int {
 	return 0
 }
 
-func androidConfigBytes(configPath string, tunFD int) ([]byte, error) {
+func androidConfigBytes(configPath string, tunFD int, allowLan bool) ([]byte, error) {
 	raw, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, err
@@ -214,7 +214,7 @@ func androidConfigBytes(configPath string, tunFD int) ([]byte, error) {
 		root["mode"] = "rule"
 	}
 	root["external-controller"] = "127.0.0.1:9090"
-	root["allow-lan"] = false
+	root["allow-lan"] = allowLan
 	return yaml.Marshal(root)
 }
 

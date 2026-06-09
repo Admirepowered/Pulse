@@ -17,6 +17,7 @@ import com.admirepowered.pulse.MainActivity
 import com.admirepowered.pulse.R
 import com.admirepowered.pulse.core.PulseCoreBridge
 import com.admirepowered.pulse.core.PulseProfileStore
+import com.admirepowered.pulse.core.PulseSettingsStore
 import com.admirepowered.pulse.quick.PulseTileService
 import java.io.IOException
 
@@ -61,8 +62,9 @@ class PulseVpnService : VpnService() {
             return
         }
         val profile = PulseProfileStore.active(this)
+        val settings = PulseSettingsStore.load(this)
         val coreFd = ParcelFileDescriptor.dup(establishedTun.fileDescriptor).detachFd()
-        val result = PulseCoreBridge.start(profile.path, filesDir.absolutePath, coreFd)
+        val result = PulseCoreBridge.start(profile.path, filesDir.absolutePath, coreFd, settings.allowLan)
         if (result.isFailure) {
             closeDetachedFd(coreFd)
             stopVpn(stopService = true)

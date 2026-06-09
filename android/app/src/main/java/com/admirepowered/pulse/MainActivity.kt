@@ -147,6 +147,7 @@ private fun PulseAndroidApp(
             onImportProfile = viewModel::importProfileFromUrl,
             canRequestQuickTile = canRequestQuickTile,
             onAddQuickTile = onAddQuickTile,
+            onAllowLanChange = viewModel::setAllowLan,
             onProxyUpdateProfilesChange = viewModel::setProxyUpdateProfiles,
         )
     }

@@ -24,6 +24,7 @@ fun SettingsScreen(
     onThemeChange: (ThemeMode) -> Unit,
     canRequestQuickTile: Boolean,
     onAddQuickTile: () -> Unit,
+    onAllowLanChange: (Boolean) -> Unit,
     onProxyUpdateProfilesChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -45,7 +46,12 @@ fun SettingsScreen(
             PulseRow(
                 title = "允许局域网",
                 subtitle = "允许同网段设备访问本机代理入口",
-                trailing = { Switch(checked = true, onCheckedChange = { }) },
+                trailing = {
+                    Switch(
+                        checked = state.allowLan,
+                        onCheckedChange = onAllowLanChange,
+                    )
+                },
             )
         }
         item {

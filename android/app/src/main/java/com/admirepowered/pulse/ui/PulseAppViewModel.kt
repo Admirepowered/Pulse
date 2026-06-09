@@ -120,6 +120,14 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
         _state.update { it.copy(themeMode = mode) }
     }
 
+    fun setAllowLan(enabled: Boolean) {
+        PulseSettingsStore.setAllowLan(getApplication(), enabled)
+        _state.update { it.copy(allowLan = enabled) }
+        if (PulseCoreBridge.isRunning()) {
+            reloadCoreIfRunning("局域网访问设置已更新")
+        }
+    }
+
     fun setProxyUpdateProfiles(enabled: Boolean) {
         PulseSettingsStore.setProxyUpdateProfiles(getApplication(), enabled)
         _state.update { it.copy(proxyUpdateProfiles = enabled) }
@@ -317,7 +325,12 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
 
     private fun loadSettings() {
         val settings = PulseSettingsStore.load(getApplication())
-        _state.update { it.copy(proxyUpdateProfiles = settings.proxyUpdateProfiles) }
+        _state.update {
+            it.copy(
+                allowLan = settings.allowLan,
+                proxyUpdateProfiles = settings.proxyUpdateProfiles,
+            )
+        }
     }
 
     private fun shouldProxyProfileUpdate(): Boolean {

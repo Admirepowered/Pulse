@@ -145,8 +145,7 @@ export function ProfilesPage({
                                             <span>{profile.type}</span>
                                             <span>{formatTime(profile.updatedAt, t)}</span>
                                         </label>
-                                        {profile.source && (
-                                            editingSource?.id === profile.id ? (
+                                        {profile.source && editingSource?.id === profile.id && (
                                                 <input
                                                     className="profileSourceInput"
                                                     autoFocus
@@ -159,12 +158,6 @@ export function ProfilesPage({
                                                         if (event.key === 'Escape') setEditingSource(null);
                                                     }}
                                                 />
-                                            ) : (
-                                                <label className="profileSource" onClick={(event) => event.stopPropagation()}>
-                                                    <Link2 size={12}/>
-                                                    <span>{profile.source}</span>
-                                                </label>
-                                            )
                                         )}
                                         <SubscriptionUsage info={profile.subscription} t={t}/>
                                     </div>

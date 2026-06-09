@@ -1171,20 +1171,6 @@ textarea {
     color: #a1aab6;
 }
 
-.profileSource {
-    min-width: 0;
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    color: #64748b;
-    font-size: 12px;
-    cursor: text;
-}
-
-.profileSource svg {
-    flex: 0 0 auto;
-}
-
 .rowActions button,
 .connectionRow button {
     width: 32px;

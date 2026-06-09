@@ -55,6 +55,40 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun confirmVpnStart() {
+        _state.update { it.copy(vpnRunning = true, proxyMessage = "", coreStatus = PulseCoreBridge.statusText()) }
+        viewModelScope.launch {
+            delay(1_000)
+            val running = PulseCoreBridge.isRunning()
+            val message = if (running) {
+                ""
+            } else {
+                PulseCoreBridge.lastError().ifBlank { "VPN 未启动，请检查授权或配置" }
+            }
+            _state.update {
+                it.copy(
+                    vpnRunning = running,
+                    coreStatus = PulseCoreBridge.statusText(),
+                    proxyMessage = message,
+                )
+            }
+            if (running) {
+                refreshProxies()
+                refreshDashboard()
+            }
+        }
+    }
+
+    fun rejectVpnPermission() {
+        _state.update {
+            it.copy(
+                vpnRunning = false,
+                proxyMessage = "VPN 授权已取消",
+                coreStatus = PulseCoreBridge.statusText(),
+            )
+        }
+    }
+
     fun refreshRuntimeStatus() {
         val running = PulseCoreBridge.isRunning()
         _state.update { it.copy(vpnRunning = running, coreStatus = PulseCoreBridge.statusText()) }

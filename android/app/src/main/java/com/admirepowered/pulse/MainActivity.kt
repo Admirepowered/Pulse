@@ -1,6 +1,7 @@
 package com.admirepowered.pulse
 
 import android.Manifest
+import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.VpnService
@@ -72,9 +73,13 @@ private fun PulseAndroidApp(
     }
     val vpnPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
-    ) {
-        PulseVpnService.start(context)
-        viewModel.setVpnRunning(true)
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            PulseVpnService.start(context)
+            viewModel.confirmVpnStart()
+        } else {
+            viewModel.rejectVpnPermission()
+        }
     }
 
     PulseTheme(themeMode = state.themeMode) {
@@ -84,7 +89,7 @@ private fun PulseAndroidApp(
             onToggleVpn = { enabled ->
                 if (enabled) {
                     if (onRequestVpn()) {
-                        viewModel.setVpnRunning(true)
+                        viewModel.confirmVpnStart()
                     } else {
                         onLaunchVpnPermission(vpnPermissionLauncher)
                     }

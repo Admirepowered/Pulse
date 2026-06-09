@@ -40,6 +40,10 @@ object PulseCoreBridge {
         }
     }
 
+    fun lastError(): String {
+        return if (isAvailable) nativeLastError() else ""
+    }
+
     fun statusText(): String {
         return if (isAvailable) {
             "Go mihomo core 已加载: ${nativeVersion()}"

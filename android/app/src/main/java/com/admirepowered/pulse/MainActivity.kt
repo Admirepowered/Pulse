@@ -111,6 +111,11 @@ private fun PulseAndroidApp(
         viewModel.importProfileFromUrl(url)
         onProfileUrlConsumed()
     }
+    val profileFileLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        uri?.let(viewModel::importProfileFromUri)
+    }
     val vpnPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { result ->
@@ -148,6 +153,11 @@ private fun PulseAndroidApp(
             onDeleteProfile = viewModel::deleteProfile,
             onImportUrlChange = viewModel::updateImportUrl,
             onImportProfile = viewModel::importProfileFromUrl,
+            onImportProfileFile = {
+                profileFileLauncher.launch(arrayOf("application/yaml", "text/yaml", "text/x-yaml", "text/plain", "*/*"))
+            },
+            onRefreshLogs = viewModel::refreshLogs,
+            onClearLogs = viewModel::clearLogs,
             canRequestQuickTile = canRequestQuickTile,
             onAddQuickTile = onAddQuickTile,
             onAllowLanChange = viewModel::setAllowLan,

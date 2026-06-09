@@ -1,9 +1,12 @@
 package com.admirepowered.pulse.ui
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.admirepowered.pulse.core.PulseCoreBridge
+import com.admirepowered.pulse.core.PulseLogEntry
+import com.admirepowered.pulse.core.PulseLogStore
 import com.admirepowered.pulse.core.PulseMihomoApi
 import com.admirepowered.pulse.core.PulseProfileRecord
 import com.admirepowered.pulse.core.PulseProfileStore
@@ -47,6 +50,9 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
         if (screen == PulseScreen.Dashboard) {
             refreshDashboard()
         }
+        if (screen == PulseScreen.Logs) {
+            refreshLogs()
+        }
     }
 
     fun setVpnRunning(running: Boolean) {
@@ -67,6 +73,9 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
             } else {
                 PulseCoreBridge.lastError().ifBlank { "VPN 未启动，请检查授权或配置" }
             }
+            if (message.isNotBlank()) {
+                PulseLogStore.warn(getApplication(), message)
+            }
             _state.update {
                 it.copy(
                     vpnRunning = running,
@@ -82,6 +91,7 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun rejectVpnPermission() {
+        PulseLogStore.warn(getApplication(), "VPN 授权已取消")
         _state.update {
             it.copy(
                 vpnRunning = false,
@@ -97,6 +107,21 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
         if (running) {
             refreshDashboard()
         }
+    }
+
+    fun refreshLogs() {
+        val logs = PulseLogStore.read(getApplication()).map(::toLogItem)
+        _state.update {
+            it.copy(
+                logs = logs,
+                logMessage = if (logs.isEmpty()) "暂无日志" else "",
+            )
+        }
+    }
+
+    fun clearLogs() {
+        PulseLogStore.clear(getApplication())
+        _state.update { it.copy(logs = emptyList(), logMessage = "日志已清空") }
     }
 
     fun setProxyMode(mode: ProxyMode) {
@@ -163,12 +188,33 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
                 }
             }
             result.onSuccess { record ->
+                PulseLogStore.info(getApplication(), "订阅已导入: ${record.name}")
                 reloadProfiles(record.id, "订阅已导入")
                 if (clearInput) {
                     _state.update { it.copy(importUrl = "") }
                 }
                 reloadCoreIfRunning("订阅已导入")
             }.onFailure { error ->
+                PulseLogStore.error(getApplication(), error.message ?: "导入订阅失败")
+                _state.update { it.copy(profileMessage = error.message ?: "导入失败") }
+            }
+            _state.update { it.copy(importBusy = false) }
+        }
+    }
+
+    fun importProfileFromUri(uri: Uri) {
+        _state.update { it.copy(screen = PulseScreen.Profiles) }
+        viewModelScope.launch {
+            _state.update { it.copy(importBusy = true, profileMessage = "") }
+            val result = withContext(Dispatchers.IO) {
+                runCatching { PulseProfileStore.importFromUri(getApplication(), uri) }
+            }
+            result.onSuccess { record ->
+                PulseLogStore.info(getApplication(), "本地配置已导入: ${record.name}")
+                reloadProfiles(record.id, "本地配置已导入")
+                reloadCoreIfRunning("本地配置已导入")
+            }.onFailure { error ->
+                PulseLogStore.error(getApplication(), error.message ?: "导入本地配置失败")
                 _state.update { it.copy(profileMessage = error.message ?: "导入失败") }
             }
             _state.update { it.copy(importBusy = false) }
@@ -178,6 +224,7 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
     fun selectProfile(profileId: String) {
         if (profileId == _state.value.selectedProfileId) return
         PulseProfileStore.select(getApplication(), profileId)
+        PulseLogStore.info(getApplication(), "切换订阅: $profileId")
         _state.update { it.copy(selectedProfileId = profileId, profileMessage = "") }
         reloadCoreIfRunning("订阅已切换")
     }
@@ -188,6 +235,7 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
                 runCatching { PulseMihomoApi.selectProxy(proxyId) }
             }
             result.onSuccess {
+                PulseLogStore.info(getApplication(), "切换节点: $proxyId")
                 _state.update {
                     it.copy(
                         selectedProxyId = proxyId,
@@ -196,6 +244,7 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
                     )
                 }
             }.onFailure { error ->
+                PulseLogStore.error(getApplication(), error.message ?: "切换节点失败")
                 _state.update { it.copy(proxyMessage = error.message ?: "切换节点失败") }
             }
         }
@@ -220,6 +269,7 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
                     )
                 }
             }.onFailure { error ->
+                PulseLogStore.error(getApplication(), error.message ?: "读取节点失败")
                 _state.update {
                     it.copy(
                         loadingProxies = false,
@@ -253,6 +303,7 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
                 }
                 refreshProxies()
             }.onFailure { error ->
+                PulseLogStore.error(getApplication(), error.message ?: "测速失败")
                 _state.update { it.copy(proxyMessage = error.message ?: "测速失败") }
             }
             _state.update { it.copy(measuringProxies = false) }
@@ -274,6 +325,7 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
                 _state.update { it.copy(proxyMessage = "${proxy.name} 测速完成") }
                 refreshProxies()
             }.onFailure { error ->
+                PulseLogStore.error(getApplication(), error.message ?: "${proxy.name} 测速失败")
                 _state.update { it.copy(proxyMessage = error.message ?: "${proxy.name} 测速失败") }
             }
             _state.update { it.copy(measuringProxyId = null) }
@@ -299,6 +351,7 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
                     )
                 }
             }.onFailure { error ->
+                PulseLogStore.error(getApplication(), error.message ?: "读取连接失败")
                 _state.update {
                     it.copy(
                         loadingConnections = false,
@@ -331,6 +384,7 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
                     )
                 }
             }.onFailure { error ->
+                PulseLogStore.error(getApplication(), error.message ?: "读取流量失败")
                 _state.update { it.copy(connectionMessage = error.message ?: "读取流量失败") }
             }
         }
@@ -357,11 +411,13 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
                 }
             }
             result.onSuccess {
+                PulseLogStore.info(getApplication(), "订阅已更新: ${profile.name}")
                 reloadProfiles(selectedProfileId, "订阅已更新")
                 if (refreshesSelectedProfile) {
                     reloadCoreIfRunning("订阅已更新")
                 }
             }.onFailure { error ->
+                PulseLogStore.error(getApplication(), error.message ?: "更新订阅失败")
                 _state.update { it.copy(profileMessage = error.message ?: "更新失败") }
             }
             _state.update { it.copy(refreshingProfileId = null) }
@@ -372,11 +428,13 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
         val deletingSelectedProfile = profileId == _state.value.selectedProfileId
         val result = runCatching { PulseProfileStore.delete(getApplication(), profileId) }
         result.onSuccess { active ->
+            PulseLogStore.info(getApplication(), "订阅已删除: $profileId")
             reloadProfiles(active.id, "订阅已删除")
             if (deletingSelectedProfile) {
                 reloadCoreIfRunning("订阅已切换")
             }
         }.onFailure { error ->
+            PulseLogStore.error(getApplication(), error.message ?: "删除订阅失败")
             _state.update { it.copy(profileMessage = error.message ?: "删除失败") }
         }
     }
@@ -440,6 +498,14 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
             providerCount = 0,
             ruleCount = 0,
             updatedAt = dateFormat.format(Date(record.updatedAt)),
+        )
+    }
+
+    private fun toLogItem(entry: PulseLogEntry): LogItem {
+        return LogItem(
+            time = entry.time,
+            level = entry.level,
+            message = entry.message,
         )
     }
 

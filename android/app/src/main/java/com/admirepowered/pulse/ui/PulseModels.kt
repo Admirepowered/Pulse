@@ -5,6 +5,7 @@ enum class PulseScreen(val label: String) {
     Profiles("订阅"),
     Proxies("节点"),
     Connections("连接"),
+    Logs("日志"),
     Settings("设置"),
 }
 
@@ -54,6 +55,12 @@ data class TrafficSnapshot(
     val uploadSpeed: String = "0 B/s",
 )
 
+data class LogItem(
+    val time: String,
+    val level: String,
+    val message: String,
+)
+
 data class PulseAppState(
     val screen: PulseScreen = PulseScreen.Dashboard,
     val vpnRunning: Boolean = false,
@@ -72,6 +79,8 @@ data class PulseAppState(
     val proxyMessage: String = "",
     val loadingConnections: Boolean = false,
     val connectionMessage: String = "",
+    val logs: List<LogItem> = emptyList(),
+    val logMessage: String = "",
     val importUrl: String = "",
     val importBusy: Boolean = false,
     val profileMessage: String = "",

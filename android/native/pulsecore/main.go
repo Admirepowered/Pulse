@@ -203,9 +203,10 @@ func androidConfigBytes(configPath string, tunFD int, allowLan bool) ([]byte, er
 	}
 	tun["enable"] = true
 	tun["stack"] = "gvisor"
-	tun["auto-route"] = true
-	tun["auto-detect-interface"] = true
-	tun["strict-route"] = true
+	tun["auto-route"] = false
+	tun["auto-redirect"] = false
+	tun["auto-detect-interface"] = false
+	tun["strict-route"] = false
 	tun["mtu"] = 9000
 	tun["file-descriptor"] = tunFD
 	tun["dns-hijack"] = []string{"any:53", "tcp://any:53"}

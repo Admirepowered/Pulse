@@ -16,6 +16,7 @@ import androidx.core.app.NotificationCompat
 import com.admirepowered.pulse.MainActivity
 import com.admirepowered.pulse.R
 import com.admirepowered.pulse.core.PulseCoreBridge
+import com.admirepowered.pulse.core.PulseLogStore
 import com.admirepowered.pulse.core.PulseProfileStore
 import com.admirepowered.pulse.core.PulseSettingsStore
 import com.admirepowered.pulse.quick.PulseTileService
@@ -45,6 +46,7 @@ class PulseVpnService : VpnService() {
 
     private fun startVpn() {
         if (tunFd != null) return
+        PulseLogStore.info(this, "开始启动 Pulse VPN")
         startForeground(NOTIFICATION_ID, buildNotification())
         val builder = Builder()
             .setSession("Pulse")
@@ -58,27 +60,33 @@ class PulseVpnService : VpnService() {
         tunFd = establishedTun
 
         if (establishedTun == null) {
+            PulseLogStore.error(this, "系统未返回可用的 TUN 文件描述符")
             stopVpn(stopService = true)
             return
         }
         val profile = PulseProfileStore.active(this)
         val settings = PulseSettingsStore.load(this)
+        PulseLogStore.info(this, "使用配置启动 mihomo: ${profile.name}")
         val coreFd = ParcelFileDescriptor.dup(establishedTun.fileDescriptor).detachFd()
         val result = PulseCoreBridge.start(profile.path, filesDir.absolutePath, coreFd, settings.allowLan)
         if (result.isFailure) {
+            PulseLogStore.error(this, result.exceptionOrNull()?.message ?: "mihomo 启动失败")
             closeDetachedFd(coreFd)
             stopVpn(stopService = true)
         } else {
+            PulseLogStore.info(this, "mihomo core 已接管 TUN")
             requestTileRefresh(this)
         }
     }
 
     private fun restartVpn() {
+        PulseLogStore.info(this, "重启 Pulse VPN")
         stopVpn(stopService = false)
         startVpn()
     }
 
     private fun stopVpn(stopService: Boolean) {
+        PulseLogStore.info(this, if (stopService) "停止 Pulse VPN" else "释放 Pulse VPN")
         PulseCoreBridge.stop()
         try {
             tunFd?.close()

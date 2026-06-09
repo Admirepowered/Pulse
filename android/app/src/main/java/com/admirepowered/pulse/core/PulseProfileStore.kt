@@ -1,6 +1,8 @@
 package com.admirepowered.pulse.core
 
 import android.content.Context
+import android.net.Uri
+import android.provider.OpenableColumns
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.InetSocketAddress
@@ -93,6 +95,30 @@ object PulseProfileStore {
         return record
     }
 
+    fun importFromUri(context: Context, uri: Uri, activate: Boolean = true): PulseProfileRecord {
+        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            ?: throw IllegalArgumentException("无法读取配置文件")
+        require(bytes.isNotEmpty()) { "配置文件为空" }
+        val name = localProfileName(context, uri)
+        val id = stableId("file:$name:${digestHex(bytes)}")
+        val file = profileFile(context, id)
+        file.writeBytes(bytes)
+        val record = PulseProfileRecord(
+            id = id,
+            name = name,
+            url = "",
+            path = file.absolutePath,
+            updatedAt = System.currentTimeMillis(),
+        )
+        val editor = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString(PROFILE_PREFIX + id, encodeRecord(record))
+        if (activate) {
+            editor.putString(ACTIVE_ID, id)
+        }
+        editor.apply()
+        return record
+    }
+
     private fun ensureDefaultProfile(context: Context) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         if (prefs.all.keys.any { it.startsWith(PROFILE_PREFIX) }) {
@@ -164,9 +190,26 @@ object PulseProfileStore {
         return digest.take(8).joinToString("") { "%02x".format(it) }
     }
 
+    private fun digestHex(value: ByteArray): String {
+        val digest = MessageDigest.getInstance("SHA-256").digest(value)
+        return digest.joinToString("") { "%02x".format(it) }
+    }
+
     private fun profileName(profileUrl: String): String {
         val host = runCatching { URL(profileUrl).host }.getOrDefault("订阅")
         return if (host.isBlank()) "订阅" else host
+    }
+
+    private fun localProfileName(context: Context, uri: Uri): String {
+        val displayName = context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            if (index >= 0 && cursor.moveToFirst()) cursor.getString(index) else null
+        } ?: uri.lastPathSegment ?: "本地配置"
+        return displayName
+            .substringAfterLast('/')
+            .removeSuffix(".yaml")
+            .removeSuffix(".yml")
+            .ifBlank { "本地配置" }
     }
 
     private fun encodeRecord(record: PulseProfileRecord): String {

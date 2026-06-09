@@ -1,6 +1,7 @@
 package com.admirepowered.pulse.ui
 
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cable
 import androidx.compose.material.icons.filled.Dashboard
@@ -16,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.admirepowered.pulse.ui.screens.ConnectionsScreen
 import com.admirepowered.pulse.ui.screens.DashboardScreen
+import com.admirepowered.pulse.ui.screens.LogsScreen
 import com.admirepowered.pulse.ui.screens.ProfilesScreen
 import com.admirepowered.pulse.ui.screens.ProxiesScreen
 import com.admirepowered.pulse.ui.screens.SettingsScreen
@@ -35,6 +37,9 @@ fun PulseApp(
     onDeleteProfile: (String) -> Unit,
     onImportUrlChange: (String) -> Unit,
     onImportProfile: () -> Unit,
+    onImportProfileFile: () -> Unit,
+    onRefreshLogs: () -> Unit,
+    onClearLogs: () -> Unit,
     canRequestQuickTile: Boolean,
     onAddQuickTile: () -> Unit,
     onAllowLanChange: (Boolean) -> Unit,
@@ -75,6 +80,7 @@ fun PulseApp(
                 onDeleteProfile = onDeleteProfile,
                 onImportUrlChange = onImportUrlChange,
                 onImportProfile = onImportProfile,
+                onImportProfileFile = onImportProfileFile,
                 modifier = modifier,
             )
 
@@ -97,6 +103,14 @@ fun PulseApp(
                 modifier = modifier,
             )
 
+            PulseScreen.Logs -> LogsScreen(
+                logs = state.logs,
+                message = state.logMessage,
+                onRefresh = onRefreshLogs,
+                onClear = onClearLogs,
+                modifier = modifier,
+            )
+
             PulseScreen.Settings -> SettingsScreen(
                 state = state,
                 onThemeChange = onThemeChange,
@@ -115,5 +129,6 @@ private fun PulseScreen.icon() = when (this) {
     PulseScreen.Profiles -> Icons.Filled.Storage
     PulseScreen.Proxies -> Icons.Filled.Dns
     PulseScreen.Connections -> Icons.Filled.Cable
+    PulseScreen.Logs -> Icons.AutoMirrored.Filled.ReceiptLong
     PulseScreen.Settings -> Icons.Filled.Settings
 }

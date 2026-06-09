@@ -29,6 +29,7 @@ fi
 cd "$ROOT_DIR"
 CC="$CLANG" CGO_ENABLED=1 GOOS=android GOARCH=arm64 \
   go build -buildvcs=false -trimpath -buildmode=c-shared \
+  -tags "cmfa with_gvisor" \
   -o "$OUT_DIR/libpulsecore.so" ./android/native/pulsecore
 
 ls -lh "$OUT_DIR/libpulsecore.so"

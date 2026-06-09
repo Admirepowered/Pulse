@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledIconButton
@@ -43,6 +44,7 @@ fun ProfilesScreen(
     onDeleteProfile: (String) -> Unit,
     onImportUrlChange: (String) -> Unit,
     onImportProfile: () -> Unit,
+    onImportProfileFile: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -82,6 +84,12 @@ fun ProfilesScreen(
                     } else {
                         Icon(Icons.Filled.Add, contentDescription = "导入订阅")
                     }
+                }
+                IconButton(
+                    onClick = onImportProfileFile,
+                    enabled = !importBusy,
+                ) {
+                    Icon(Icons.Filled.FolderOpen, contentDescription = "导入本地配置")
                 }
             }
         }

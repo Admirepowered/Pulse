@@ -62,6 +62,13 @@ object PulseMihomoApi {
         return measured
     }
 
+    fun testProxyDelay(proxy: ProxyItem, url: String = DEFAULT_DELAY_URL) {
+        require(proxy.name !in builtinProxyNames) { "内置节点无需测速" }
+        val name = URLEncoder.encode(proxy.name, Charsets.UTF_8.name())
+        val target = URLEncoder.encode(url, Charsets.UTF_8.name())
+        request("GET", "/proxies/$name/delay?timeout=3000&url=$target")
+    }
+
     fun setMode(mode: ProxyMode) {
         val mihomoMode = when (mode) {
             ProxyMode.Rule -> "rule"

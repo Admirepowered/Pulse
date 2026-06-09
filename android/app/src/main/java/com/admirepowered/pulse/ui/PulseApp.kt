@@ -30,6 +30,7 @@ fun PulseApp(
     onProfileSelect: (String) -> Unit,
     onProxySelect: (String) -> Unit,
     onTestProxyDelays: () -> Unit,
+    onTestProxyDelay: (String) -> Unit,
     onRefreshProfile: (String) -> Unit,
     onImportUrlChange: (String) -> Unit,
     onImportProfile: () -> Unit,
@@ -79,9 +80,11 @@ fun PulseApp(
                 proxies = state.proxies,
                 loading = state.loadingProxies,
                 measuring = state.measuringProxies,
+                measuringProxyId = state.measuringProxyId,
                 message = state.proxyMessage,
                 onProxySelect = onProxySelect,
                 onTestProxyDelays = onTestProxyDelays,
+                onTestProxyDelay = onTestProxyDelay,
                 modifier = modifier,
             )
 

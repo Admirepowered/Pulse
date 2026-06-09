@@ -143,6 +143,7 @@ private fun PulseAndroidApp(
             onProfileSelect = viewModel::selectProfile,
             onProxySelect = viewModel::selectProxy,
             onTestProxyDelays = viewModel::testProxyDelays,
+            onTestProxyDelay = viewModel::testProxyDelay,
             onRefreshProfile = viewModel::refreshProfile,
             onImportUrlChange = viewModel::updateImportUrl,
             onImportProfile = viewModel::importProfileFromUrl,

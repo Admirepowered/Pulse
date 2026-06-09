@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -29,9 +30,11 @@ fun ProxiesScreen(
     proxies: List<ProxyItem>,
     loading: Boolean,
     measuring: Boolean,
+    measuringProxyId: String?,
     message: String,
     onProxySelect: (String) -> Unit,
     onTestProxyDelays: () -> Unit,
+    onTestProxyDelay: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -86,9 +89,20 @@ fun ProxiesScreen(
                     title = proxy.name,
                     subtitle = proxy.group,
                     trailing = {
+                        val measuringThisProxy = measuringProxyId == proxy.id
                         AssistChip(
-                            onClick = { },
-                            label = { Text(proxy.delayMs?.let { "${it}ms" } ?: "未测速") },
+                            onClick = { onTestProxyDelay(proxy.id) },
+                            enabled = !measuring && !measuringThisProxy,
+                            label = {
+                                if (measuringThisProxy) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(18.dp),
+                                        strokeWidth = 2.dp,
+                                    )
+                                } else {
+                                    Text(proxy.delayMs?.let { "${it}ms" } ?: "未测速")
+                                }
+                            },
                         )
                         if (proxy.selected) {
                             Icon(Icons.Filled.CheckCircle, contentDescription = "已选中")

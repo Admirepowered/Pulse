@@ -2,8 +2,11 @@ package com.admirepowered.pulse
 
 import android.Manifest
 import android.app.Activity
+import android.app.StatusBarManager
+import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.drawable.Icon
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
@@ -21,6 +24,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.admirepowered.pulse.core.PulseProfileLinkParser
+import com.admirepowered.pulse.quick.PulseTileService
 import com.admirepowered.pulse.ui.PulseApp
 import com.admirepowered.pulse.ui.PulseAppViewModel
 import com.admirepowered.pulse.ui.theme.PulseTheme
@@ -41,6 +45,8 @@ class MainActivity : ComponentActivity() {
             PulseAndroidApp(
                 incomingProfileUrl = incomingProfileUrl.value,
                 onProfileUrlConsumed = { incomingProfileUrl.value = null },
+                canRequestQuickTile = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU,
+                onAddQuickTile = ::requestAddQuickTile,
                 onRequestVpn = {
                     val prepareIntent = VpnService.prepare(this)
                     if (prepareIntent == null) {
@@ -71,12 +77,25 @@ class MainActivity : ComponentActivity() {
         if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return
         notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
+
+    private fun requestAddQuickTile() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        val manager = getSystemService(StatusBarManager::class.java)
+        manager.requestAddTileService(
+            ComponentName(this, PulseTileService::class.java),
+            getString(R.string.app_name),
+            Icon.createWithResource(this, R.drawable.ic_vpn_status),
+            mainExecutor,
+        ) {}
+    }
 }
 
 @Composable
 private fun PulseAndroidApp(
     incomingProfileUrl: String?,
     onProfileUrlConsumed: () -> Unit,
+    canRequestQuickTile: Boolean,
+    onAddQuickTile: () -> Unit,
     onRequestVpn: () -> Boolean,
     onStopVpn: () -> Unit,
     onLaunchVpnPermission: (androidx.activity.result.ActivityResultLauncher<Intent>) -> Unit,
@@ -126,6 +145,8 @@ private fun PulseAndroidApp(
             onRefreshProfile = viewModel::refreshProfile,
             onImportUrlChange = viewModel::updateImportUrl,
             onImportProfile = viewModel::importProfileFromUrl,
+            canRequestQuickTile = canRequestQuickTile,
+            onAddQuickTile = onAddQuickTile,
         )
     }
 }

@@ -32,6 +32,8 @@ fun PulseApp(
     onRefreshProfile: (String) -> Unit,
     onImportUrlChange: (String) -> Unit,
     onImportProfile: () -> Unit,
+    canRequestQuickTile: Boolean,
+    onAddQuickTile: () -> Unit,
 ) {
     Scaffold(
         bottomBar = {
@@ -88,6 +90,8 @@ fun PulseApp(
             PulseScreen.Settings -> SettingsScreen(
                 state = state,
                 onThemeChange = onThemeChange,
+                canRequestQuickTile = canRequestQuickTile,
+                onAddQuickTile = onAddQuickTile,
                 modifier = modifier,
             )
         }

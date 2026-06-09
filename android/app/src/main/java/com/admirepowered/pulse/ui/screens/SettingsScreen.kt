@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -21,6 +22,8 @@ import com.admirepowered.pulse.ui.components.ThemeModeChips
 fun SettingsScreen(
     state: PulseAppState,
     onThemeChange: (ThemeMode) -> Unit,
+    canRequestQuickTile: Boolean,
+    onAddQuickTile: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -49,6 +52,24 @@ fun SettingsScreen(
                 title = "代理更新订阅",
                 subtitle = "更新订阅时优先走当前代理",
                 trailing = { Switch(checked = true, onCheckedChange = { }) },
+            )
+        }
+        item {
+            PulseRow(
+                title = "快捷开关",
+                subtitle = if (canRequestQuickTile) {
+                    "添加 Pulse 到系统快捷设置，点击即可启动或停止代理"
+                } else {
+                    "当前系统需要手动编辑快捷设置来添加 Pulse"
+                },
+                trailing = {
+                    Button(
+                        onClick = onAddQuickTile,
+                        enabled = canRequestQuickTile,
+                    ) {
+                        Text("添加")
+                    }
+                },
             )
         }
         item {

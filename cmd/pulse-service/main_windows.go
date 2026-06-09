@@ -276,7 +276,7 @@ func createProcessInActiveSession(executable, workingDirectory string, args []st
 		Cb:         uint32(unsafe.Sizeof(windows.StartupInfo{})),
 		Desktop:    desktop,
 		Flags:      windows.STARTF_USESHOWWINDOW,
-		ShowWindow: windows.SW_SHOWNORMAL,
+		ShowWindow: startupShowWindow(args),
 	}
 	var processInfo windows.ProcessInformation
 	err = windows.CreateProcessAsUser(
@@ -297,6 +297,15 @@ func createProcessInActiveSession(executable, workingDirectory string, args []st
 	}
 	windows.CloseHandle(processInfo.Thread)
 	return processInfo.Process, nil
+}
+
+func startupShowWindow(args []string) uint16 {
+	for _, arg := range args {
+		if arg == "--start-hidden" || arg == "-start-hidden" {
+			return windows.SW_HIDE
+		}
+	}
+	return windows.SW_SHOWNORMAL
 }
 
 func createProcessInServiceSession(executable, workingDirectory string, args []string) (*launchedProcess, error) {

@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -143,13 +144,16 @@ func startServiceCore(dataDir string, settings Settings, runtimeConfig string) e
 	if err != nil {
 		return err
 	}
-	// The service is registered the first time the user flips the
-	// AutoStartService toggle, so by the time we get here the
-	// PulseCoreService SCM entry should already exist. ensureCoreService
-	// Registered is a no-op when the service exists and would only need
-	// admin to create a fresh entry, which we deliberately do not
-	// trigger here. If the entry is missing we ask the user to enable
-	// the toggle first instead of silently elevating.
+	// If the core is already running (e.g. from a previous app session),
+	// we are done — the config has been written and the API is reachable.
+	// Check the API directly: this is more reliable than SCM queries,
+	// which need admin rights the process may not have.
+	if coreAPIIsReachable(settings.ApiBase, settings.Secret) {
+		return nil
+	}
+	if isCoreServiceRunning() {
+		return nil
+	}
 	if err := ensureCoreServiceRegistered(servicePath); err != nil {
 		return errors.New("服务未注册，请先在设置中开启 AutoStartService 之后再启动核心")
 	}
@@ -236,8 +240,13 @@ func ensureCoreServiceRegistered(servicePath string) error {
 		return fmt.Errorf("open or create core service: %w", err)
 	}
 	defer service.Close()
-	if err := service.UpdateConfig(config); err != nil {
-		return fmt.Errorf("update core service: %w", err)
+	// UpdateConfig can fail when the service is running; only update when
+	// the service is stopped, so we don't break reconnection after an
+	// app restart.
+	if status, err := service.Query(); err == nil && status.State != svc.Running {
+		if err := service.UpdateConfig(config); err != nil {
+			return fmt.Errorf("update core service: %w", err)
+		}
 	}
 	return nil
 }
@@ -287,6 +296,46 @@ func stopRegisteredService(name string) error {
 		return fmt.Errorf("stop service %s: %w", name, err)
 	}
 	return nil
+}
+
+func coreAPIIsReachable(apiBase, secret string) bool {
+	req, err := http.NewRequest(http.MethodGet, apiBase+"/version", nil)
+	if err != nil {
+		return false
+	}
+	if secret != "" {
+		req.Header.Set("Authorization", "Bearer "+secret)
+	}
+	resp, err := (&http.Client{Timeout: 3 * time.Second}).Do(req)
+	if err != nil {
+		return false
+	}
+	resp.Body.Close()
+	return resp.StatusCode >= 200 && resp.StatusCode < 300
+}
+
+func isCoreServiceRunning() bool {
+	manager, err := mgr.Connect()
+	if err != nil {
+		return false
+	}
+	defer manager.Disconnect()
+	namePtr, err := windows.UTF16PtrFromString(coreServiceName)
+	if err != nil {
+		return false
+	}
+	// OpenService from the mgr package requests SERVICE_ALL_ACCESS, which
+	// fails for non-elevated callers. Query-only needs SERVICE_QUERY_STATUS.
+	h, err := windows.OpenService(manager.Handle, namePtr, windows.SERVICE_QUERY_STATUS)
+	if err != nil {
+		return false
+	}
+	defer windows.CloseHandle(h)
+	var status windows.SERVICE_STATUS
+	if err := windows.QueryServiceStatus(h, &status); err != nil {
+		return false
+	}
+	return status.CurrentState == uint32(svc.Running)
 }
 
 func resolveCorePathStandalone(corePath string) (string, error) {

@@ -21,3 +21,7 @@ func startServiceCore(dataDir string, settings Settings, runtimeConfig string) e
 func stopServiceCore(dataDir string) error {
 	return nil
 }
+
+func isCoreServiceRunning() bool {
+	return false
+}

@@ -1477,6 +1477,11 @@ textarea {
     overflow-y: auto;
 }
 
+.tunPage > * {
+    min-width: 0;
+    overflow-x: hidden;
+}
+
 .tunPrimaryPanel {
     grid-row: span 2;
 }

@@ -74,4 +74,5 @@ data class PulseAppState(
     val importBusy: Boolean = false,
     val profileMessage: String = "",
     val coreStatus: String = "",
+    val proxyUpdateProfiles: Boolean = true,
 )

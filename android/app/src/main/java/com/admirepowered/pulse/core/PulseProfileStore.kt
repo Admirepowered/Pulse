@@ -3,6 +3,8 @@ package com.admirepowered.pulse.core
 import android.content.Context
 import java.io.File
 import java.net.HttpURLConnection
+import java.net.InetSocketAddress
+import java.net.Proxy
 import java.net.URL
 import java.security.MessageDigest
 
@@ -41,12 +43,17 @@ object PulseProfileStore {
             .apply()
     }
 
-    fun importFromUrl(context: Context, profileUrl: String, activate: Boolean = true): PulseProfileRecord {
+    fun importFromUrl(
+        context: Context,
+        profileUrl: String,
+        activate: Boolean = true,
+        useProxy: Boolean = false,
+    ): PulseProfileRecord {
         val trimmedUrl = profileUrl.trim()
         require(trimmedUrl.startsWith("http://") || trimmedUrl.startsWith("https://")) {
             "请输入 http 或 https 订阅地址"
         }
-        val body = download(trimmedUrl)
+        val body = download(context, trimmedUrl, useProxy)
         val id = stableId(trimmedUrl)
         val name = profileName(trimmedUrl)
         val file = profileFile(context, id)
@@ -106,8 +113,16 @@ object PulseProfileStore {
         return File(dir, "$id.yaml")
     }
 
-    private fun download(profileUrl: String): String {
-        val connection = URL(profileUrl).openConnection() as HttpURLConnection
+    private fun download(context: Context, profileUrl: String, useProxy: Boolean): String {
+        if (useProxy) {
+            val proxy = Proxy(Proxy.Type.HTTP, InetSocketAddress("127.0.0.1", localProxyPort(context)))
+            runCatching { download(profileUrl, proxy) }.getOrNull()?.let { return it }
+        }
+        return download(profileUrl, Proxy.NO_PROXY)
+    }
+
+    private fun download(profileUrl: String, proxy: Proxy): String {
+        val connection = URL(profileUrl).openConnection(proxy) as HttpURLConnection
         connection.connectTimeout = 15_000
         connection.readTimeout = 30_000
         connection.requestMethod = "GET"
@@ -115,6 +130,14 @@ object PulseProfileStore {
         connection.inputStream.use { input ->
             return input.bufferedReader(Charsets.UTF_8).readText()
         }
+    }
+
+    private fun localProxyPort(context: Context): Int {
+        val content = runCatching { active(context).path.let(::File).readText(Charsets.UTF_8) }
+            .getOrDefault("")
+        return mixedPortPattern.find(content)?.groupValues?.getOrNull(1)?.toIntOrNull()
+            ?: portPattern.find(content)?.groupValues?.getOrNull(1)?.toIntOrNull()
+            ?: 7890
     }
 
     private fun stableId(value: String): String {
@@ -157,4 +180,7 @@ object PulseProfileStore {
         rules:
           - MATCH,DIRECT
     """.trimIndent()
+
+    private val mixedPortPattern = Regex("""(?m)^\s*mixed-port\s*:\s*(\d+)\s*$""")
+    private val portPattern = Regex("""(?m)^\s*port\s*:\s*(\d+)\s*$""")
 }

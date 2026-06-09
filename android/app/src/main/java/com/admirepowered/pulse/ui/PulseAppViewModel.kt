@@ -7,6 +7,7 @@ import com.admirepowered.pulse.core.PulseCoreBridge
 import com.admirepowered.pulse.core.PulseMihomoApi
 import com.admirepowered.pulse.core.PulseProfileRecord
 import com.admirepowered.pulse.core.PulseProfileStore
+import com.admirepowered.pulse.core.PulseSettingsStore
 import com.admirepowered.pulse.vpn.PulseVpnService
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -30,6 +31,7 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
     val state: StateFlow<PulseAppState> = _state
 
     init {
+        loadSettings()
         loadProfiles()
         refreshRuntimeStatus()
     }
@@ -118,6 +120,11 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
         _state.update { it.copy(themeMode = mode) }
     }
 
+    fun setProxyUpdateProfiles(enabled: Boolean) {
+        PulseSettingsStore.setProxyUpdateProfiles(getApplication(), enabled)
+        _state.update { it.copy(proxyUpdateProfiles = enabled) }
+    }
+
     fun updateImportUrl(value: String) {
         _state.update { it.copy(importUrl = value, profileMessage = "") }
     }
@@ -139,7 +146,13 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             _state.update { it.copy(importBusy = true, profileMessage = "") }
             val result = withContext(Dispatchers.IO) {
-                runCatching { PulseProfileStore.importFromUrl(getApplication(), url) }
+                runCatching {
+                    PulseProfileStore.importFromUrl(
+                        context = getApplication(),
+                        profileUrl = url,
+                        useProxy = shouldProxyProfileUpdate(),
+                    )
+                }
             }
             result.onSuccess { record ->
                 reloadProfiles(record.id, "订阅已导入")
@@ -281,6 +294,7 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
                         context = getApplication(),
                         profileUrl = profile.url,
                         activate = refreshesSelectedProfile,
+                        useProxy = shouldProxyProfileUpdate(),
                     )
                 }
             }
@@ -299,6 +313,15 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
     private fun loadProfiles() {
         val active = PulseProfileStore.active(getApplication())
         reloadProfiles(active.id, "")
+    }
+
+    private fun loadSettings() {
+        val settings = PulseSettingsStore.load(getApplication())
+        _state.update { it.copy(proxyUpdateProfiles = settings.proxyUpdateProfiles) }
+    }
+
+    private fun shouldProxyProfileUpdate(): Boolean {
+        return _state.value.proxyUpdateProfiles && PulseCoreBridge.isRunning()
     }
 
     private fun reloadProfiles(selectedId: String, message: String) {

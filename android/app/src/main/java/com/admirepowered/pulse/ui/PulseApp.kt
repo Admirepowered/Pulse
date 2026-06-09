@@ -34,6 +34,7 @@ fun PulseApp(
     onImportProfile: () -> Unit,
     canRequestQuickTile: Boolean,
     onAddQuickTile: () -> Unit,
+    onProxyUpdateProfilesChange: (Boolean) -> Unit,
 ) {
     Scaffold(
         bottomBar = {
@@ -92,6 +93,7 @@ fun PulseApp(
                 onThemeChange = onThemeChange,
                 canRequestQuickTile = canRequestQuickTile,
                 onAddQuickTile = onAddQuickTile,
+                onProxyUpdateProfilesChange = onProxyUpdateProfilesChange,
                 modifier = modifier,
             )
         }

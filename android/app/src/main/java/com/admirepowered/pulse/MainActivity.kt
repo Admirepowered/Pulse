@@ -147,6 +147,7 @@ private fun PulseAndroidApp(
             onImportProfile = viewModel::importProfileFromUrl,
             canRequestQuickTile = canRequestQuickTile,
             onAddQuickTile = onAddQuickTile,
+            onProxyUpdateProfilesChange = viewModel::setProxyUpdateProfiles,
         )
     }
 }

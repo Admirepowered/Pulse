@@ -24,6 +24,7 @@ fun SettingsScreen(
     onThemeChange: (ThemeMode) -> Unit,
     canRequestQuickTile: Boolean,
     onAddQuickTile: () -> Unit,
+    onProxyUpdateProfilesChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -50,8 +51,13 @@ fun SettingsScreen(
         item {
             PulseRow(
                 title = "代理更新订阅",
-                subtitle = "更新订阅时优先走当前代理",
-                trailing = { Switch(checked = true, onCheckedChange = { }) },
+                subtitle = "VPN 运行时优先通过本地 mihomo 代理更新订阅，失败后自动直连",
+                trailing = {
+                    Switch(
+                        checked = state.proxyUpdateProfiles,
+                        onCheckedChange = onProxyUpdateProfilesChange,
+                    )
+                },
             )
         }
         item {

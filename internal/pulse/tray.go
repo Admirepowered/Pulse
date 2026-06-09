@@ -6,6 +6,7 @@ package pulse
 import (
 	_ "embed"
 	"strings"
+	"time"
 
 	"github.com/getlantern/systray"
 )
@@ -43,6 +44,7 @@ func (a *App) startTray() {
 
 func (a *App) setupTrayMenu() {
 	systray.SetIcon(trayIcon)
+	refreshTrayIconAfterShellSettles()
 	systray.SetTitle("Pulse")
 	systray.SetTooltip("Pulse mihomo")
 	a.installTrayDoubleClickHandler()
@@ -192,6 +194,16 @@ func (a *App) setupTrayMenu() {
 	a.trayMu.Lock()
 	a.trayReady = true
 	a.trayMu.Unlock()
+}
+
+func refreshTrayIconAfterShellSettles() {
+	for _, delay := range []time.Duration{250 * time.Millisecond, time.Second, 3 * time.Second, 8 * time.Second} {
+		go func(delay time.Duration) {
+			time.Sleep(delay)
+			systray.SetIcon(trayIcon)
+			systray.SetTooltip("Pulse mihomo")
+		}(delay)
+	}
 }
 
 func (a *App) watchTrayItem(item *systray.MenuItem, action func()) {

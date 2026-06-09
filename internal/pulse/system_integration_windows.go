@@ -35,7 +35,7 @@ func setAutoStart(enabled bool) error {
 		return err
 	}
 	defer key.Close()
-	return key.SetStringValue(startupValueName, quoteWindowsArg(executable))
+	return key.SetStringValue(startupValueName, quoteWindowsArg(executable)+" --start-hidden")
 }
 
 func setElevatedAutoStart(enabled bool) error {

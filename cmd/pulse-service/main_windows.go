@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 	"unsafe"
@@ -17,11 +18,20 @@ import (
 	"golang.org/x/sys/windows/svc"
 )
 
+var (
+	user32         = windows.NewLazySystemDLL("user32.dll")
+	procFindWindow = user32.NewProc("FindWindowW")
+)
+
 const (
-	defaultServiceName   = "PulseStartupService"
-	defaultConfigFile    = "pulse-startup-service.json"
-	logFileName          = "pulse-startup-service.log"
-	logCleanupMarkerFile = ".last-pulse-startup-service-log-cleanup"
+	defaultServiceName = "PulseStartupService"
+	defaultConfigFile  = "pulse-startup-service.json"
+	logFileName        = "pulse-startup-service.log"
+)
+
+var (
+	serviceLogMu        sync.Mutex
+	serviceLogTruncated bool
 )
 
 type serviceConfig struct {
@@ -229,6 +239,7 @@ func (p *launchedProcess) Kill() {
 }
 
 func createProcessInActiveSession(executable, workingDirectory string, args []string) (windows.Handle, error) {
+	waitForShellTray(20 * time.Second)
 	sessionID := windows.WTSGetActiveConsoleSessionId()
 	if sessionID == 0xffffffff {
 		return 0, fmt.Errorf("no active console session")
@@ -298,6 +309,21 @@ func createProcessInActiveSession(executable, workingDirectory string, args []st
 	}
 	windows.CloseHandle(processInfo.Thread)
 	return processInfo.Process, nil
+}
+
+func waitForShellTray(timeout time.Duration) {
+	className, err := windows.UTF16PtrFromString("Shell_TrayWnd")
+	if err != nil {
+		return
+	}
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		hwnd, _, _ := procFindWindow.Call(uintptr(unsafe.Pointer(className)), 0)
+		if hwnd != 0 {
+			return
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
 }
 
 func startupShowWindow(args []string) uint16 {
@@ -441,7 +467,7 @@ func writeLog(message string) {
 	}
 	line := time.Now().Format(time.RFC3339) + " " + message + "\n"
 	logDir := filepath.Dir(executable)
-	cleanupServiceLogForToday(logDir)
+	truncateServiceLogOnce(logDir)
 	path := filepath.Join(logDir, logFileName)
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
@@ -451,12 +477,12 @@ func writeLog(message string) {
 	_, _ = file.WriteString(line)
 }
 
-func cleanupServiceLogForToday(logDir string) {
-	today := time.Now().Format("2006-01-02")
-	markerPath := filepath.Join(logDir, logCleanupMarkerFile)
-	if current, err := os.ReadFile(markerPath); err == nil && strings.TrimSpace(string(current)) == today {
+func truncateServiceLogOnce(logDir string) {
+	serviceLogMu.Lock()
+	defer serviceLogMu.Unlock()
+	if serviceLogTruncated {
 		return
 	}
 	_ = os.WriteFile(filepath.Join(logDir, logFileName), nil, 0o644)
-	_ = os.WriteFile(markerPath, []byte(today), 0o644)
+	serviceLogTruncated = true
 }

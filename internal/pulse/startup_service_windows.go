@@ -108,6 +108,24 @@ func startupServiceBuildStatus(dataDir string, settings Settings) (string, bool)
 	return buildNumber, parseBuildNumber(ServiceBuildNumber) > parseBuildNumber(buildNumber)
 }
 
+func startupServiceRegistered() bool {
+	manager, err := mgr.Connect()
+	if err != nil {
+		return false
+	}
+	defer manager.Disconnect()
+	namePtr, err := windows.UTF16PtrFromString(startupServiceName)
+	if err != nil {
+		return false
+	}
+	h, err := windows.OpenService(manager.Handle, namePtr, windows.SERVICE_QUERY_STATUS)
+	if err != nil {
+		return false
+	}
+	defer windows.CloseHandle(h)
+	return true
+}
+
 func syncStartupServicePayload(dataDir string, settings Settings) error {
 	if _, err := ensureStartupServiceExecutable(dataDir); err != nil {
 		return err

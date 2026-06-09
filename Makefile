@@ -1,6 +1,6 @@
 GIT := git -c safe.directory=$(CURDIR)
 COUNT := $(shell $(GIT) rev-list --count HEAD)
-SERVICE_NUMBER ?= 2
+SERVICE_NUMBER ?= 3
 TAG := $(firstword $(shell $(GIT) tag --points-at HEAD --list "v*"))
 BASE_VERSION := $(patsubst v%,%,$(TAG))
 VERSION := $(if $(TAG),$(BASE_VERSION)-P$(COUNT),P$(COUNT))

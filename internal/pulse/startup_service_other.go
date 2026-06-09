@@ -18,6 +18,10 @@ func startupServiceBuildStatus(dataDir string, settings Settings) (string, bool)
 	return "", false
 }
 
+func startupServiceRegistered() bool {
+	return false
+}
+
 func startServiceCore(dataDir string, settings Settings, runtimeConfig string) error {
 	return nil
 }

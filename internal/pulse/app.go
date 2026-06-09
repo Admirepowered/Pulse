@@ -44,6 +44,7 @@ type App struct {
 	serviceCoreRunning   bool
 	embeddedLogSub       any
 	apiLogCancel         context.CancelFunc
+	startHidden          bool
 	startedAt            int64
 	logLines             []LogLine
 	geodataStatus        GeodataStatus
@@ -89,12 +90,7 @@ type connectionSample struct {
 	At  time.Time
 }
 
-const (
-	tunAdminRequiredMessage = "TUN 模式需要管理员权限，请以管理员身份重新启动 Pulse"
-	logCleanupMarkerFile    = ".last-log-cleanup"
-)
-
-var logCleanupMu sync.Mutex
+const tunAdminRequiredMessage = "TUN 模式需要管理员权限，请以管理员身份重新启动 Pulse"
 
 type Store struct {
 	ActiveProfileID string    `json:"activeProfileId"`
@@ -325,20 +321,21 @@ func NewApp() *App {
 
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
+	startHidden, startCoreService := a.handleLaunchArgs(os.Args[1:])
+	a.startHidden = startHidden
 	if err := a.initStore(); err != nil {
 		a.appendLog("error", err.Error())
 		return
 	}
 	a.appendLog("info", "Pulse Wails client started")
 	a.syncAutoStartPath()
-	a.syncStartupServiceUpdateIfElevated()
+	a.syncStartupServiceIfElevated()
 	if err := registerURLProtocol(); err != nil {
 		a.appendLog("error", "register clash URL protocol failed: "+err.Error())
 	}
-	startHidden, startCoreService := a.handleLaunchArgs(os.Args[1:])
 	a.updateTrayMenuState()
 	if startHidden {
-		wailsruntime.WindowHide(ctx)
+		a.hideStartHiddenWindow(ctx)
 	}
 	a.startShowSignalWatcher()
 	go func() {
@@ -356,6 +353,22 @@ func (a *App) Startup(ctx context.Context) {
 	}
 }
 
+func (a *App) DomReady(ctx context.Context) {
+	if a.startHidden {
+		a.hideStartHiddenWindow(ctx)
+	}
+}
+
+func (a *App) hideStartHiddenWindow(ctx context.Context) {
+	wailsruntime.WindowHide(ctx)
+	for _, delay := range []time.Duration{80 * time.Millisecond, 300 * time.Millisecond, 900 * time.Millisecond} {
+		go func(delay time.Duration) {
+			time.Sleep(delay)
+			wailsruntime.WindowHide(ctx)
+		}(delay)
+	}
+}
+
 func (a *App) syncAutoStartPath() {
 	a.mu.Lock()
 	enabled := a.store.Settings.AutoStart
@@ -369,7 +382,7 @@ func (a *App) syncAutoStartPath() {
 	}
 }
 
-func (a *App) syncStartupServiceUpdateIfElevated() {
+func (a *App) syncStartupServiceIfElevated() {
 	a.mu.Lock()
 	settings := a.store.Settings
 	dataDir := a.dataDir
@@ -378,15 +391,20 @@ func (a *App) syncStartupServiceUpdateIfElevated() {
 		return
 	}
 	installedNumber, updateAvailable := startupServiceBuildStatus(dataDir, settings)
-	if !updateAvailable {
+	registered := startupServiceRegistered()
+	if registered && !updateAvailable {
 		return
 	}
-	a.appendLog("info", fmt.Sprintf("service helper update detected: installed=%s current=%s", installedNumber, ServiceBuildNumber))
+	if updateAvailable {
+		a.appendLog("info", fmt.Sprintf("service helper update detected: installed=%s current=%s", installedNumber, ServiceBuildNumber))
+	} else {
+		a.appendLog("info", "service startup enabled, syncing registered services")
+	}
 	if err := setServiceAutoStart(dataDir, settings, true); err != nil {
-		a.appendLog("error", "service helper auto update failed: "+err.Error())
+		a.appendLog("error", "service startup auto sync failed: "+err.Error())
 		return
 	}
-	a.appendLog("info", "service helper auto update applied")
+	a.appendLog("info", "service startup auto sync applied")
 }
 
 func (a *App) Shutdown(ctx context.Context) {
@@ -546,7 +564,7 @@ func (a *App) initStore() error {
 	if err := os.MkdirAll(filepath.Join(a.dataDir, "logs"), 0o755); err != nil {
 		return err
 	}
-	a.cleanupDataLogsForToday(filepath.Join(a.dataDir, "logs"))
+	a.truncateDataLogs()
 
 	if _, err := os.Stat(a.storePath); errors.Is(err, os.ErrNotExist) {
 		profilePath := filepath.Join(a.dataDir, "profiles", "direct.yaml")
@@ -873,12 +891,17 @@ func (a *App) SaveSettings(settings Settings) error {
 	}
 	if requiresServiceStartupApply {
 		if settings.AutoStartService && !isProcessElevated() {
-			// Registering the service needs admin. Trigger the UAC
-			// relaunch; the elevated process will see
-			// AutoStartService=true from the saved store.json on its
-			// next Startup and run setServiceAutoStart itself. The
-			// relaunch script kills the current non-elevated process
-			// so the elevated instance is the only one left.
+			// Registering the service needs admin. Persist the toggle
+			// first, then relaunch; the elevated process will see
+			// AutoStartService=true and complete registration on Startup.
+			a.mu.Lock()
+			a.store.Settings = settings
+			err := a.saveStoreLocked()
+			a.mu.Unlock()
+			if err != nil {
+				a.appendLog("error", "save settings before service UAC failed: "+err.Error())
+				return err
+			}
 			if relaunchErr := relaunchAsAdministratorWithArgs(nil); relaunchErr == nil {
 				a.appendLog("info", "save settings service startup requires admin, requesting UAC")
 				return nil
@@ -2906,7 +2929,6 @@ func (a *App) appendDataLog(filename string, level string, message string) {
 	if err := os.MkdirAll(logDir, 0o755); err != nil {
 		return
 	}
-	a.cleanupDataLogsForToday(logDir)
 	line := fmt.Sprintf("%s [%s] %s\n", time.Now().Format(time.RFC3339), level, message)
 	file, err := os.OpenFile(filepath.Join(logDir, filename), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
@@ -2916,17 +2938,11 @@ func (a *App) appendDataLog(filename string, level string, message string) {
 	_, _ = file.WriteString(line)
 }
 
-func (a *App) cleanupDataLogsForToday(logDir string) {
-	today := time.Now().Format("2006-01-02")
-	markerPath := filepath.Join(logDir, logCleanupMarkerFile)
-	if current, err := os.ReadFile(markerPath); err == nil && strings.TrimSpace(string(current)) == today {
+func (a *App) truncateDataLogs() {
+	if a.dataDir == "" {
 		return
 	}
-	logCleanupMu.Lock()
-	defer logCleanupMu.Unlock()
-	if current, err := os.ReadFile(markerPath); err == nil && strings.TrimSpace(string(current)) == today {
-		return
-	}
+	logDir := filepath.Join(a.dataDir, "logs")
 	for _, path := range []string{
 		filepath.Join(logDir, "app.log"),
 		filepath.Join(logDir, "mihomo.log"),
@@ -2934,7 +2950,6 @@ func (a *App) cleanupDataLogsForToday(logDir string) {
 	} {
 		_ = os.WriteFile(path, nil, 0o644)
 	}
-	_ = os.WriteFile(markerPath, []byte(today), 0o644)
 }
 
 func (a *App) recentLogsLocked(limit int) []LogLine {

@@ -1,6 +1,9 @@
 package pulse
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestVersionGreaterUsesPBuildFirst(t *testing.T) {
 	tests := []struct {
@@ -27,13 +30,41 @@ func TestVersionGreaterUsesPBuildFirst(t *testing.T) {
 
 func TestUpdateVersionFromArchiveAsset(t *testing.T) {
 	tests := map[string]string{
-		"Pulse-P66-windows-amd64.exe.zip":             "P66",
-		"Pulse-0.1.1-P66-linux-ubuntu24-amd64.tar.gz": "0.1.1-P66",
-		"Pulse-0.1.1-P66-darwin-arm64.zip":            "0.1.1-P66",
+		"Pulse-P66-windows-amd64.exe.zip":                  "P66",
+		"Pulse-P66-windows-app-embedded-amd64.exe.zip":     "P66",
+		"Pulse-P66-windows-service-embedded-amd64.exe.zip": "P66",
+		"Pulse-0.1.1-P66-linux-ubuntu24-amd64.tar.gz":      "0.1.1-P66",
+		"Pulse-0.1.1-P66-darwin-arm64.zip":                 "0.1.1-P66",
 	}
 	for asset, want := range tests {
 		if got := updateVersionFromAsset(asset, "v0.1.0"); got != want {
 			t.Fatalf("updateVersionFromAsset(%q) = %q, want %q", asset, got, want)
 		}
+	}
+}
+
+func TestUpdateAssetPriorityMatchesBuildVariant(t *testing.T) {
+	tests := []struct {
+		name        string
+		wantVariant string
+		ok          bool
+	}{
+		{name: "Pulse-P90-windows-amd64.exe.zip", wantVariant: "", ok: true},
+		{name: "Pulse-P90-windows-app-embedded-amd64.exe.zip", wantVariant: "", ok: false},
+		{name: "Pulse-P90-windows-service-embedded-amd64.exe.zip", wantVariant: "", ok: false},
+		{name: "Pulse-P90-windows-app-embedded-amd64.exe.zip", wantVariant: "app-embedded", ok: true},
+		{name: "Pulse-P90-windows-amd64.exe.zip", wantVariant: "app-embedded", ok: false},
+		{name: "Pulse-P90-windows-service-embedded-amd64.exe.zip", wantVariant: "app-embedded", ok: false},
+		{name: "Pulse-P90-windows-service-embedded-amd64.exe.zip", wantVariant: "service-embedded", ok: true},
+		{name: "Pulse-P90-windows-amd64.exe.zip", wantVariant: "service-embedded", ok: false},
+		{name: "Pulse-P90-windows-app-embedded-amd64.exe.zip", wantVariant: "service-embedded", ok: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name+"/"+tt.wantVariant, func(t *testing.T) {
+			_, ok := updateAssetPriority(strings.ToLower(tt.name), tt.wantVariant)
+			if ok != tt.ok {
+				t.Fatalf("updateAssetPriority(%q, %q) ok = %t, want %t", tt.name, tt.wantVariant, ok, tt.ok)
+			}
+		})
 	}
 }

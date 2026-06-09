@@ -271,6 +271,20 @@ func updateAssetPriority(name string, wantVariant string) (int, bool) {
 	if strings.Contains(name, "installer") {
 		return 0, false
 	}
+	variants := []string{"app-embedded", "service-embedded"}
+	hasVariant := false
+	for _, variant := range variants {
+		if strings.Contains(name, variant) {
+			hasVariant = true
+			if wantVariant != "" && variant == wantVariant {
+				break
+			}
+			return 0, false
+		}
+	}
+	if wantVariant != "" && !hasVariant {
+		return 0, false
+	}
 	// Strongest preference: an asset whose name contains the variant
 	// tag for the running build. The .zip containing that variant is
 	// what the user actually wants.

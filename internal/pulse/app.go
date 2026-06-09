@@ -323,6 +323,7 @@ func (a *App) Startup(ctx context.Context) {
 	}
 	a.appendLog("info", "Pulse Wails client started")
 	a.syncAutoStartPath()
+	a.syncStartupServiceUpdateIfElevated()
 	if err := registerURLProtocol(); err != nil {
 		a.appendLog("error", "register clash URL protocol failed: "+err.Error())
 	}
@@ -358,6 +359,26 @@ func (a *App) syncAutoStartPath() {
 			a.appendLog("info", "auto-start path synced to current executable")
 		}
 	}
+}
+
+func (a *App) syncStartupServiceUpdateIfElevated() {
+	a.mu.Lock()
+	settings := a.store.Settings
+	dataDir := a.dataDir
+	a.mu.Unlock()
+	if !settings.AutoStartService || !isProcessElevated() {
+		return
+	}
+	installedNumber, updateAvailable := startupServiceBuildStatus(dataDir, settings)
+	if !updateAvailable {
+		return
+	}
+	a.appendLog("info", fmt.Sprintf("service helper update detected: installed=%s current=%s", installedNumber, ServiceBuildNumber))
+	if err := setServiceAutoStart(dataDir, settings, true); err != nil {
+		a.appendLog("error", "service helper auto update failed: "+err.Error())
+		return
+	}
+	a.appendLog("info", "service helper auto update applied")
 }
 
 func (a *App) Shutdown(ctx context.Context) {

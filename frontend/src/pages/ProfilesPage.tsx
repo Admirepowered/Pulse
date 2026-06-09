@@ -1,4 +1,4 @@
-import {Check, Cloud, Link2, LoaderCircle, RefreshCcw, SquarePen, Trash2, Upload, X} from 'lucide-react';
+import {Check, Cloud, Copy, Link2, LoaderCircle, RefreshCcw, Route, SquarePen, Trash2, Upload, WifiOff, X} from 'lucide-react';
 import type {CSSProperties, KeyboardEvent} from 'react';
 import {useState} from 'react';
 import {Field, SubscriptionUsage, Toggle, formatTime} from '../components/common';
@@ -19,7 +19,9 @@ export function ProfilesPage({
     onActivate,
     onEdit,
     onRename,
+    onUpdateSource,
     onUpdateProfile,
+    onCopySource,
     onDeleteProfile,
     onUpdateProvider,
     onAddSubscription,
@@ -38,7 +40,9 @@ export function ProfilesPage({
     onActivate: (id: string) => void;
     onEdit: (profile: Profile) => void;
     onRename: (profile: Profile, name: string) => void;
-    onUpdateProfile: (id: string) => void;
+    onUpdateSource: (profile: Profile, source: string) => void;
+    onUpdateProfile: (id: string, useProxy?: boolean) => void;
+    onCopySource: (source: string) => void;
     onDeleteProfile: (id: string) => void;
     onUpdateProvider: (name: string) => void;
     onAddSubscription: () => void;
@@ -49,6 +53,7 @@ export function ProfilesPage({
     const providerPages = usePagination(providers, defaultPageSize);
     const [menu, setMenu] = useState<{ x: number; y: number; profile: Profile } | null>(null);
     const [renaming, setRenaming] = useState<{ id: string; value: string } | null>(null);
+    const [editingSource, setEditingSource] = useState<{ id: string; value: string } | null>(null);
     const startRename = (profile: Profile) => {
         setMenu(null);
         setRenaming({id: profile.id, value: profile.name});
@@ -58,6 +63,16 @@ export function ProfilesPage({
         const next = renaming.value.trim();
         setRenaming(null);
         if (next && next !== profile.name) onRename(profile, next);
+    };
+    const startSourceEdit = (profile: Profile) => {
+        setMenu(null);
+        setEditingSource({id: profile.id, value: profile.source || ''});
+    };
+    const commitSource = (profile: Profile) => {
+        if (!editingSource || editingSource.id !== profile.id) return;
+        const next = editingSource.value.trim();
+        setEditingSource(null);
+        if (next && next !== profile.source) onUpdateSource(profile, next);
     };
 
     return (
@@ -130,6 +145,27 @@ export function ProfilesPage({
                                             <span>{profile.type}</span>
                                             <span>{formatTime(profile.updatedAt, t)}</span>
                                         </label>
+                                        {profile.source && (
+                                            editingSource?.id === profile.id ? (
+                                                <input
+                                                    className="profileSourceInput"
+                                                    autoFocus
+                                                    value={editingSource.value}
+                                                    onClick={(event) => event.stopPropagation()}
+                                                    onChange={(event) => setEditingSource({id: profile.id, value: event.target.value})}
+                                                    onBlur={() => commitSource(profile)}
+                                                    onKeyDown={(event) => {
+                                                        if (event.key === 'Enter') event.currentTarget.blur();
+                                                        if (event.key === 'Escape') setEditingSource(null);
+                                                    }}
+                                                />
+                                            ) : (
+                                                <label className="profileSource" onClick={(event) => event.stopPropagation()}>
+                                                    <Link2 size={12}/>
+                                                    <span>{profile.source}</span>
+                                                </label>
+                                            )
+                                        )}
                                         <SubscriptionUsage info={profile.subscription} t={t}/>
                                     </div>
                                     <div className="rowActions">
@@ -197,6 +233,19 @@ export function ProfilesPage({
                     }}>
                         <SquarePen size={15}/>{t('renameProfile')}
                     </button>
+                    {menu.profile.source && (
+                        <button onClick={() => startSourceEdit(menu.profile)}>
+                            <Link2 size={15}/>{t('editURL')}
+                        </button>
+                    )}
+                    {menu.profile.source && (
+                        <button onClick={() => {
+                            onCopySource(menu.profile.source);
+                            setMenu(null);
+                        }}>
+                            <Copy size={15}/>{t('copyURL')}
+                        </button>
+                    )}
                     <button onClick={() => {
                         onEdit(menu.profile);
                         setMenu(null);
@@ -209,6 +258,22 @@ export function ProfilesPage({
                     }}>
                         <RefreshCcw size={15}/>{t('update')}
                     </button>
+                    {menu.profile.source && (
+                        <button onClick={() => {
+                            onUpdateProfile(menu.profile.id, true);
+                            setMenu(null);
+                        }}>
+                            <Route size={15}/>{t('updateWithProxy')}
+                        </button>
+                    )}
+                    {menu.profile.source && (
+                        <button onClick={() => {
+                            onUpdateProfile(menu.profile.id, false);
+                            setMenu(null);
+                        }}>
+                            <WifiOff size={15}/>{t('updateDirect')}
+                        </button>
+                    )}
                     <button onClick={() => {
                         onDeleteProfile(menu.profile.id);
                         setMenu(null);

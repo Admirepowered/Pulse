@@ -56,6 +56,8 @@ This file is for future Codex sessions working on Pulse.
 - Subscription updates may optionally use the local mixed proxy when the user enables proxy updates.
 - Local YAML profiles can be imported by dropping `.yaml` or `.yml` files onto the Profiles page. Keep Wails `DragAndDrop.EnableFileDrop` enabled.
 - Subscription names are inferred automatically. Adding a subscription from URL should not require a separate name field.
+- Subscription profile URLs are editable inline from the Profiles page and can be copied from the right-click menu.
+- Profile right-click update actions may override the global subscription proxy setting for a single update (`via proxy` or `direct`) without changing the saved global toggle.
 - Subscription YAML editing should use the lightweight in-repo highlighter/autocomplete component; avoid adding a large editor dependency unless the user asks for a full IDE-style editor.
 
 ## Platform Integration

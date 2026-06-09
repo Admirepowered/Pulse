@@ -39,6 +39,8 @@ export {
     TestProxyGroup,
     TestProxyNode,
     UpdateProfile,
+    UpdateProfileSource,
+    UpdateProfileWithProxy,
     UpdateProvider,
 } from '../wailsjs/go/pulse/App';
 export {pulse as Models} from '../wailsjs/go/models';

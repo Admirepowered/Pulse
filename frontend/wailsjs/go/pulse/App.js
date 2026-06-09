@@ -174,6 +174,14 @@ export function UpdateProfile(arg1) {
   return window['go']['pulse']['App']['UpdateProfile'](arg1);
 }
 
+export function UpdateProfileSource(arg1, arg2) {
+  return window['go']['pulse']['App']['UpdateProfileSource'](arg1, arg2);
+}
+
+export function UpdateProfileWithProxy(arg1, arg2) {
+  return window['go']['pulse']['App']['UpdateProfileWithProxy'](arg1, arg2);
+}
+
 export function UpdateProvider(arg1) {
   return window['go']['pulse']['App']['UpdateProvider'](arg1);
 }

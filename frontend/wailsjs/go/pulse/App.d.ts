@@ -88,4 +88,8 @@ export function TestProxyNode(arg1:string,arg2:string):Promise<void>;
 
 export function UpdateProfile(arg1:string):Promise<pulse.Profile>;
 
+export function UpdateProfileSource(arg1:string,arg2:string):Promise<void>;
+
+export function UpdateProfileWithProxy(arg1:string,arg2:boolean):Promise<pulse.Profile>;
+
 export function UpdateProvider(arg1:string):Promise<void>;

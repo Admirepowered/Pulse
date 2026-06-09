@@ -62,6 +62,8 @@ import {
     TestProxyGroup,
     TestProxyNode,
     UpdateProfile,
+    UpdateProfileSource,
+    UpdateProfileWithProxy,
     UpdateProvider,
     WindowToggleMaximise,
 } from './api';
@@ -437,9 +439,9 @@ function App() {
         }
     };
 
-    const updateProfileInline = async (id: string) => {
+    const updateProfileInline = async (id: string, useProxy?: boolean) => {
         setProfileUpdateStatus((current) => ({...current, [id]: 'running'}));
-        const ok = await run(() => UpdateProfile(id));
+        const ok = await run(() => useProxy === undefined ? UpdateProfile(id) : UpdateProfileWithProxy(id, useProxy));
         if (ok) {
             setProfileUpdateStatus((current) => ({...current, [id]: 'done'}));
             window.setTimeout(() => setProfileUpdateStatus((current) => {
@@ -664,7 +666,9 @@ function App() {
                         onActivate={(id) => run(() => SetActiveProfile(id), t('switchedProfile'))}
                         onEdit={openEditor}
                         onRename={(profile, name) => run(() => RenameProfile(profile.id, name))}
+                        onUpdateSource={(profile, source) => run(() => UpdateProfileSource(profile.id, source))}
                         onUpdateProfile={updateProfileInline}
+                        onCopySource={(source) => navigator.clipboard?.writeText(source)}
                         onDeleteProfile={(id) => run(() => DeleteProfile(id), t('profileDeleted'))}
                         onUpdateProvider={updateProviderInline}
                         onAddSubscription={() => run(async () => {

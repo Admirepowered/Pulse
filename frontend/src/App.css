@@ -1136,7 +1136,8 @@ textarea {
     white-space: nowrap;
 }
 
-.profileNameInput {
+.profileNameInput,
+.profileSourceInput {
     width: 100%;
     min-width: 0;
     height: 34px;
@@ -1151,6 +1152,12 @@ textarea {
     box-sizing: border-box;
 }
 
+.profileSourceInput {
+    height: 30px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
 .profileMeta {
     min-width: 0;
     display: inline-flex;
@@ -1162,6 +1169,20 @@ textarea {
     content: "/";
     margin-right: 6px;
     color: #a1aab6;
+}
+
+.profileSource {
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: #64748b;
+    font-size: 12px;
+    cursor: text;
+}
+
+.profileSource svg {
+    flex: 0 0 auto;
 }
 
 .rowActions button,

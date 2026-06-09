@@ -1222,6 +1222,14 @@ func (a *App) ImportProfileFromFile(path string) (Profile, error) {
 }
 
 func (a *App) UpdateProfile(profileID string) (Profile, error) {
+	return a.updateProfile(profileID, nil)
+}
+
+func (a *App) UpdateProfileWithProxy(profileID string, useProxy bool) (Profile, error) {
+	return a.updateProfile(profileID, &useProxy)
+}
+
+func (a *App) updateProfile(profileID string, useProxy *bool) (Profile, error) {
 	a.mu.Lock()
 	profile, ok := a.profileByIDLocked(profileID)
 	a.mu.Unlock()
@@ -1231,7 +1239,7 @@ func (a *App) UpdateProfile(profileID string) (Profile, error) {
 	if profile.Source == "" {
 		return profile, errors.New("local profile has no subscription URL")
 	}
-	body, headers, err := a.downloadProfile(profile.Source)
+	body, headers, err := a.downloadProfileWithProxy(profile.Source, useProxy)
 	if err != nil {
 		return Profile{}, err
 	}
@@ -1258,6 +1266,29 @@ func (a *App) UpdateProfile(profileID string) (Profile, error) {
 		a.appendLog("info", "subscription updated: "+profile.Name)
 	}
 	return profile, err
+}
+
+func (a *App) UpdateProfileSource(profileID string, source string) error {
+	source = strings.TrimSpace(source)
+	if source == "" {
+		return errors.New("subscription URL is empty")
+	}
+	if parsed, err := url.Parse(source); err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return errors.New("subscription URL is invalid")
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for i := range a.store.Profiles {
+		if a.store.Profiles[i].ID != profileID {
+			continue
+		}
+		if a.store.Profiles[i].Type == "local" {
+			return errors.New("local profile has no subscription URL")
+		}
+		a.store.Profiles[i].Source = source
+		return a.saveStoreLocked()
+	}
+	return errors.New("profile not found")
 }
 
 func (a *App) RenameProfile(profileID string, name string) error {
@@ -2277,10 +2308,18 @@ func readBackgroundImage(path string) ([]byte, string, error) {
 	return data, contentType, nil
 }
 func (a *App) downloadProfile(source string) ([]byte, http.Header, error) {
+	return a.downloadProfileWithProxy(source, nil)
+}
+
+func (a *App) downloadProfileWithProxy(source string, useProxyOverride *bool) ([]byte, http.Header, error) {
 	a.mu.Lock()
 	settings := a.store.Settings
 	a.mu.Unlock()
-	if parsed, err := url.Parse(source); err == nil && !settings.SubscriptionProxy && isGithubDownloadHost(parsed.Hostname()) {
+	useProxy := settings.SubscriptionProxy
+	if useProxyOverride != nil {
+		useProxy = *useProxyOverride
+	}
+	if parsed, err := url.Parse(source); err == nil && !useProxy && isGithubDownloadHost(parsed.Hostname()) {
 		resp, err := a.githubRequest(http.MethodGet, source, nil, map[string]string{"Accept": "text/yaml, text/plain, application/octet-stream, */*"})
 		if err != nil {
 			return nil, nil, err
@@ -2302,7 +2341,7 @@ func (a *App) downloadProfile(source string) ([]byte, http.Header, error) {
 	req.Header.Set("User-Agent", subscriptionUserAgent)
 	req.Header.Set("Accept", "text/yaml, text/plain, application/octet-stream, */*")
 	client := a.httpClient
-	if settings.SubscriptionProxy {
+	if useProxy {
 		client = subscriptionProxyClient(settings)
 	}
 	resp, err := client.Do(req)

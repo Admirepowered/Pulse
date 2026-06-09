@@ -22,6 +22,10 @@ func startupServiceRegistered() bool {
 	return false
 }
 
+func startupServiceExecutableMissing(dataDir string) bool {
+	return false
+}
+
 func startServiceCore(dataDir string, settings Settings, runtimeConfig string) error {
 	return nil
 }

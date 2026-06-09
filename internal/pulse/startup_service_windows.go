@@ -126,6 +126,14 @@ func startupServiceRegistered() bool {
 	return true
 }
 
+func startupServiceExecutableMissing(dataDir string) bool {
+	if dataDir == "" {
+		return true
+	}
+	_, err := os.Stat(filepath.Join(dataDir, startupServiceExecutable))
+	return err != nil
+}
+
 func syncStartupServicePayload(dataDir string, settings Settings) error {
 	if _, err := ensureStartupServiceExecutable(dataDir); err != nil {
 		return err

@@ -15,6 +15,9 @@ import (
 var assets embed.FS
 
 func main() {
+	if err := pulse.SyncStartupServiceFromStoredSettingsIfElevated(); err != nil {
+		println("Service sync:", err.Error())
+	}
 	releaseInstance, acquired, err := pulse.AcquireSingleInstance()
 	if err != nil {
 		println("Error:", err.Error())

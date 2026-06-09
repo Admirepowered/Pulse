@@ -319,6 +319,39 @@ func NewApp() *App {
 	}
 }
 
+func SyncStartupServiceFromStoredSettingsIfElevated() error {
+	if !isProcessElevated() || appHasEmbeddedCore() {
+		return nil
+	}
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		configDir = "."
+	}
+	dataDir := filepath.Join(configDir, "Pulse")
+	data, err := os.ReadFile(filepath.Join(dataDir, "store.json"))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	var store Store
+	if err := json.Unmarshal(data, &store); err != nil {
+		return err
+	}
+	settings := mergeSettings(store.Settings, defaultSettings())
+	if !settings.AutoStartService {
+		return nil
+	}
+	helperMissing := startupServiceExecutableMissing(dataDir)
+	_, updateAvailable := startupServiceBuildStatus(dataDir, settings)
+	registered := startupServiceRegistered()
+	if registered && !updateAvailable && !helperMissing {
+		return nil
+	}
+	return setServiceAutoStart(dataDir, settings, true)
+}
+
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
 	startHidden, startCoreService := a.handleLaunchArgs(os.Args[1:])

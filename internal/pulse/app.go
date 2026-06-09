@@ -848,7 +848,7 @@ func (a *App) SaveSettings(settings Settings) error {
 	a.mu.Lock()
 	previous := a.store.Settings
 	running := a.coreRunningLocked()
-	if settingsNeedTunAdmin(previous, settings, running) && !isProcessElevated() {
+	if settingsNeedTunAdmin(previous, settings, running) && !isProcessElevated() && !coreRunsAsRegisteredWindowsService(settings) {
 		a.mu.Unlock()
 		a.appendLog("error", tunAdminRequiredMessage)
 		return errors.New(tunAdminRequiredMessage)
@@ -1427,9 +1427,7 @@ func (a *App) StartCore() error {
 	if !ok {
 		return errors.New("no active profile")
 	}
-	useService := goruntime.GOOS == "windows" &&
-		!appHasEmbeddedCore() &&
-		(settings.CoreMode == "service" || (settings.CoreMode == "embedded" && settings.AutoStartService))
+	useService := coreRunsAsRegisteredWindowsService(settings)
 	if settings.TunEnabled && !isProcessElevated() && !useService {
 		a.appendLog("error", tunAdminRequiredMessage)
 		return errors.New(tunAdminRequiredMessage)
@@ -2401,6 +2399,12 @@ func coreModeImplementation(settings Settings) string {
 		return "external-helper"
 	}
 	return "external"
+}
+
+func coreRunsAsRegisteredWindowsService(settings Settings) bool {
+	return goruntime.GOOS == "windows" &&
+		!appHasEmbeddedCore() &&
+		(settings.CoreMode == "service" || (settings.CoreMode == "embedded" && settings.AutoStartService))
 }
 
 func (a *App) resolveCorePath(corePath string) (string, error) {

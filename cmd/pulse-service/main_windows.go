@@ -18,9 +18,10 @@ import (
 )
 
 const (
-	defaultServiceName = "PulseStartupService"
-	defaultConfigFile  = "pulse-startup-service.json"
-	logFileName        = "pulse-startup-service.log"
+	defaultServiceName   = "PulseStartupService"
+	defaultConfigFile    = "pulse-startup-service.json"
+	logFileName          = "pulse-startup-service.log"
+	logCleanupMarkerFile = ".last-pulse-startup-service-log-cleanup"
 )
 
 type serviceConfig struct {
@@ -439,11 +440,23 @@ func writeLog(message string) {
 		return
 	}
 	line := time.Now().Format(time.RFC3339) + " " + message + "\n"
-	path := filepath.Join(filepath.Dir(executable), logFileName)
+	logDir := filepath.Dir(executable)
+	cleanupServiceLogForToday(logDir)
+	path := filepath.Join(logDir, logFileName)
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
 		return
 	}
 	defer file.Close()
 	_, _ = file.WriteString(line)
+}
+
+func cleanupServiceLogForToday(logDir string) {
+	today := time.Now().Format("2006-01-02")
+	markerPath := filepath.Join(logDir, logCleanupMarkerFile)
+	if current, err := os.ReadFile(markerPath); err == nil && strings.TrimSpace(string(current)) == today {
+		return
+	}
+	_ = os.WriteFile(filepath.Join(logDir, logFileName), nil, 0o644)
+	_ = os.WriteFile(markerPath, []byte(today), 0o644)
 }

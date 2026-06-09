@@ -2821,8 +2821,12 @@ func (a *App) cleanupDataLogsForToday(logDir string) {
 	if current, err := os.ReadFile(markerPath); err == nil && strings.TrimSpace(string(current)) == today {
 		return
 	}
-	for _, filename := range []string{"app.log", "mihomo.log"} {
-		_ = os.WriteFile(filepath.Join(logDir, filename), nil, 0o644)
+	for _, path := range []string{
+		filepath.Join(logDir, "app.log"),
+		filepath.Join(logDir, "mihomo.log"),
+		filepath.Join(filepath.Dir(logDir), "pulse-startup-service.log"),
+	} {
+		_ = os.WriteFile(path, nil, 0o644)
 	}
 	_ = os.WriteFile(markerPath, []byte(today), 0o644)
 }

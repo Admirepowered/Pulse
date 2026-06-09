@@ -27,7 +27,16 @@ android/native/collect-binaries.sh
 cd android
 gradle wrapper --gradle-version 8.11.1
 ./gradlew assembleDebug
+./gradlew assembleRelease
 ```
+
+本地 release 包默认使用 Android debug keystore 签名，产物是：
+
+```bash
+adb install -r app/build/outputs/apk/release/app-release.apk
+```
+
+如果看到 `app-release-unsigned.apk`，说明使用的是旧构建产物，重新执行 `./gradlew assembleRelease` 即可。
 
 CI 使用 `.github/workflows/build-android.yml`，只在 `android/**` 或 Android workflow 自身发生变更时触发。桌面构建 workflow 已忽略 Android-only 变更。
 

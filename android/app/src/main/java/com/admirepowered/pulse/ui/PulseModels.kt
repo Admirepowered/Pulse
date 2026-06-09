@@ -67,6 +67,7 @@ data class PulseAppState(
     val connections: List<ConnectionItem> = emptyList(),
     val traffic: TrafficSnapshot = TrafficSnapshot(),
     val loadingProxies: Boolean = false,
+    val measuringProxies: Boolean = false,
     val proxyMessage: String = "",
     val loadingConnections: Boolean = false,
     val connectionMessage: String = "",

@@ -3,14 +3,18 @@ package com.admirepowered.pulse.ui.screens
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -24,8 +28,10 @@ import com.admirepowered.pulse.ui.components.PulseRow
 fun ProxiesScreen(
     proxies: List<ProxyItem>,
     loading: Boolean,
+    measuring: Boolean,
     message: String,
     onProxySelect: (String) -> Unit,
+    onTestProxyDelays: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -34,11 +40,24 @@ fun ProxiesScreen(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item {
-            Text(
-                "节点",
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
-                style = MaterialTheme.typography.headlineSmall,
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text("节点", style = MaterialTheme.typography.headlineSmall)
+                IconButton(
+                    onClick = onTestProxyDelays,
+                    enabled = !loading && !measuring,
+                ) {
+                    if (measuring) {
+                        CircularProgressIndicator(strokeWidth = 2.dp)
+                    } else {
+                        Icon(Icons.Filled.Speed, contentDescription = "测速")
+                    }
+                }
+            }
         }
         if (loading) {
             item {

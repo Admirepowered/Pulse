@@ -142,6 +142,7 @@ private fun PulseAndroidApp(
             onThemeChange = viewModel::setThemeMode,
             onProfileSelect = viewModel::selectProfile,
             onProxySelect = viewModel::selectProxy,
+            onTestProxyDelays = viewModel::testProxyDelays,
             onRefreshProfile = viewModel::refreshProfile,
             onImportUrlChange = viewModel::updateImportUrl,
             onImportProfile = viewModel::importProfileFromUrl,

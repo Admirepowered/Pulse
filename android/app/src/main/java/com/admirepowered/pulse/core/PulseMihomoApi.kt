@@ -11,6 +11,7 @@ import org.json.JSONObject
 
 object PulseMihomoApi {
     private const val BASE_URL = "http://127.0.0.1:9090"
+    private const val DEFAULT_DELAY_URL = "https://www.gstatic.com/generate_204"
 
     fun proxies(): List<ProxyItem> {
         val json = JSONObject(request("GET", "/proxies"))
@@ -42,6 +43,23 @@ object PulseMihomoApi {
         val group = URLEncoder.encode(parts[0], Charsets.UTF_8.name())
         val body = JSONObject().put("name", parts[1]).toString()
         request("PUT", "/proxies/$group", body)
+    }
+
+    fun testProxyDelays(proxies: List<ProxyItem>, url: String = DEFAULT_DELAY_URL): Int {
+        val names = proxies
+            .map { it.name }
+            .filterNot { it in builtinProxyNames }
+            .distinct()
+        var measured = 0
+        for (name in names) {
+            val proxy = URLEncoder.encode(name, Charsets.UTF_8.name())
+            val target = URLEncoder.encode(url, Charsets.UTF_8.name())
+            runCatching {
+                request("GET", "/proxies/$proxy/delay?timeout=3000&url=$target")
+                measured++
+            }
+        }
+        return measured
     }
 
     fun setMode(mode: ProxyMode) {
@@ -138,4 +156,6 @@ object PulseMihomoApi {
         }
         return text
     }
+
+    private val builtinProxyNames = setOf("DIRECT", "REJECT", "REJECT-DROP", "PASS")
 }

@@ -230,6 +230,35 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun testProxyDelays() {
+        if (!PulseCoreBridge.isRunning()) {
+            _state.update { it.copy(proxyMessage = "请先启动 Pulse VPN") }
+            return
+        }
+        val targets = _state.value.proxies
+        if (targets.isEmpty()) {
+            _state.update { it.copy(proxyMessage = "没有可测速的节点") }
+            return
+        }
+        viewModelScope.launch {
+            _state.update { it.copy(measuringProxies = true, proxyMessage = "") }
+            val result = withContext(Dispatchers.IO) {
+                runCatching { PulseMihomoApi.testProxyDelays(targets) }
+            }
+            result.onSuccess { count ->
+                _state.update {
+                    it.copy(
+                        proxyMessage = if (count == 0) "没有完成测速的节点" else "已测速 $count 个节点",
+                    )
+                }
+                refreshProxies()
+            }.onFailure { error ->
+                _state.update { it.copy(proxyMessage = error.message ?: "测速失败") }
+            }
+            _state.update { it.copy(measuringProxies = false) }
+        }
+    }
+
     fun refreshConnections() {
         if (!PulseCoreBridge.isRunning()) {
             _state.update { it.copy(connectionMessage = "请先启动 Pulse VPN") }

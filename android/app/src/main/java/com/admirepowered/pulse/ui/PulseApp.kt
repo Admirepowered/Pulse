@@ -29,6 +29,7 @@ fun PulseApp(
     onThemeChange: (ThemeMode) -> Unit,
     onProfileSelect: (String) -> Unit,
     onProxySelect: (String) -> Unit,
+    onTestProxyDelays: () -> Unit,
     onRefreshProfile: (String) -> Unit,
     onImportUrlChange: (String) -> Unit,
     onImportProfile: () -> Unit,
@@ -77,8 +78,10 @@ fun PulseApp(
             PulseScreen.Proxies -> ProxiesScreen(
                 proxies = state.proxies,
                 loading = state.loadingProxies,
+                measuring = state.measuringProxies,
                 message = state.proxyMessage,
                 onProxySelect = onProxySelect,
+                onTestProxyDelays = onTestProxyDelays,
                 modifier = modifier,
             )
 

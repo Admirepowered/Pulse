@@ -138,15 +138,47 @@ func (a *App) fetchLatestRelease() (githubRelease, error) {
 }
 
 func (a *App) downloadReleaseAsset(source string, target string) error {
+	tempPath := target + ".part"
+	if err := a.downloadReleaseAssetViaProxy(source, tempPath); err == nil {
+		return finalizeDownloadedAsset(tempPath, target)
+	} else {
+		a.appendLog("warn", "update download via proxy failed, fallback to github direct: "+err.Error())
+		_ = os.Remove(tempPath)
+	}
 	resp, err := a.githubRequest(http.MethodGet, source, nil, map[string]string{"Accept": "application/octet-stream,*/*"})
 	if err != nil {
 		return err
 	}
+	if err := writeReleaseAssetResponse(resp, tempPath); err != nil {
+		return err
+	}
+	return finalizeDownloadedAsset(tempPath, target)
+}
+
+func (a *App) downloadReleaseAssetViaProxy(source string, tempPath string) error {
+	req, err := http.NewRequest(http.MethodGet, source, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("User-Agent", subscriptionUserAgent)
+	req.Header.Set("Accept", "application/octet-stream,*/*")
+	a.mu.Lock()
+	settings := a.store.Settings
+	a.mu.Unlock()
+	client := subscriptionProxyClient(settings)
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	return writeReleaseAssetResponse(resp, tempPath)
+}
+
+func writeReleaseAssetResponse(resp *http.Response, tempPath string) error {
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
+		io.Copy(io.Discard, resp.Body)
 		return fmt.Errorf("download update returned HTTP %d", resp.StatusCode)
 	}
-	tempPath := target + ".part"
 	out, err := os.Create(tempPath)
 	if err != nil {
 		return err
@@ -160,9 +192,14 @@ func (a *App) downloadReleaseAsset(source string, target string) error {
 		_ = os.Remove(tempPath)
 		return err
 	}
+	return nil
+}
+
+func finalizeDownloadedAsset(tempPath string, target string) error {
 	if goruntime.GOOS != "windows" {
 		_ = os.Chmod(tempPath, 0o755)
 	}
+	_ = os.Remove(target)
 	return os.Rename(tempPath, target)
 }
 

@@ -44,6 +44,7 @@ const (
 	startupServiceExecutable  = "PulseStartupService.exe"
 	startupServiceConfigFile  = "pulse-startup-service.json"
 	coreServiceConfigFile     = "pulse-core-service.json"
+	startupServiceVersionFile = "pulse-startup-service.version.json"
 )
 
 type startupServiceConfig struct {
@@ -62,9 +63,49 @@ type startupServiceConfig struct {
 	UpdatedAt        int64    `json:"updatedAt"`
 }
 
+type startupServiceVersionInfo struct {
+	ServiceBuildNumber string `json:"serviceBuildNumber"`
+	UpdatedAt          int64  `json:"updatedAt"`
+}
+
 func syncStartupServiceExecutable(dataDir string) error {
 	_, err := ensureStartupServiceExecutable(dataDir)
 	return err
+}
+
+func writeStartupServiceBuildNumber(dataDir string) error {
+	if dataDir == "" {
+		return errors.New("data directory is not initialized")
+	}
+	info := startupServiceVersionInfo{
+		ServiceBuildNumber: ServiceBuildNumber,
+		UpdatedAt:          time.Now().Unix(),
+	}
+	data, err := json.MarshalIndent(info, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(dataDir, startupServiceVersionFile), data, 0o644)
+}
+
+func startupServiceBuildStatus(dataDir string, settings Settings) (string, bool) {
+	if dataDir == "" || appHasEmbeddedCore() || (!settings.AutoStartService && settings.CoreMode != "service") {
+		return "", false
+	}
+	servicePath := filepath.Join(dataDir, startupServiceExecutable)
+	if _, err := os.Stat(servicePath); err != nil {
+		return "", false
+	}
+	data, err := os.ReadFile(filepath.Join(dataDir, startupServiceVersionFile))
+	if err != nil {
+		return "", true
+	}
+	var info startupServiceVersionInfo
+	if err := json.Unmarshal(data, &info); err != nil {
+		return "", true
+	}
+	buildNumber := strings.TrimSpace(info.ServiceBuildNumber)
+	return buildNumber, parseBuildNumber(ServiceBuildNumber) > parseBuildNumber(buildNumber)
 }
 
 func syncStartupServicePayload(dataDir string, settings Settings) error {
@@ -462,6 +503,7 @@ func removeStartupServiceFiles(dataDir string) error {
 	}
 	servicePath := filepath.Join(dataDir, startupServiceExecutable)
 	configPath := filepath.Join(dataDir, startupServiceConfigFile)
+	versionPath := filepath.Join(dataDir, startupServiceVersionFile)
 	// Best-effort. The helper binary may still be locked by the OS
 	// even after waitForServiceState sees Stopped (a child mihomo
 	// process, or just the OS holding the handle open a moment longer),
@@ -472,5 +514,6 @@ func removeStartupServiceFiles(dataDir string) error {
 	// surface the failure to the user.
 	_ = os.Remove(servicePath)
 	_ = os.Remove(configPath)
+	_ = os.Remove(versionPath)
 	return nil
 }

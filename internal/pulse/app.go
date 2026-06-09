@@ -90,7 +90,10 @@ type connectionSample struct {
 
 const (
 	tunAdminRequiredMessage = "TUN 模式需要管理员权限，请以管理员身份重新启动 Pulse"
+	logCleanupMarkerFile    = ".last-log-cleanup"
 )
+
+var logCleanupMu sync.Mutex
 
 type Store struct {
 	ActiveProfileID string    `json:"activeProfileId"`
@@ -203,6 +206,9 @@ type RuntimeState struct {
 	CoreFound              bool            `json:"coreFound"`
 	Version                string          `json:"version"`
 	BuildNumber            string          `json:"buildNumber"`
+	ServiceBuildNumber     string          `json:"serviceBuildNumber"`
+	ServiceCurrentNumber   string          `json:"serviceCurrentNumber"`
+	ServiceUpdateAvailable bool            `json:"serviceUpdateAvailable"`
 	Platform               string          `json:"platform"`
 	AppEmbeddedCore        bool            `json:"appEmbeddedCore"`
 	ServiceEmbeddedCore    bool            `json:"serviceEmbeddedCore"`
@@ -297,8 +303,9 @@ const (
 )
 
 var (
-	AppVersion  = "P0"
-	BuildNumber = "0"
+	AppVersion         = "P0"
+	BuildNumber        = "0"
+	ServiceBuildNumber = "0"
 )
 
 func NewApp() *App {
@@ -510,6 +517,7 @@ func (a *App) initStore() error {
 	if err := os.MkdirAll(filepath.Join(a.dataDir, "logs"), 0o755); err != nil {
 		return err
 	}
+	a.cleanupDataLogsForToday(filepath.Join(a.dataDir, "logs"))
 
 	if _, err := os.Stat(a.storePath); errors.Is(err, os.ErrNotExist) {
 		profilePath := filepath.Join(a.dataDir, "profiles", "direct.yaml")
@@ -760,12 +768,16 @@ func (a *App) GetSnapshot() RuntimeState {
 	a.mu.Unlock()
 
 	traffic, apiOK := a.fetchTraffic()
+	serviceBuildNumber, serviceUpdateAvailable := startupServiceBuildStatus(dataDir, settings)
 	return RuntimeState{
 		Running:                running,
 		ApiReachable:           apiOK,
 		CoreFound:              a.coreAvailable(settings),
 		Version:                AppVersion,
 		BuildNumber:            BuildNumber,
+		ServiceBuildNumber:     serviceBuildNumber,
+		ServiceCurrentNumber:   ServiceBuildNumber,
+		ServiceUpdateAvailable: serviceUpdateAvailable,
 		Platform:               goruntime.GOOS,
 		AppEmbeddedCore:        appHasEmbeddedCore(),
 		ServiceEmbeddedCore:    serviceHelperHasEmbeddedCore(),
@@ -2767,6 +2779,7 @@ func (a *App) appendDataLog(filename string, level string, message string) {
 	if err := os.MkdirAll(logDir, 0o755); err != nil {
 		return
 	}
+	a.cleanupDataLogsForToday(logDir)
 	line := fmt.Sprintf("%s [%s] %s\n", time.Now().Format(time.RFC3339), level, message)
 	file, err := os.OpenFile(filepath.Join(logDir, filename), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
@@ -2774,6 +2787,23 @@ func (a *App) appendDataLog(filename string, level string, message string) {
 	}
 	defer file.Close()
 	_, _ = file.WriteString(line)
+}
+
+func (a *App) cleanupDataLogsForToday(logDir string) {
+	today := time.Now().Format("2006-01-02")
+	markerPath := filepath.Join(logDir, logCleanupMarkerFile)
+	if current, err := os.ReadFile(markerPath); err == nil && strings.TrimSpace(string(current)) == today {
+		return
+	}
+	logCleanupMu.Lock()
+	defer logCleanupMu.Unlock()
+	if current, err := os.ReadFile(markerPath); err == nil && strings.TrimSpace(string(current)) == today {
+		return
+	}
+	for _, filename := range []string{"app.log", "mihomo.log"} {
+		_ = os.WriteFile(filepath.Join(logDir, filename), nil, 0o644)
+	}
+	_ = os.WriteFile(markerPath, []byte(today), 0o644)
 }
 
 func (a *App) recentLogsLocked(limit int) []LogLine {

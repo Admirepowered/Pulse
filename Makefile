@@ -1,9 +1,10 @@
 GIT := git -c safe.directory=$(CURDIR)
 COUNT := $(shell $(GIT) rev-list --count HEAD)
+SERVICE_NUMBER ?= 1
 TAG := $(firstword $(shell $(GIT) tag --points-at HEAD --list "v*"))
 BASE_VERSION := $(patsubst v%,%,$(TAG))
 VERSION := $(if $(TAG),$(BASE_VERSION)-P$(COUNT),P$(COUNT))
-LD_FLAGS := -X Pulse/internal/pulse.AppVersion=$(VERSION) -X Pulse/internal/pulse.BuildNumber=$(COUNT)
+LD_FLAGS := -X Pulse/internal/pulse.AppVersion=$(VERSION) -X Pulse/internal/pulse.BuildNumber=$(COUNT) -X Pulse/internal/pulse.ServiceBuildNumber=$(SERVICE_NUMBER)
 SERVICE_LD_FLAGS := -s -w -H windowsgui
 SERVICE_ARTIFACT := internal/pulse/assets/PulseStartupService.exe
 WINDOWS_APP_EMBEDDED_ARTIFACT := Pulse-$(VERSION)-windows-app-embedded-amd64.exe
@@ -19,7 +20,7 @@ WINDOWS_SERVICE_EMBEDDED_ARTIFACT_PATH := build/bin/$(WINDOWS_SERVICE_EMBEDDED_A
 .PHONY: version print-windows-app-embedded-artifact print-windows-service-embedded-artifact print-linux-artifact print-linux-ubuntu22-artifact print-linux-ubuntu24-artifact print-macos-amd64-artifact print-macos-arm64-artifact clean clean-windows clean-windows-app-embedded clean-windows-service-embedded clean-linux clean-macos clean-pulse compress-windows-app-embedded compress-windows-service-embedded build build-windows-app-mihomo build-windows-service-mihomo build-windows-service-embedded-amd64 build-linux build-linux-ubuntu22 build-linux-ubuntu24 build-macos build-macos-amd64 build-macos-arm64 test frontend
 
 version:
-	@echo Pulse $(VERSION) build $(COUNT)
+	@echo Pulse $(VERSION) build $(COUNT) service $(SERVICE_NUMBER)
 
 print-windows-app-embedded-artifact:
 	@echo $(WINDOWS_APP_EMBEDDED_ARTIFACT)

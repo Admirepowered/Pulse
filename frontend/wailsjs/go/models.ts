@@ -529,7 +529,13 @@ export namespace pulse {
 	    coreFound: boolean;
 	    version: string;
 	    buildNumber: string;
+	    serviceBuildNumber: string;
+	    serviceCurrentNumber: string;
+	    serviceUpdateAvailable: boolean;
 	    platform: string;
+	    appEmbeddedCore: boolean;
+	    serviceEmbeddedCore: boolean;
+	    coreModeImplementation: string;
 	    startedAt: number;
 	    dataDir: string;
 	    activeProfile: string;
@@ -550,7 +556,13 @@ export namespace pulse {
 	        this.coreFound = source["coreFound"];
 	        this.version = source["version"];
 	        this.buildNumber = source["buildNumber"];
+	        this.serviceBuildNumber = source["serviceBuildNumber"];
+	        this.serviceCurrentNumber = source["serviceCurrentNumber"];
+	        this.serviceUpdateAvailable = source["serviceUpdateAvailable"];
 	        this.platform = source["platform"];
+	        this.appEmbeddedCore = source["appEmbeddedCore"];
+	        this.serviceEmbeddedCore = source["serviceEmbeddedCore"];
+	        this.coreModeImplementation = source["coreModeImplementation"];
 	        this.startedAt = source["startedAt"];
 	        this.dataDir = source["dataDir"];
 	        this.activeProfile = source["activeProfile"];

@@ -367,6 +367,12 @@ h2 {
     color: #a73527;
 }
 
+.notice.serviceNotice {
+    border-color: #c9d8ff;
+    background: #f3f7ff;
+    color: #284b96;
+}
+
 .noticeAction {
     flex: 0 0 auto;
     height: 28px;
@@ -608,6 +614,12 @@ h2 {
     color: #ffb6ab;
     background: #321b17;
     border-color: #704037;
+}
+
+.shell.darkTheme .notice.serviceNotice {
+    color: #d8e2ff;
+    background: #1f2b4d;
+    border-color: #4d66b1;
 }
 
 .shell.darkTheme .updateCard {

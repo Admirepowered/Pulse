@@ -494,6 +494,10 @@ function App() {
     const geodataProgress = snapshot.geodata.total > 0
         ? Math.min(100, Math.max(0, (snapshot.geodata.downloaded / snapshot.geodata.total) * 100))
         : 0;
+    const serviceUpdateVisible = snapshot.serviceUpdateAvailable && snapshot.serviceEmbeddedCore;
+    const serviceNumberText = snapshot.serviceBuildNumber
+        ? `${snapshot.serviceBuildNumber} -> ${snapshot.serviceCurrentNumber || '?'}`
+        : snapshot.serviceCurrentNumber || '';
 
     const selectedTheme = settingsDraft.theme || 'system';
     const themeMode = selectedTheme === 'system' ? (systemDark ? 'dark' : 'light') : selectedTheme;
@@ -583,7 +587,7 @@ function App() {
                     </div>
                 </header>
 
-                {(notice || geodataVisible) && (
+                {(notice || geodataVisible || serviceUpdateVisible) && (
                     <div className="noticeStack">
                         {notice && (
                             <div className={noticeError(notice) ? 'notice error' : 'notice'}>
@@ -594,6 +598,11 @@ function App() {
                                         {settingsDraft.language === 'en' ? 'Restart as admin' : '管理员重启'}
                                     </button>
                                 )}
+                            </div>
+                        )}
+                        {serviceUpdateVisible && (
+                            <div className="notice serviceNotice">
+                                <span>{t('serviceUpdateAvailable')}{serviceNumberText ? ` (${serviceNumberText})` : ''}</span>
                             </div>
                         )}
                         {geodataVisible && (

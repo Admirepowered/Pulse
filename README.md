@@ -32,6 +32,15 @@ The profiles page supports subscription import, local YAML drag-and-drop import,
 - Tray controls, single-instance handling, and `clash://install-config` URL import on Windows.
 - GitHub release update checks and geodata fallback downloads.
 
+## Windows Downloads
+
+Pulse publishes two Windows x64 packages:
+
+- `Pulse-*-windows-app-embedded-amd64.exe.zip`: mihomo is embedded directly in the Pulse app process. This is the simpler portable-style build. The core follows the UI process lifetime, and TUN still depends on the Pulse app process having the required privileges.
+- `Pulse-*-windows-service-embedded-amd64.exe.zip`: mihomo is embedded in `PulseStartupService.exe`, which Pulse extracts to the data directory. This build can run the core through `PulseCoreService`, keep the core alive after the UI exits, and is the preferred Windows package for service startup, daemon mode, and TUN usage.
+
+Both packages contain a single Pulse executable archive. Pick only one variant for daily use; the service-embedded package is the main development target on Windows.
+
 ## Core
 
 Embedded mode runs mihomo inside Pulse. Custom mode can use an external mihomo binary path.

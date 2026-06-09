@@ -64,6 +64,7 @@ This file is for future Codex sessions working on Pulse.
 - `clash://install-config?...url=...` launches should decode the `url` parameter twice and import it through the same URL subscription flow so the name is inferred from remote metadata or URL. If another Pulse instance is already running, pass the URL protocol argument through `show.signal`.
 - Normal Windows startup uses the current-user `Run` registry key. Windows service startup is a separate mutually exclusive setting. The main app embeds `PulseStartupService.exe`, extracts it to the data directory, writes `pulse-startup-service.json` with the latest Pulse executable path, and registers `PulseStartupService` only on Windows.
 - Windows service startup launches Pulse with `--start-hidden` so it starts in the tray. Daemon mode keeps the service alive and restarts Pulse after unexpected process exit; normal user-initiated quit writes `pulse-service-stop.signal` so the daemon does not relaunch it. The service does not make the visible Pulse process UAC-elevated; privileged operations still need an elevated app or a dedicated privileged backend.
+- Service helper updates are controlled by the manual `SERVICE_NUMBER` in the build. Do not use the normal app `P<commit-count>` build number to decide service helper upgrades. Bump `SERVICE_NUMBER` only when `PulseStartupService.exe` behavior or embedded core/service wiring changes and users should re-sync the installed service helper.
 - Startup automatic update checks must honor `settings.disableUpdateCheck`; manual checks still run.
 - TUN settings live in a separate settings panel/component. The backend owns interface enumeration and writes the selected interface into the generated runtime YAML.
 - If mihomo returns `memory: 0` from `/connections`, Pulse should provide a process RSS fallback so the UI does not show a misleading zero.
@@ -100,6 +101,7 @@ The `coreModeImplementation` snapshot field returns one of `app`, `service-helpe
   - `git diff --check`
   - `make build-windows-service-mihomo` on Windows when frontend or Go runtime code changed
 - Local Windows development builds output to `build/bin/Pulse-P<COUNT>-windows-service-embedded-amd64.exe`.
+- `SERVICE_NUMBER` is manually controlled. The app records the installed helper's service number in the data directory and shows a service-update notice only when the current embedded helper service number is greater than the installed one.
 - `make build-windows` cleans old Pulse Windows binaries first, builds the default Windows package without linking mihomo into Pulse/PulseStartupService, and runs UPX `--best` when UPX is available.
 - Use `make build-windows-app-mihomo` only when mihomo should be embedded into the Pulse app itself.
 - Use `make build-windows-service-mihomo` only when mihomo should be embedded into `PulseStartupService`; CI publishes both app-embedded and service-embedded Windows x64 artifacts.

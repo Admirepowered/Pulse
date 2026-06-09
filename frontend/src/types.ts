@@ -122,6 +122,9 @@ export type RuntimeState = {
     coreFound: boolean;
     version: string;
     buildNumber: string;
+    serviceBuildNumber: string;
+    serviceCurrentNumber: string;
+    serviceUpdateAvailable: boolean;
     platform: string;
     appEmbeddedCore: boolean;
     serviceEmbeddedCore: boolean;
@@ -307,6 +310,9 @@ export const emptySnapshot: RuntimeState = {
     coreFound: false,
     version: 'P0',
     buildNumber: '0',
+    serviceBuildNumber: '',
+    serviceCurrentNumber: '',
+    serviceUpdateAvailable: false,
     platform: '',
     appEmbeddedCore: false,
     serviceEmbeddedCore: false,

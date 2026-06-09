@@ -26,10 +26,12 @@ func ensureStartupServiceExecutable(dataDir string) (string, error) {
 	servicePath := filepath.Join(dataDir, startupServiceExecutable)
 	current, err := os.ReadFile(servicePath)
 	if err == nil && bytes.Equal(current, data) {
+		_ = writeStartupServiceBuildNumber(dataDir)
 		return servicePath, nil
 	}
 	if err := os.WriteFile(servicePath, data, 0o755); err != nil {
 		return "", err
 	}
+	_ = writeStartupServiceBuildNumber(dataDir)
 	return servicePath, nil
 }

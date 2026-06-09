@@ -14,6 +14,10 @@ func setServiceAutoStart(dataDir string, settings Settings, enabled bool) error 
 	return nil
 }
 
+func startupServiceBuildStatus(dataDir string, settings Settings) (string, bool) {
+	return "", false
+}
+
 func startServiceCore(dataDir string, settings Settings, runtimeConfig string) error {
 	return nil
 }

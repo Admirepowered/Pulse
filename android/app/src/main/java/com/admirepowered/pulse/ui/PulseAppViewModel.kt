@@ -123,7 +123,15 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun importProfileFromUrl() {
-        val url = _state.value.importUrl
+        importProfileFromUrl(_state.value.importUrl, clearInput = true)
+    }
+
+    fun importProfileFromUrl(url: String) {
+        _state.update { it.copy(screen = PulseScreen.Profiles) }
+        importProfileFromUrl(url, clearInput = false)
+    }
+
+    private fun importProfileFromUrl(url: String, clearInput: Boolean) {
         if (url.isBlank()) {
             _state.update { it.copy(profileMessage = "请输入订阅 URL") }
             return
@@ -135,7 +143,9 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
             }
             result.onSuccess { record ->
                 reloadProfiles(record.id, "订阅已导入")
-                _state.update { it.copy(importUrl = "") }
+                if (clearInput) {
+                    _state.update { it.copy(importUrl = "") }
+                }
                 reloadCoreIfRunning("订阅已导入")
             }.onFailure { error ->
                 _state.update { it.copy(profileMessage = error.message ?: "导入失败") }

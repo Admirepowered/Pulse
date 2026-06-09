@@ -12,18 +12,23 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.admirepowered.pulse.core.PulseProfileLinkParser
 import com.admirepowered.pulse.ui.PulseApp
 import com.admirepowered.pulse.ui.PulseAppViewModel
 import com.admirepowered.pulse.ui.theme.PulseTheme
 import com.admirepowered.pulse.vpn.PulseVpnService
 
 class MainActivity : ComponentActivity() {
+    private val incomingProfileUrl = mutableStateOf<String?>(null)
+
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) {}
@@ -31,8 +36,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         requestNotificationPermissionIfNeeded()
+        incomingProfileUrl.value = PulseProfileLinkParser.extractProfileUrl(intent)
         setContent {
             PulseAndroidApp(
+                incomingProfileUrl = incomingProfileUrl.value,
+                onProfileUrlConsumed = { incomingProfileUrl.value = null },
                 onRequestVpn = {
                     val prepareIntent = VpnService.prepare(this)
                     if (prepareIntent == null) {
@@ -52,6 +60,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        incomingProfileUrl.value = PulseProfileLinkParser.extractProfileUrl(intent)
+    }
+
     private fun requestNotificationPermissionIfNeeded() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
         if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return
@@ -61,6 +75,8 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun PulseAndroidApp(
+    incomingProfileUrl: String?,
+    onProfileUrlConsumed: () -> Unit,
     onRequestVpn: () -> Boolean,
     onStopVpn: () -> Unit,
     onLaunchVpnPermission: (androidx.activity.result.ActivityResultLauncher<Intent>) -> Unit,
@@ -70,6 +86,11 @@ private fun PulseAndroidApp(
     val state by viewModel.state.collectAsState()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         viewModel.refreshRuntimeStatus()
+    }
+    LaunchedEffect(incomingProfileUrl) {
+        val url = incomingProfileUrl ?: return@LaunchedEffect
+        viewModel.importProfileFromUrl(url)
+        onProfileUrlConsumed()
     }
     val vpnPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult(),

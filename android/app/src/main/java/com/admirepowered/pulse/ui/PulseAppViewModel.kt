@@ -39,12 +39,16 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
         if (screen == PulseScreen.Connections) {
             refreshConnections()
         }
+        if (screen == PulseScreen.Dashboard) {
+            refreshDashboard()
+        }
     }
 
     fun setVpnRunning(running: Boolean) {
         _state.update { it.copy(vpnRunning = running, coreStatus = PulseCoreBridge.statusText()) }
         if (running) {
             refreshProxies()
+            refreshDashboard()
         }
     }
 
@@ -172,6 +176,33 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
                         connectionMessage = error.message ?: "读取连接失败",
                     )
                 }
+            }
+        }
+    }
+
+    fun refreshDashboard() {
+        if (!PulseCoreBridge.isRunning()) {
+            _state.update { it.copy(traffic = TrafficSnapshot(), connections = emptyList()) }
+            return
+        }
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    val traffic = PulseMihomoApi.traffic()
+                    val connections = PulseMihomoApi.connections()
+                    traffic to connections
+                }
+            }
+            result.onSuccess { (traffic, connections) ->
+                _state.update {
+                    it.copy(
+                        traffic = traffic,
+                        connections = connections,
+                        connectionMessage = "",
+                    )
+                }
+            }.onFailure { error ->
+                _state.update { it.copy(connectionMessage = error.message ?: "读取流量失败") }
             }
         }
     }

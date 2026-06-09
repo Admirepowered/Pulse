@@ -47,6 +47,13 @@ data class ConnectionItem(
     val speed: String,
 )
 
+data class TrafficSnapshot(
+    val downloadTotal: String = "0 B",
+    val uploadTotal: String = "0 B",
+    val downloadSpeed: String = "0 B/s",
+    val uploadSpeed: String = "0 B/s",
+)
+
 data class PulseAppState(
     val screen: PulseScreen = PulseScreen.Dashboard,
     val vpnRunning: Boolean = false,
@@ -58,6 +65,7 @@ data class PulseAppState(
     val profiles: List<ProfileItem> = emptyList(),
     val proxies: List<ProxyItem> = emptyList(),
     val connections: List<ConnectionItem> = emptyList(),
+    val traffic: TrafficSnapshot = TrafficSnapshot(),
     val loadingProxies: Boolean = false,
     val proxyMessage: String = "",
     val loadingConnections: Boolean = false,

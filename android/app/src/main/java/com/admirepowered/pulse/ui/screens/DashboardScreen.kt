@@ -18,8 +18,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.admirepowered.pulse.ui.PulseAppState
 import com.admirepowered.pulse.ui.ProxyMode
+import com.admirepowered.pulse.ui.PulseAppState
 import com.admirepowered.pulse.ui.components.ProxyModeChips
 import com.admirepowered.pulse.ui.components.PulseMetricCard
 
@@ -48,14 +48,14 @@ fun DashboardScreen(
 
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                PulseMetricCard("下载", "128.4 MB", "总计流量", Modifier.weight(1f))
-                PulseMetricCard("速度", "1.4 MB/s", "实时下载", Modifier.weight(1f))
+                PulseMetricCard("下载", state.traffic.downloadTotal, "总计流量", Modifier.weight(1f))
+                PulseMetricCard("速度", state.traffic.downloadSpeed, "实时下载", Modifier.weight(1f))
             }
         }
 
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                PulseMetricCard("上传", "18.7 MB", "总计流量", Modifier.weight(1f))
+                PulseMetricCard("上传", state.traffic.uploadTotal, "总计流量", Modifier.weight(1f))
                 PulseMetricCard("连接", state.connections.size.toString(), "当前活跃", Modifier.weight(1f))
             }
         }

@@ -1,8 +1,9 @@
 package com.admirepowered.pulse.core
 
-import com.admirepowered.pulse.ui.ProxyItem
 import com.admirepowered.pulse.ui.ConnectionItem
+import com.admirepowered.pulse.ui.ProxyItem
 import com.admirepowered.pulse.ui.ProxyMode
+import com.admirepowered.pulse.ui.TrafficSnapshot
 import java.net.HttpURLConnection
 import java.net.URLEncoder
 import java.net.URL
@@ -74,6 +75,27 @@ object PulseMihomoApi {
                 )
             }
         }
+    }
+
+    fun traffic(): TrafficSnapshot {
+        val connection = URL("$BASE_URL/traffic").openConnection() as HttpURLConnection
+        connection.connectTimeout = 2_500
+        connection.readTimeout = 5_000
+        connection.requestMethod = "GET"
+        val code = connection.responseCode
+        if (code !in 200..299) {
+            val text = connection.errorStream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+            throw IllegalStateException("mihomo API GET /traffic 返回 $code: $text")
+        }
+        val line = connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readLine() }
+        connection.disconnect()
+        val json = JSONObject(line.orEmpty())
+        return TrafficSnapshot(
+            downloadTotal = formatBytes(json.optLong("downloadTotal")),
+            uploadTotal = formatBytes(json.optLong("uploadTotal")),
+            downloadSpeed = "${formatBytes(json.optLong("down"))}/s",
+            uploadSpeed = "${formatBytes(json.optLong("up"))}/s",
+        )
     }
 
     private fun delayFor(proxy: JSONObject?): Int? {

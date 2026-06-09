@@ -4,17 +4,20 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
+import android.service.quicksettings.TileService
 import androidx.core.app.NotificationCompat
 import com.admirepowered.pulse.MainActivity
 import com.admirepowered.pulse.R
 import com.admirepowered.pulse.core.PulseCoreBridge
 import com.admirepowered.pulse.core.PulseProfileStore
+import com.admirepowered.pulse.quick.PulseTileService
 import java.io.IOException
 
 class PulseVpnService : VpnService() {
@@ -62,6 +65,8 @@ class PulseVpnService : VpnService() {
         if (result.isFailure) {
             closeDetachedFd(coreFd)
             stopVpn()
+        } else {
+            requestTileRefresh(this)
         }
     }
 
@@ -74,6 +79,7 @@ class PulseVpnService : VpnService() {
             tunFd = null
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
+            requestTileRefresh(this)
         }
     }
 
@@ -150,6 +156,14 @@ class PulseVpnService : VpnService() {
 
         fun isCoreRunning(): Boolean {
             return PulseCoreBridge.isRunning()
+        }
+
+        fun requestTileRefresh(context: Context) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return
+            TileService.requestListeningState(
+                context,
+                ComponentName(context, PulseTileService::class.java),
+            )
         }
     }
 }

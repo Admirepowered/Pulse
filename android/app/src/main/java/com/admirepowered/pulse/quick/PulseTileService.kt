@@ -38,9 +38,15 @@ class PulseTileService : TileService() {
 
     private fun refreshTile() {
         qsTile?.apply {
-            state = if (PulseVpnService.isCoreRunning()) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
+            val needsPermission = VpnService.prepare(this@PulseTileService) != null
+            val running = PulseVpnService.isCoreRunning()
+            state = if (running) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
             label = "Pulse"
-            subtitle = if (PulseVpnService.isCoreRunning()) "代理已开启" else "点击启动代理"
+            subtitle = when {
+                running -> "代理已开启"
+                needsPermission -> "需要 VPN 授权"
+                else -> "点击启动代理"
+            }
             updateTile()
         }
     }

@@ -29,6 +29,7 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
 
     init {
         loadProfiles()
+        refreshRuntimeStatus()
     }
 
     fun setScreen(screen: PulseScreen) {
@@ -48,6 +49,14 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
         _state.update { it.copy(vpnRunning = running, coreStatus = PulseCoreBridge.statusText()) }
         if (running) {
             refreshProxies()
+            refreshDashboard()
+        }
+    }
+
+    fun refreshRuntimeStatus() {
+        val running = PulseCoreBridge.isRunning()
+        _state.update { it.copy(vpnRunning = running, coreStatus = PulseCoreBridge.statusText()) }
+        if (running) {
             refreshDashboard()
         }
     }

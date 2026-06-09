@@ -10,6 +10,7 @@ import com.admirepowered.pulse.core.PulseLogStore
 import com.admirepowered.pulse.core.PulseMihomoApi
 import com.admirepowered.pulse.core.PulseProfileRecord
 import com.admirepowered.pulse.core.PulseProfileStore
+import com.admirepowered.pulse.core.PulseSubscriptionInfo
 import com.admirepowered.pulse.core.PulseSettingsStore
 import com.admirepowered.pulse.vpn.PulseVpnService
 import java.text.SimpleDateFormat
@@ -495,7 +496,47 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
             providerCount = 0,
             ruleCount = 0,
             updatedAt = dateFormat.format(Date(record.updatedAt)),
+            subscription = toSubscriptionInfoItem(record.subscription),
         )
+    }
+
+    private fun toSubscriptionInfoItem(info: PulseSubscriptionInfo): SubscriptionInfoItem {
+        if (info.total <= 0) {
+            return SubscriptionInfoItem(
+                expire = formatExpire(info.expire),
+                hasData = info.expire > 0 || info.rawUserInfo.isNotBlank(),
+            )
+        }
+        val used = (info.upload + info.download).coerceAtLeast(0)
+        val available = (info.total - used).coerceAtLeast(0)
+        return SubscriptionInfoItem(
+            used = formatBytes(used),
+            available = formatBytes(available),
+            total = formatBytes(info.total),
+            expire = formatExpire(info.expire),
+            percent = ((used.toDouble() / info.total.toDouble()) * 100.0).toFloat().coerceIn(0f, 100f),
+            hasData = true,
+        )
+    }
+
+    private fun formatExpire(expire: Long): String {
+        if (expire <= 0) return "长期有效"
+        return expireDateFormat.format(Date(expire * 1000))
+    }
+
+    private fun formatBytes(value: Long): String {
+        val units = arrayOf("B", "KB", "MB", "GB", "TB")
+        var size = value.toDouble()
+        var index = 0
+        while (size >= 1024 && index < units.lastIndex) {
+            size /= 1024
+            index++
+        }
+        return if (index == 0) {
+            "${size.toLong()} ${units[index]}"
+        } else {
+            "%.1f %s".format(size, units[index])
+        }
     }
 
     private fun toLogItem(entry: PulseLogEntry): LogItem {
@@ -508,5 +549,6 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
 
     companion object {
         private val dateFormat = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
+        private val expireDateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
     }
 }

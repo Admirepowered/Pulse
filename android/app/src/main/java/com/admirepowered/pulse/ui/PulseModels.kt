@@ -29,6 +29,16 @@ data class ProfileItem(
     val providerCount: Int,
     val ruleCount: Int,
     val updatedAt: String,
+    val subscription: SubscriptionInfoItem = SubscriptionInfoItem(),
+)
+
+data class SubscriptionInfoItem(
+    val used: String = "",
+    val available: String = "",
+    val total: String = "",
+    val expire: String = "",
+    val percent: Float = 0f,
+    val hasData: Boolean = false,
 )
 
 data class ProxyItem(

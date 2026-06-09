@@ -114,11 +114,7 @@ fun ProfilesScreen(
             ) {
                 PulseRow(
                     title = profile.name,
-                    subtitle = if (profile.url.isBlank()) {
-                        "本地配置 / ${profile.updatedAt}"
-                    } else {
-                        "远程订阅 / ${profile.updatedAt}"
-                    },
+                    subtitle = profileSubtitle(profile),
                     trailing = {
                         if (refreshingProfileId == profile.id) {
                             CircularProgressIndicator(strokeWidth = 2.dp)
@@ -140,4 +136,17 @@ fun ProfilesScreen(
             }
         }
     }
+}
+
+private fun profileSubtitle(profile: ProfileItem): String {
+    val type = if (profile.url.isBlank()) "本地配置" else "远程订阅"
+    val base = "$type / ${profile.updatedAt}"
+    val subscription = profile.subscription
+    if (!subscription.hasData) return base
+    val usage = if (subscription.total.isNotBlank()) {
+        "已用 ${subscription.used} / 可用 ${subscription.available} / 总量 ${subscription.total}"
+    } else {
+        "流量信息未提供"
+    }
+    return "$base\n$usage / 到期 ${subscription.expire}"
 }

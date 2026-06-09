@@ -8,8 +8,10 @@ import java.net.HttpURLConnection
 import java.net.InetSocketAddress
 import java.net.Proxy
 import java.net.URL
+import java.net.URLDecoder
 import java.security.MessageDigest
 import java.util.Base64
+import java.util.Locale
 
 data class PulseProfileRecord(
     val id: String,
@@ -17,6 +19,24 @@ data class PulseProfileRecord(
     val url: String,
     val path: String,
     val updatedAt: Long,
+    val subscription: PulseSubscriptionInfo = PulseSubscriptionInfo(),
+)
+
+data class PulseSubscriptionInfo(
+    val upload: Long = 0,
+    val download: Long = 0,
+    val total: Long = 0,
+    val expire: Long = 0,
+    val updateInterval: Int = 0,
+    val rawUserInfo: String = "",
+    val updatedAt: Long = 0,
+)
+
+private data class DownloadedProfile(
+    val body: String,
+    val profileTitle: String,
+    val contentDisposition: String,
+    val subscriptionInfo: PulseSubscriptionInfo,
 )
 
 object PulseProfileStore {
@@ -76,17 +96,18 @@ object PulseProfileStore {
         require(trimmedUrl.startsWith("http://") || trimmedUrl.startsWith("https://")) {
             "请输入 http 或 https 订阅地址"
         }
-        val body = download(context, trimmedUrl, useProxy)
+        val downloaded = download(context, trimmedUrl, useProxy)
         val id = stableId(trimmedUrl)
-        val name = profileName(trimmedUrl)
+        val name = inferProfileName(trimmedUrl, downloaded)
         val file = profileFile(context, id)
-        file.writeText(body, Charsets.UTF_8)
+        file.writeText(downloaded.body, Charsets.UTF_8)
         val record = PulseProfileRecord(
             id = id,
             name = name,
             url = trimmedUrl,
             path = file.absolutePath,
             updatedAt = System.currentTimeMillis(),
+            subscription = downloaded.subscriptionInfo,
         )
         val editor = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putString(PROFILE_PREFIX + id, encodeRecord(record))
@@ -111,6 +132,7 @@ object PulseProfileStore {
             url = "",
             path = file.absolutePath,
             updatedAt = System.currentTimeMillis(),
+            subscription = PulseSubscriptionInfo(),
         )
         val editor = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putString(PROFILE_PREFIX + id, encodeRecord(record))
@@ -138,6 +160,7 @@ object PulseProfileStore {
             url = "",
             path = file.absolutePath,
             updatedAt = System.currentTimeMillis(),
+            subscription = PulseSubscriptionInfo(),
         )
         prefs.edit()
             .putString(PROFILE_PREFIX + record.id, encodeRecord(record))
@@ -160,7 +183,7 @@ object PulseProfileStore {
         return File(dir, "$id.yaml")
     }
 
-    private fun download(context: Context, profileUrl: String, useProxy: Boolean): String {
+    private fun download(context: Context, profileUrl: String, useProxy: Boolean): DownloadedProfile {
         if (useProxy) {
             val proxy = Proxy(Proxy.Type.HTTP, InetSocketAddress("127.0.0.1", localProxyPort(context)))
             runCatching { download(profileUrl, proxy) }
@@ -171,7 +194,7 @@ object PulseProfileStore {
         return download(profileUrl, Proxy.NO_PROXY)
     }
 
-    private fun download(profileUrl: String, proxy: Proxy): String {
+    private fun download(profileUrl: String, proxy: Proxy): DownloadedProfile {
         val connection = URL(profileUrl).openConnection(proxy) as HttpURLConnection
         connection.connectTimeout = 15_000
         connection.readTimeout = 30_000
@@ -181,11 +204,47 @@ object PulseProfileStore {
         val code = connection.responseCode
         val stream = if (code in 200..299) connection.inputStream else connection.errorStream
         val body = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+        val profileTitle = connection.getHeaderField("profile-title").orEmpty()
+        val contentDisposition = connection.getHeaderField("content-disposition").orEmpty()
+        val subscriptionInfo = parseSubscriptionInfo(connection)
         connection.disconnect()
         if (code !in 200..299) {
             throw IllegalStateException("订阅请求返回 $code: ${body.preview()}")
         }
-        return normalizeProfileBody(body)
+        return DownloadedProfile(
+            body = normalizeProfileBody(body),
+            profileTitle = profileTitle,
+            contentDisposition = contentDisposition,
+            subscriptionInfo = subscriptionInfo,
+        )
+    }
+
+    private fun parseSubscriptionInfo(connection: HttpURLConnection): PulseSubscriptionInfo {
+        val rawUserInfo = connection.getHeaderField("subscription-userinfo").orEmpty().trim()
+        val values = mutableMapOf<String, Long>()
+        rawUserInfo.split(";").forEach { part ->
+            val key = part.substringBefore("=", "").trim().lowercase(Locale.ROOT)
+            val value = part.substringAfter("=", "").trim().toLongOrNull() ?: return@forEach
+            values[key] = value
+        }
+        val updateInterval = connection.getHeaderField("profile-update-interval")
+            ?.trim()
+            ?.toIntOrNull()
+            ?: 0
+        val info = PulseSubscriptionInfo(
+            upload = values["upload"] ?: 0,
+            download = values["download"] ?: 0,
+            total = values["total"] ?: 0,
+            expire = values["expire"] ?: 0,
+            updateInterval = updateInterval,
+            rawUserInfo = rawUserInfo,
+            updatedAt = System.currentTimeMillis(),
+        )
+        return if (info.rawUserInfo.isBlank() && info.total <= 0 && info.expire <= 0 && info.updateInterval <= 0) {
+            PulseSubscriptionInfo()
+        } else {
+            info
+        }
     }
 
     private fun normalizeProfileBody(body: String): String {
@@ -244,9 +303,78 @@ object PulseProfileStore {
         return digest.joinToString("") { "%02x".format(it) }
     }
 
-    private fun profileName(profileUrl: String): String {
-        val host = runCatching { URL(profileUrl).host }.getOrDefault("订阅")
-        return if (host.isBlank()) "订阅" else host
+    private fun inferProfileName(profileUrl: String, downloaded: DownloadedProfile): String {
+        return listOf(
+            downloaded.profileTitle,
+            filenameFromDisposition(downloaded.contentDisposition),
+            yamlTitle(downloaded.body),
+            filenameFromUrl(profileUrl),
+            hostFromUrl(profileUrl),
+            "远程订阅",
+        ).firstNotNullOfOrNull(::cleanProfileName) ?: "远程订阅"
+    }
+
+    private fun filenameFromDisposition(value: String): String {
+        if (value.isBlank()) return ""
+        return value.split(";")
+            .map { it.trim() }
+            .firstNotNullOfOrNull { part ->
+                val key = part.substringBefore("=", "").trim().lowercase(Locale.ROOT)
+                if (key != "filename" && key != "filename*") return@firstNotNullOfOrNull null
+                part.substringAfter("=", "").trim().trim('"')
+            }
+            .orEmpty()
+    }
+
+    private fun filenameFromUrl(profileUrl: String): String {
+        val parsed = runCatching { URL(profileUrl) }.getOrNull() ?: return ""
+        val query = parsed.query.orEmpty()
+        for (key in listOf("name", "title", "filename", "file")) {
+            query.split("&")
+                .firstOrNull { it.substringBefore("=") == key }
+                ?.substringAfter("=", "")
+                ?.takeIf { it.isNotBlank() }
+                ?.let { return it }
+        }
+        return parsed.path.substringAfterLast('/')
+    }
+
+    private fun hostFromUrl(profileUrl: String): String {
+        return runCatching { URL(profileUrl).host }.getOrDefault("")
+    }
+
+    private fun yamlTitle(body: String): String {
+        body.take(4096).lineSequence().forEach { line ->
+            val trimmed = line.trim()
+            val lower = trimmed.lowercase(Locale.ROOT)
+            for (prefix in listOf("name:", "profile:", "profile-name:", "title:")) {
+                if (lower.startsWith(prefix)) {
+                    return trimmed.substring(prefix.length).trim()
+                }
+            }
+        }
+        return ""
+    }
+
+    private fun cleanProfileName(value: String): String? {
+        var name = value.trim()
+        if (name.isBlank()) return null
+        if (name.startsWith("UTF-8''", ignoreCase = true)) {
+            name = name.substringAfter("''")
+        }
+        name = runCatching { URLDecoder.decode(name, Charsets.UTF_8.name()) }.getOrDefault(name)
+        decodeBase64Text(name)?.takeIf { it.isNotBlank() }?.let { name = it }
+        name = name.trim('"', '\'', ' ')
+            .replace('\\', '/')
+            .substringAfterLast('/')
+        for (suffix in listOf(".yaml", ".yml", ".txt", ".conf")) {
+            if (name.lowercase(Locale.ROOT).endsWith(suffix)) {
+                name = name.dropLast(suffix.length)
+                break
+            }
+        }
+        name = name.replace(Regex("""[\\/:*?"<>|]+"""), " ").trim('.', '-', '_', ' ')
+        return name.takeIf { it.isNotBlank() }
     }
 
     private fun localProfileName(context: Context, uri: Uri): String {
@@ -262,19 +390,47 @@ object PulseProfileStore {
     }
 
     private fun encodeRecord(record: PulseProfileRecord): String {
-        return listOf(record.id, record.name, record.url, record.path, record.updatedAt.toString())
+        val subscription = record.subscription
+        return listOf(
+            record.id,
+            record.name,
+            record.url,
+            record.path,
+            record.updatedAt.toString(),
+            subscription.upload.toString(),
+            subscription.download.toString(),
+            subscription.total.toString(),
+            subscription.expire.toString(),
+            subscription.updateInterval.toString(),
+            subscription.rawUserInfo,
+            subscription.updatedAt.toString(),
+        )
             .joinToString("\t") { it.replace("\t", " ") }
     }
 
     private fun decodeRecord(value: String): PulseProfileRecord? {
         val parts = value.split("\t")
-        if (parts.size != 5) return null
+        if (parts.size != 5 && parts.size < 12) return null
+        val subscription = if (parts.size >= 12) {
+            PulseSubscriptionInfo(
+                upload = parts[5].toLongOrNull() ?: 0,
+                download = parts[6].toLongOrNull() ?: 0,
+                total = parts[7].toLongOrNull() ?: 0,
+                expire = parts[8].toLongOrNull() ?: 0,
+                updateInterval = parts[9].toIntOrNull() ?: 0,
+                rawUserInfo = parts[10],
+                updatedAt = parts[11].toLongOrNull() ?: 0,
+            )
+        } else {
+            PulseSubscriptionInfo()
+        }
         return PulseProfileRecord(
             id = parts[0],
             name = parts[1],
             url = parts[2],
             path = parts[3],
             updatedAt = parts[4].toLongOrNull() ?: 0L,
+            subscription = subscription,
         )
     }
 

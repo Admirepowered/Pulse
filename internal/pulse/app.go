@@ -43,6 +43,7 @@ type App struct {
 	embeddedCoreRunning  bool
 	serviceCoreRunning   bool
 	embeddedLogSub       any
+	apiLogCancel         context.CancelFunc
 	startedAt            int64
 	logLines             []LogLine
 	geodataStatus        GeodataStatus
@@ -225,6 +226,13 @@ type RuntimeState struct {
 
 type LogLine struct {
 	Time    int64  `json:"time"`
+	Level   string `json:"level"`
+	Message string `json:"message"`
+}
+
+type mihomoAPILogLine struct {
+	Type    string `json:"type"`
+	Payload string `json:"payload"`
 	Level   string `json:"level"`
 	Message string `json:"message"`
 }
@@ -1421,7 +1429,9 @@ func profileRulePolicies(path string) ([]string, error) {
 func (a *App) StartCore() error {
 	a.mu.Lock()
 	if a.coreRunningLocked() {
+		settings := a.store.Settings
 		a.mu.Unlock()
+		a.startMihomoAPILogSubscription(settings)
 		return nil
 	}
 	settings := a.store.Settings
@@ -1517,6 +1527,7 @@ func (a *App) StartCore() error {
 		}
 		return err
 	}
+	a.startMihomoAPILogSubscription(settings)
 	if settings.SystemProxy {
 		a.appendLog("info", "enabling system proxy before state: "+systemProxyState())
 		if err := configureSystemProxy(settings, true); err != nil {
@@ -1541,6 +1552,7 @@ func (a *App) StopCore() error {
 	a.serviceCoreRunning = false
 	a.startedAt = 0
 	a.mu.Unlock()
+	a.stopMihomoAPILogSubscription()
 	if settings.SystemProxy {
 		a.appendLog("info", "disabling system proxy before state: "+systemProxyState())
 		if err := configureSystemProxy(settings, false); err != nil {
@@ -2780,6 +2792,100 @@ func (a *App) scanCoreOutput(reader io.Reader, level string) {
 		a.appendDataLog("mihomo.log", level, line)
 		a.appendLog(level, line)
 	}
+}
+
+func (a *App) startMihomoAPILogSubscription(settings Settings) {
+	if appHasEmbeddedCore() || settings.CoreMode == "custom" {
+		return
+	}
+	a.mu.Lock()
+	if a.apiLogCancel != nil {
+		a.mu.Unlock()
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	a.apiLogCancel = cancel
+	a.mu.Unlock()
+	go a.runMihomoAPILogSubscription(ctx, settings)
+}
+
+func (a *App) stopMihomoAPILogSubscription() {
+	a.mu.Lock()
+	cancel := a.apiLogCancel
+	a.apiLogCancel = nil
+	a.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+}
+
+func (a *App) runMihomoAPILogSubscription(ctx context.Context, settings Settings) {
+	base := strings.TrimRight(settings.ApiBase, "/")
+	if base == "" {
+		base = strings.TrimRight(defaultSettings().ApiBase, "/")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/logs?level=debug", nil)
+	if err != nil {
+		a.appendLog("warn", "mihomo log subscription request failed: "+err.Error())
+		a.clearMihomoAPILogSubscription(ctx)
+		return
+	}
+	if settings.Secret != "" {
+		req.Header.Set("Authorization", "Bearer "+settings.Secret)
+	}
+	resp, err := (&http.Client{}).Do(req)
+	if err != nil {
+		if !errors.Is(ctx.Err(), context.Canceled) {
+			a.appendLog("warn", "mihomo log subscription failed: "+err.Error())
+		}
+		a.clearMihomoAPILogSubscription(ctx)
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		data, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+		if !errors.Is(ctx.Err(), context.Canceled) {
+			a.appendLog("warn", fmt.Sprintf("mihomo log subscription returned %d: %s", resp.StatusCode, strings.TrimSpace(string(data))))
+		}
+		a.clearMihomoAPILogSubscription(ctx)
+		return
+	}
+	scanner := bufio.NewScanner(resp.Body)
+	scanner.Buffer(make([]byte, 0, 4096), 1024*1024)
+	for scanner.Scan() {
+		var line mihomoAPILogLine
+		if err := json.Unmarshal(scanner.Bytes(), &line); err != nil {
+			continue
+		}
+		level := firstNonEmpty(line.Type, line.Level, "info")
+		message := firstNonEmpty(line.Payload, line.Message)
+		if message == "" {
+			continue
+		}
+		a.appendDataLog("mihomo.log", level, message)
+		a.mu.Lock()
+		a.logLines = append(a.logLines, LogLine{Time: time.Now().Unix(), Level: level, Message: message})
+		if len(a.logLines) > 500 {
+			a.logLines = append([]LogLine(nil), a.logLines[len(a.logLines)-500:]...)
+		}
+		a.mu.Unlock()
+	}
+	if err := scanner.Err(); err != nil && !errors.Is(ctx.Err(), context.Canceled) {
+		a.appendLog("warn", "mihomo log subscription stopped: "+err.Error())
+	}
+	a.clearMihomoAPILogSubscription(ctx)
+}
+
+func (a *App) clearMihomoAPILogSubscription(ctx context.Context) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.apiLogCancel == nil {
+		return
+	}
+	if errors.Is(ctx.Err(), context.Canceled) {
+		return
+	}
+	a.apiLogCancel = nil
 }
 
 func (a *App) appendLog(level, message string) {

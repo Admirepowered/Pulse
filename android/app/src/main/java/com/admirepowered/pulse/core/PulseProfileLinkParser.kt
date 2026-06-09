@@ -6,10 +6,26 @@ import java.net.URLDecoder
 
 object PulseProfileLinkParser {
     private val supportedSchemes = setOf("clash", "clashmeta", "mihomo", "pulse")
+    private val linkPattern = Regex("""(?i)\b(?:clash|clashmeta|mihomo|pulse|https?)://[^\s"'<>]+""")
 
     fun extractProfileUrl(intent: Intent?): String? {
-        if (intent?.action != Intent.ACTION_VIEW) return null
-        val uri = intent.data ?: return null
+        return when (intent?.action) {
+            Intent.ACTION_VIEW -> intent.data?.let(::extractProfileUrl)
+            Intent.ACTION_SEND -> extractProfileUrl(intent.getStringExtra(Intent.EXTRA_TEXT).orEmpty())
+            else -> null
+        }
+    }
+
+    private fun extractProfileUrl(text: String): String? {
+        val trimmed = text.trim()
+        if (trimmed.isBlank()) return null
+        return linkPattern.findAll(trimmed)
+            .mapNotNull { match -> runCatching { Uri.parse(match.value) }.getOrNull() }
+            .mapNotNull(::extractProfileUrl)
+            .firstOrNull()
+    }
+
+    private fun extractProfileUrl(uri: Uri): String? {
         val scheme = uri.scheme?.lowercase() ?: return null
         if (scheme == "http" || scheme == "https") return uri.toString()
         if (scheme !in supportedSchemes) return null

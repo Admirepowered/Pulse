@@ -304,7 +304,6 @@ private fun PulseAndroidApp(
                 onUpdateProfileSource = viewModel::updateProfileSource,
                 onRenameProfile = viewModel::renameProfile,
                 onCopyProfileSource = viewModel::copyProfileSource,
-                onOpenProfileEditor = viewModel::openProfileEditor,
                 onShareProfileContent = viewModel::shareProfileContent,
                 onExportProfileContent = { profile ->
                     pendingExportProfileId = profile.id

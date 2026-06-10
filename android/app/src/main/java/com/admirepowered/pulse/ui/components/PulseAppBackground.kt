@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
@@ -47,29 +48,32 @@ fun PulseAppBackground(
         }
     }
 
-    Box(
+    Surface(
         modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
+            .fillMaxSize(),
+        color = MaterialTheme.colorScheme.background,
+        contentColor = MaterialTheme.colorScheme.onBackground,
     ) {
-        image.value?.let { bitmap ->
-            val imageAlpha = (backgroundOpacityPercent.coerceIn(0, 60).toFloat() / 100f)
-            val overlayAlpha = (0.98f - imageAlpha * 0.7f).coerceIn(0.56f, 0.98f)
-            Image(
-                bitmap = bitmap,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .blur(backgroundBlurDp.coerceIn(0, 40).dp)
-                    .alpha(imageAlpha),
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.background.copy(alpha = overlayAlpha)),
-            )
+        Box(modifier = Modifier.fillMaxSize()) {
+            image.value?.let { bitmap ->
+                val imageAlpha = (backgroundOpacityPercent.coerceIn(0, 60).toFloat() / 100f)
+                val overlayAlpha = (0.98f - imageAlpha * 0.7f).coerceIn(0.56f, 0.98f)
+                Image(
+                    bitmap = bitmap,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .blur(backgroundBlurDp.coerceIn(0, 40).dp)
+                        .alpha(imageAlpha),
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background.copy(alpha = overlayAlpha)),
+                )
+            }
+            content()
         }
-        content()
     }
 }

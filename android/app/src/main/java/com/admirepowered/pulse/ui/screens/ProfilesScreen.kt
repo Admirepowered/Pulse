@@ -23,7 +23,6 @@ import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
@@ -75,7 +74,6 @@ fun ProfilesScreen(
     onUpdateProfileSource: (String, String) -> Unit,
     onRenameProfile: (String, String) -> Unit,
     onCopyProfileSource: (String) -> Unit,
-    onOpenProfileEditor: (String) -> Unit,
     onShareProfileContent: (String) -> Unit,
     onExportProfileContent: (ProfileItem) -> Unit,
     onDeleteProfile: (String) -> Unit,
@@ -409,7 +407,6 @@ fun ProfilesScreen(
                                 editingName = profile.name
                             },
                             onCopySource = { onCopyProfileSource(profile.id) },
-                            onOpenProfileEditor = { onOpenProfileEditor(profile.id) },
                             onShareProfileContent = { onShareProfileContent(profile.id) },
                             onExportProfileContent = { onExportProfileContent(profile) },
                             onRefreshWithProxy = { onRefreshProfileWithProxy(profile.id, true) },
@@ -437,7 +434,6 @@ private fun ProfileActionsMenu(
     onEdit: () -> Unit,
     onRename: () -> Unit,
     onCopySource: () -> Unit,
-    onOpenProfileEditor: () -> Unit,
     onShareProfileContent: () -> Unit,
     onExportProfileContent: () -> Unit,
     onRefreshWithProxy: () -> Unit,
@@ -497,14 +493,6 @@ private fun ProfileActionsMenu(
             onClick = {
                 setExpanded(false)
                 onEdit()
-            },
-        )
-        DropdownMenuItem(
-            text = { Text("编辑配置") },
-            leadingIcon = { Icon(Icons.Filled.EditNote, contentDescription = null) },
-            onClick = {
-                setExpanded(false)
-                onOpenProfileEditor()
             },
         )
         DropdownMenuItem(

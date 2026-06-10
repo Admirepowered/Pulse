@@ -1783,11 +1783,11 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
         val profile = _state.value.profiles.firstOrNull { it.id == profileId } ?: return
         _state.update {
             it.copy(
-                screen = PulseScreen.ProfileEditor,
                 editingProfileId = profileId,
                 editingProfileName = profile.name,
                 editingProfileContent = "",
                 loadingProfileContent = true,
+                profileMessage = "正在打开配置编辑器",
                 profileEditorMessage = "",
             )
         }
@@ -1798,8 +1798,10 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
             result.onSuccess { content ->
                 _state.update {
                     it.copy(
+                        screen = PulseScreen.ProfileEditor,
                         editingProfileContent = content,
                         loadingProfileContent = false,
+                        profileMessage = "",
                         profileEditorMessage = "",
                     )
                 }
@@ -1807,7 +1809,9 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
                 PulseLogStore.error(getApplication(), error.message ?: "读取配置失败")
                 _state.update {
                     it.copy(
+                        screen = PulseScreen.Profiles,
                         loadingProfileContent = false,
+                        profileMessage = error.message ?: "读取配置失败",
                         profileEditorMessage = error.message ?: "读取配置失败",
                     )
                 }

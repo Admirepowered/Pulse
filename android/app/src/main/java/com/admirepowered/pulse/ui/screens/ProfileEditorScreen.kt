@@ -91,12 +91,16 @@ fun ProfileEditorScreen(
     val searchMatches = remember(editorText, searchQuery) {
         editorText.searchMatches(searchQuery)
     }
+    val largeContent = remember(editorText) {
+        editorText.length > LARGE_EDITOR_HIGHLIGHT_LIMIT || editorText.count { it == '\n' } > LARGE_EDITOR_LINE_LIMIT
+    }
     LaunchedEffect(searchMatches) {
         searchIndex = if (searchMatches.isEmpty()) 0 else searchIndex.coerceIn(0, searchMatches.lastIndex)
     }
     val yamlHighlight = rememberYamlHighlightTransformation(
-        searchMatches = searchMatches,
+        searchMatches = if (largeContent) emptyList() else searchMatches,
         activeSearchIndex = searchIndex,
+        enabled = !largeContent,
     )
     fun applyEditorValue(updated: TextFieldValue) {
         if (updated == editorValue) return
@@ -141,7 +145,9 @@ fun ProfileEditorScreen(
         val offset = editorText.offsetForLine(requestedLine)
         editorValue = editorValue.copy(selection = TextRange(offset))
     }
-    val diagnostics = remember(editorText) { editorText.yamlDiagnostics() }
+    val diagnostics = remember(editorText, largeContent) {
+        if (largeContent) emptyList() else editorText.yamlDiagnostics()
+    }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -214,6 +220,16 @@ fun ProfileEditorScreen(
             item {
                 Text(
                     message,
+                    modifier = Modifier.padding(horizontal = 20.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.secondary,
+                )
+            }
+        }
+        if (!loading && largeContent) {
+            item {
+                Text(
+                    "配置较大，已关闭实时高亮和基础检查以避免编辑器卡顿。",
                     modifier = Modifier.padding(horizontal = 20.dp),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.secondary,
@@ -709,13 +725,18 @@ private fun String.looksLikeYamlEntry(): Boolean {
 
 private val topLevelKeyRegex = Regex("""^([A-Za-z0-9_-]+)\s*:""")
 
+private const val LARGE_EDITOR_HIGHLIGHT_LIMIT = 160_000
+private const val LARGE_EDITOR_LINE_LIMIT = 4_000
+
 @Composable
 private fun rememberYamlHighlightTransformation(
     searchMatches: List<IntRange>,
     activeSearchIndex: Int,
+    enabled: Boolean,
 ): VisualTransformation {
     val colors = MaterialTheme.colorScheme
     return remember(
+        enabled,
         colors.primary,
         colors.tertiary,
         colors.secondary,
@@ -726,6 +747,7 @@ private fun rememberYamlHighlightTransformation(
         searchMatches,
         activeSearchIndex,
     ) {
+        if (!enabled) return@remember VisualTransformation.None
         YamlHighlightTransformation(
             keyColor = colors.primary,
             scalarColor = colors.tertiary,

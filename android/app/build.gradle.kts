@@ -77,17 +77,28 @@ val cleanReleaseArtProfileOutputs by tasks.registering {
     }
 }
 
+val verifyNativeCorePackage by tasks.registering {
+    val nativeCore = layout.projectDirectory.file("src/main/jniLibs/arm64-v8a/libpulsecore.so")
+    inputs.file(nativeCore)
+    doLast {
+        val file = nativeCore.asFile
+        require(file.isFile && file.length() > 0) {
+            "Android core is missing: ${file.absolutePath}. Run android/native/build-android.sh and android/native/collect-binaries.sh before packaging."
+        }
+    }
+}
+
 tasks.configureEach {
     if (
         name == "mergeReleaseArtProfile" ||
         name == "compileReleaseArtProfile" ||
-        name == "mergeReleaseStartupProfile" ||
-        name == "stripReleaseDebugSymbols"
+        name == "mergeReleaseStartupProfile"
     ) {
         enabled = false
     }
 }
 
 tasks.matching { it.name == "assembleRelease" }.configureEach {
+    dependsOn(verifyNativeCorePackage)
     finalizedBy(cleanReleaseArtProfileOutputs)
 }

@@ -42,6 +42,7 @@ fun PulseMetricCard(
 fun PulseRow(
     title: String,
     subtitle: String,
+    leading: @Composable (() -> Unit)? = null,
     trailing: @Composable (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -52,6 +53,7 @@ fun PulseRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        leading?.invoke()
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(4.dp),

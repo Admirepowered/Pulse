@@ -38,10 +38,10 @@ Android 版不迁移 Windows 的 TUN 管理页面。移动端只保留 Android `
 - 拉取订阅时使用 Clash Verge UA，避免服务端返回 Base64 格式。
 - 订阅名称优先从订阅文件名 / 响应信息推断，失败后回退到域名。
 - 显示订阅已用 / 可用 / 总流量、过期时间和更新间隔，并用进度条展示流量占用。
-- 支持搜索订阅，并按全部、远程订阅、本地配置和订阅状态筛选计数；订阅状态可区分有订阅信息、无订阅信息、即将到期和已过期，计数会跟随当前搜索和类型筛选动态更新；支持按最近更新、名称、到期时间和流量使用排序。
-- 标题栏可复制当前筛选后的订阅列表，内容包含当前选中项、类型、更新时间、URL 和订阅流量信息。
+- 订阅页只保留普通搜索，不再展示远程订阅 / 本地配置 / 订阅状态等筛选条件。
+- 标题栏可复制当前搜索后的订阅列表，内容包含当前选中项、类型、更新时间、URL 和订阅流量信息。
 - 支持选择、内联重命名、内联编辑 URL、编辑 YAML、复制 URL、分享 / 导出配置、删除确认。
-- 订阅卡片长按会打开和三点按钮相同的操作菜单，可快速重命名、复制订阅信息、编辑、更新、筛选同类型、筛选同状态、分享、导出或删除。
+- 订阅卡片长按会打开和三点按钮相同的操作菜单，可快速重命名、复制订阅信息、编辑、更新、分享、导出或删除。
 - YAML 编辑器支持配置内搜索、清空搜索、匹配高亮、基础关键词高亮、行列 / 长度状态、复制当前行、跳转到行、常用片段、关键词补全、撤销 / 重做、按光标 / 选区插入、缩进、反缩进、注释切换、清理尾随空白、复制 / 分享 / 导出当前编辑内容、基础格式诊断以及复制 / 分享诊断提示；保存前会校验是否为 mihomo YAML，误粘贴 Base64 节点列表时会直接提示。
 - 支持单个订阅和全部远程订阅通过代理或直连更新，批量更新菜单也可以按设置一键更新全部远程订阅。
 
@@ -106,8 +106,8 @@ Android 版不迁移 Windows 的 TUN 管理页面。移动端只保留 Android `
 
 - 独立二级页面，从设置页进入。
 - 顶部直接选择黑名单、白名单或关闭，不需要额外进入开关再切模式。
-- 读取完整已安装应用列表，支持按全部应用 / 用户应用 / 系统应用筛选，再按全部 / 已选 / 未选筛选并动态计数。
-- 支持搜索应用、按名称 / 包名 / 选择状态排序、逐个勾选、全选、清空和反选。
+- 读取完整已安装应用列表，显示应用图标，只保留用户应用 / 系统应用切换和普通搜索。
+- 支持逐个勾选、全选、清空和反选。
 - 应用项长按会弹出操作菜单，可选中 / 取消选中、复制应用信息或复制包名。
 - 支持复制、分享或导出当前筛选列表，也可以只复制或分享已选应用，便于备份和排查配置。
 - 应用勾选、全选、清空和反选会合并触发运行中核心重载，避免连续选择时反复重启。
@@ -167,7 +167,7 @@ cd /mnt/e/Project/Pulse/android
 
 Release 构建已禁用 AGP 默认创建的 `mergeReleaseArtProfile`、`compileReleaseArtProfile` 和 `mergeReleaseStartupProfile`，并在 `assembleRelease` 结束后清理 `outputs/apk/release/baselineProfiles`，避免把 baseline profile 目录混进日常产物。
 
-当前 APK 只打包 `arm64-v8a`，对应 `native/build-android.sh` 产出的 Go core。Release 构建禁用 `stripReleaseDebugSymbols`，避免本地 WSL 或 CI 在处理 Go shared library / 依赖 native library 时因为内存不足失败。
+当前 APK 只打包 `arm64-v8a`，对应 `native/build-android.sh` 产出的 Go core。Release 构建会在打包前校验 `app/src/main/jniLibs/arm64-v8a/libpulsecore.so` 必须存在且非空，避免生成没有核心的 APK。`libpulsecore.so` 通过 `jniLibs.keepDebugSymbols` 保持原样打包，不能禁用 `stripReleaseDebugSymbols`，否则 APK 会从 stripped native libs 输出目录取文件并漏掉 core。
 
 本地 release 包默认使用 Android debug keystore 签名，产物是：
 

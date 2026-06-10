@@ -35,6 +35,7 @@ class PulseVpnService : VpnService() {
         when (intent?.action) {
             ACTION_STOP -> stopVpn(stopService = true)
             ACTION_RESTART -> restartVpn()
+            ACTION_RELOAD_CORE -> reloadCore()
             ACTION_SET_MODE -> setMode(intent.getStringExtra(EXTRA_MODE))
             ACTION_REFRESH_STATUS_UI -> refreshStatusUi()
             else -> startVpn()
@@ -87,6 +88,29 @@ class PulseVpnService : VpnService() {
         PulseLogStore.info(this, "重启 Pulse VPN")
         stopVpn(stopService = false)
         startVpn()
+    }
+
+    private fun reloadCore() {
+        val activeTun = tunFd
+        if (activeTun == null) {
+            PulseLogStore.warn(this, "VPN 未运行，无法重载核心，改为启动 VPN")
+            startVpn()
+            return
+        }
+        val settings = PulseSettingsStore.load(this)
+        val profile = PulseProfileStore.active(this)
+        val runtimeProfile = PulseCustomRuleStore.runtimeProfile(this, profile, settings)
+        PulseLogStore.info(this, "重载 mihomo 配置: ${profile.name}")
+        val coreFd = ParcelFileDescriptor.dup(activeTun.fileDescriptor).detachFd()
+        val result = PulseCoreBridge.start(runtimeProfile.absolutePath, filesDir.absolutePath, coreFd, settings.allowLan)
+        if (result.isFailure) {
+            PulseLogStore.error(this, result.exceptionOrNull()?.message ?: "mihomo 重载失败")
+            closeDetachedFd(coreFd)
+        } else {
+            PulseLogStore.info(this, "mihomo core 已重载")
+            updateNotification()
+            requestTileRefresh(this)
+        }
     }
 
     private fun setMode(mode: String?) {
@@ -238,6 +262,7 @@ class PulseVpnService : VpnService() {
         private const val ACTION_START = "com.admirepowered.pulse.START_VPN"
         private const val ACTION_STOP = "com.admirepowered.pulse.STOP_VPN"
         private const val ACTION_RESTART = "com.admirepowered.pulse.RESTART_VPN"
+        private const val ACTION_RELOAD_CORE = "com.admirepowered.pulse.RELOAD_CORE"
         private const val ACTION_SET_MODE = "com.admirepowered.pulse.SET_MODE"
         private const val ACTION_REFRESH_STATUS_UI = "com.admirepowered.pulse.REFRESH_STATUS_UI"
         private const val EXTRA_MODE = "mode"
@@ -266,6 +291,15 @@ class PulseVpnService : VpnService() {
 
         fun restart(context: Context) {
             val intent = Intent(context, PulseVpnService::class.java).setAction(ACTION_RESTART)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+        }
+
+        fun reloadCore(context: Context) {
+            val intent = Intent(context, PulseVpnService::class.java).setAction(ACTION_RELOAD_CORE)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
             } else {

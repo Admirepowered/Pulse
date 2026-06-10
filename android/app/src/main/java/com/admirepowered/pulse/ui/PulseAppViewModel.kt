@@ -233,19 +233,6 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
         )
     }
 
-    fun shareDashboard(text: String) {
-        if (text.isBlank()) {
-            _state.update { it.copy(coreMessage = "没有可分享的运行状态") }
-            return
-        }
-        shareText(
-            text = text,
-            subject = "Pulse Android 运行状态",
-            title = "分享运行状态",
-            onFailure = { message -> _state.update { it.copy(coreMessage = message) } },
-        )
-    }
-
     fun shareProfileEditorContent(text: String) {
         if (text.isBlank()) {
             _state.update { it.copy(profileEditorMessage = "没有可分享的配置") }
@@ -1606,7 +1593,12 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
                 runCatching {
                     val traffic = PulseMihomoApi.traffic()
                     val snapshot = PulseMihomoApi.connectionSnapshot()
-                    traffic.copy(memory = snapshot.memory) to snapshot.connections
+                    val memory = if (snapshot.memory == "0 B") {
+                        runCatching { PulseMihomoApi.memory() }.getOrDefault(snapshot.memory)
+                    } else {
+                        snapshot.memory
+                    }
+                    traffic.copy(memory = memory) to snapshot.connections
                 }
             }
             result.onSuccess { (traffic, connections) ->
@@ -1926,23 +1918,6 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun exportDashboardToUri(text: String, uri: Uri) {
-        if (text.isBlank()) {
-            _state.update { it.copy(coreMessage = "没有可导出的运行状态") }
-            return
-        }
-        viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) {
-                runCatching { writeTextToUri(uri, text) }
-            }
-            result.onSuccess { bytes ->
-                _state.update { it.copy(coreMessage = "运行状态已导出: ${formatBytes(bytes.toLong())}") }
-            }.onFailure { error ->
-                _state.update { it.copy(coreMessage = error.message ?: "导出运行状态失败") }
-            }
-        }
-    }
-
     fun exportProxiesToUri(text: String, uri: Uri) {
         if (text.isBlank()) {
             _state.update { it.copy(proxyMessage = "没有可导出的节点") }
@@ -2158,6 +2133,10 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
                 reloadProfiles(selectedProfileId, "配置已保存")
                 _state.update {
                     it.copy(
+                        screen = PulseScreen.ProfileEditor,
+                        editingProfileId = profileId,
+                        editingProfileName = record.name,
+                        editingProfileContent = content,
                         savingProfileContent = false,
                         profileEditorMessage = "配置已保存",
                     )
@@ -2312,7 +2291,7 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
             return
         }
         lastConnectionSamples = emptyMap()
-        PulseVpnService.restart(getApplication())
+        PulseVpnService.reloadCore(getApplication())
         _state.update {
             it.copy(
                 profileMessage = "$message，正在重载代理",
@@ -2324,12 +2303,18 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
             delay(1_200)
             refreshRuntimeStatus()
             refreshProxies()
+            val resultMessage = if (PulseCoreBridge.isRunning()) {
+                "$message，代理已重载"
+            } else {
+                PulseCoreBridge.lastError().ifBlank { "$message，代理重载失败" }
+            }
+            _state.update { it.copy(profileMessage = resultMessage, loadingProxies = false) }
         }
     }
 
     private fun reloadCoreAfterExternalResourceUpdate(message: String) {
         lastConnectionSamples = emptyMap()
-        PulseVpnService.restart(getApplication())
+        PulseVpnService.reloadCore(getApplication())
         _state.update {
             it.copy(
                 vpnRunning = true,

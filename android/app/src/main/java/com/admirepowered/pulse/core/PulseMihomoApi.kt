@@ -16,6 +16,7 @@ import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 import org.json.JSONObject
 
 data class MihomoConnectionSnapshot(
@@ -121,6 +122,28 @@ object PulseMihomoApi {
         )
     }
 
+    fun memory(): String {
+        val connection = URL("$BASE_URL/memory").openConnection() as HttpURLConnection
+        connection.connectTimeout = 2_500
+        connection.readTimeout = 3_500
+        connection.requestMethod = "GET"
+        val code = connection.responseCode
+        if (code !in 200..299) {
+            val text = connection.errorStream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+            connection.disconnect()
+            throw IllegalStateException("mihomo API GET /memory 返回 $code: $text")
+        }
+        try {
+            connection.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
+                val first = reader.readLine()
+                val second = runCatching { reader.readLine() }.getOrNull()
+                return formatBytes(memoryBytes(second) ?: memoryBytes(first) ?: 0L)
+            }
+        } finally {
+            connection.disconnect()
+        }
+    }
+
     private fun parseConnections(json: JSONObject): List<ConnectionItem> {
         val connections = json.optJSONArray("connections") ?: return emptyList()
         return buildList {
@@ -206,7 +229,7 @@ object PulseMihomoApi {
                 name = provider.optString("name").ifBlank { key },
                 kind = ProviderKind.Proxy,
                 vehicle = provider.optString("vehicleType"),
-                updatedAt = provider.optString("updatedAt"),
+                updatedAt = formatProviderUpdatedAt(provider.optString("updatedAt")),
                 count = provider.optJSONArray("proxies")?.length() ?: 0,
             )
         }
@@ -226,7 +249,7 @@ object PulseMihomoApi {
                 name = provider.optString("name").ifBlank { key },
                 kind = ProviderKind.Rule,
                 vehicle = provider.optString("vehicleType"),
-                updatedAt = provider.optString("updatedAt"),
+                updatedAt = formatProviderUpdatedAt(provider.optString("updatedAt")),
                 count = provider.optInt("ruleCount").takeIf { it > 0 }
                     ?: provider.optJSONArray("rules")?.length()
                     ?: 0,
@@ -327,6 +350,39 @@ object PulseMihomoApi {
         return listOf(sourceIp, sourcePort)
             .filter { it.isNotBlank() && it != "0" }
             .joinToString(":")
+    }
+
+    private fun memoryBytes(line: String?): Long? {
+        val json = runCatching { JSONObject(line.orEmpty()) }.getOrNull() ?: return null
+        return listOf(
+            json.optLong("inuse"),
+            json.optLong("inUse"),
+            json.optLong("memory"),
+            json.optLong("usage"),
+        ).firstOrNull { it > 0 }
+    }
+
+    private fun formatProviderUpdatedAt(raw: String): String {
+        val value = raw.trim()
+        if (value.isBlank() || value.startsWith("0001-01-01")) return "未更新"
+        val normalized = value.replace(Regex("""\.(\d{1,9})Z$""")) { match ->
+            val millis = match.groupValues[1].padEnd(3, '0').take(3)
+            ".$millis" + "Z"
+        }
+        val patterns = listOf(
+            "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+            "yyyy-MM-dd'T'HH:mm:ss'Z'",
+            "yyyy-MM-dd HH:mm:ss",
+        )
+        for (pattern in patterns) {
+            val parser = SimpleDateFormat(pattern, Locale.US)
+            if (pattern.contains("'Z'")) {
+                parser.timeZone = TimeZone.getTimeZone("UTC")
+            }
+            val date = runCatching { parser.parse(normalized) }.getOrNull() ?: continue
+            return SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(date)
+        }
+        return value
     }
 
     private fun formatBytes(value: Long): String {

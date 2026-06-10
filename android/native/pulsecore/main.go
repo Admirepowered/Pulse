@@ -149,7 +149,6 @@ func startMihomo(configPath string, homeDir string, tunFD int, allowLan bool) in
 		return 2
 	}
 
-	stopMihomo()
 	mihomoConstant.SetHomeDir(homeDir)
 	mihomoConstant.SetConfig(configPath)
 	if err := config.Init(homeDir); err != nil {
@@ -162,10 +161,13 @@ func startMihomo(configPath string, homeDir string, tunFD int, allowLan bool) in
 		setLastError(err)
 		return 4
 	}
-	if err := hub.Parse(configBytes); err != nil {
+	cfg, err := executor.ParseWithBytes(configBytes)
+	if err != nil {
 		setLastError(err)
 		return 5
 	}
+	stopMihomo()
+	hub.ApplyConfig(cfg)
 	running.Store(1)
 	setLastError(nil)
 	return 0

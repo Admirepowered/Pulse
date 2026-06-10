@@ -20,10 +20,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -63,8 +61,6 @@ fun ProvidersScreen(
     onUpdateProvider: (String, ProviderKind) -> Unit,
     onUpdateAllProviders: () -> Unit,
     onUpdateProviders: (List<ProviderItem>) -> Unit,
-    onShare: (String) -> Unit,
-    onExportFile: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var query by remember { mutableStateOf("") }
@@ -160,18 +156,6 @@ fun ProvidersScreen(
                     enabled = filteredProviders.isNotEmpty(),
                 ) {
                     Icon(Icons.Filled.ContentCopy, contentDescription = "复制当前提供者")
-                }
-                IconButton(
-                    onClick = { onShare(filteredProviders.toClipboardText()) },
-                    enabled = filteredProviders.isNotEmpty(),
-                ) {
-                    Icon(Icons.Filled.Share, contentDescription = "分享当前提供者")
-                }
-                IconButton(
-                    onClick = { onExportFile(filteredProviders.toClipboardText()) },
-                    enabled = filteredProviders.isNotEmpty(),
-                ) {
-                    Icon(Icons.Filled.Download, contentDescription = "导出当前提供者")
                 }
                 IconButton(onClick = onRefresh, enabled = !loading) {
                     Icon(Icons.Filled.Refresh, contentDescription = "刷新提供者")

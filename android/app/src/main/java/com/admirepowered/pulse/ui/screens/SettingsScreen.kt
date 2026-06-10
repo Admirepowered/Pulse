@@ -735,17 +735,6 @@ fun SettingsScreen(
                                 modifier = Modifier.size(22.dp),
                                 strokeWidth = 2.dp,
                             )
-                        } else {
-                            IconButton(
-                                onClick = {
-                                    copySetting(
-                                        "检查更新",
-                                        state.updateMessage.ifBlank { "检查 GitHub Release 中的 Pulse 最新版本" },
-                                    )
-                                },
-                            ) {
-                                Icon(Icons.Filled.ContentCopy, contentDescription = "复制更新状态")
-                            }
                         }
                     },
                 )

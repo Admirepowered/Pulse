@@ -4,7 +4,6 @@ import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -36,7 +35,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -59,11 +57,6 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import com.admirepowered.pulse.ui.ProfileItem
 import com.admirepowered.pulse.ui.SubscriptionInfoItem
-import java.text.SimpleDateFormat
-import java.text.Collator
-import java.util.Calendar
-import java.util.Date
-import java.util.Locale
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -101,9 +94,6 @@ fun ProfilesScreen(
     var deletingProfile by remember { mutableStateOf<ProfileItem?>(null) }
     var updateAllMenuExpanded by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
-    var profileFilter by remember { mutableStateOf(ProfileFilter.All) }
-    var subscriptionFilter by remember { mutableStateOf(SubscriptionFilter.All) }
-    var sortMode by remember { mutableStateOf(ProfileSortMode.Default) }
     val queryMatchedProfiles = remember(profiles, query) {
         val keyword = query.trim().lowercase()
         profiles
@@ -111,31 +101,7 @@ fun ProfilesScreen(
                 keyword.isBlank() || profile.searchText().lowercase().contains(keyword)
             }
     }
-    val remoteCount = queryMatchedProfiles.count { it.url.isNotBlank() }
-    val localCount = queryMatchedProfiles.size - remoteCount
-    val typeMatchedProfiles = remember(queryMatchedProfiles, profileFilter) {
-        queryMatchedProfiles.filter { profile ->
-            when (profileFilter) {
-                ProfileFilter.All -> true
-                ProfileFilter.Remote -> profile.url.isNotBlank()
-                ProfileFilter.Local -> profile.url.isBlank()
-            }
-        }
-    }
-    val subscriptionFilterCounts = remember(typeMatchedProfiles) {
-        SubscriptionFilter.entries.associateWith { filter ->
-            typeMatchedProfiles.count(filter::matches)
-        }
-    }
-    val filteredProfiles = remember(typeMatchedProfiles, subscriptionFilter, sortMode) {
-        typeMatchedProfiles
-            .filter(subscriptionFilter::matches)
-            .sortedWith(sortMode.comparator())
-    }
-    val hasActiveFilters = query.isNotBlank() ||
-        profileFilter != ProfileFilter.All ||
-        subscriptionFilter != SubscriptionFilter.All ||
-        sortMode != ProfileSortMode.Default
+    val filteredProfiles = queryMatchedProfiles
 
     deletingProfile?.let { profile ->
         AlertDialog(
@@ -199,15 +165,6 @@ fun ProfilesScreen(
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.headlineSmall,
                 )
-                IconButton(
-                    onClick = {
-                        clipboard.setText(AnnotatedString(filteredProfiles.toProfileListText(selectedProfileId)))
-                        Toast.makeText(context, "当前订阅列表已复制", Toast.LENGTH_SHORT).show()
-                    },
-                    enabled = filteredProfiles.isNotEmpty(),
-                ) {
-                    Icon(Icons.Filled.ContentCopy, contentDescription = "复制当前订阅列表")
-                }
                 IconButton(
                     onClick = onRefreshAllProfiles,
                     enabled = profiles.any { it.url.isNotBlank() } && refreshingProfileId == null && !importBusy,
@@ -328,78 +285,8 @@ fun ProfilesScreen(
                         }
                     }
                 },
-                placeholder = { Text("搜索订阅名称、类型、状态") },
+                placeholder = { Text("搜索订阅名称、URL、流量或到期时间") },
             )
-        }
-        item {
-            Row(
-                modifier = Modifier
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                ProfileFilterChip(
-                    selected = false,
-                    label = "重置筛选",
-                    onClick = {
-                        query = ""
-                        profileFilter = ProfileFilter.All
-                        subscriptionFilter = SubscriptionFilter.All
-                        sortMode = ProfileSortMode.Default
-                    },
-                    enabled = hasActiveFilters,
-                )
-                ProfileFilterChip(
-                    selected = profileFilter == ProfileFilter.All,
-                    label = "全部 ${queryMatchedProfiles.size}/${profiles.size}",
-                    onClick = { profileFilter = ProfileFilter.All },
-                )
-                ProfileFilterChip(
-                    selected = profileFilter == ProfileFilter.Remote,
-                    label = "远程订阅 $remoteCount",
-                    onClick = { profileFilter = ProfileFilter.Remote },
-                )
-                ProfileFilterChip(
-                    selected = profileFilter == ProfileFilter.Local,
-                    label = "本地配置 $localCount",
-                    onClick = { profileFilter = ProfileFilter.Local },
-                )
-            }
-        }
-        item {
-            Row(
-                modifier = Modifier
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                SubscriptionFilter.entries.forEach { item ->
-                    ProfileFilterChip(
-                        selected = subscriptionFilter == item,
-                        label = "${item.label} ${subscriptionFilterCounts[item] ?: 0}",
-                        onClick = { subscriptionFilter = item },
-                    )
-                }
-            }
-        }
-        item {
-            Row(
-                modifier = Modifier
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                ProfileSortMode.entries.forEach { item ->
-                    ProfileFilterChip(
-                        selected = sortMode == item,
-                        label = item.label,
-                        onClick = { sortMode = item },
-                    )
-                }
-            }
         }
         if (filteredProfiles.isEmpty()) {
             item {
@@ -527,12 +414,6 @@ fun ProfilesScreen(
                             onExportProfileContent = { onExportProfileContent(profile) },
                             onRefreshWithProxy = { onRefreshProfileWithProxy(profile.id, true) },
                             onRefreshDirect = { onRefreshProfileWithProxy(profile.id, false) },
-                            onFilterType = {
-                                profileFilter = if (profile.url.isBlank()) ProfileFilter.Local else ProfileFilter.Remote
-                            },
-                            onFilterStatus = {
-                                subscriptionFilter = profile.subscription.statusFilter()
-                            },
                             onDelete = { deletingProfile = profile },
                             expandedOverride = actionMenuExpanded,
                             onExpandedChange = { actionMenuExpanded = it },
@@ -548,122 +429,6 @@ fun ProfilesScreen(
     }
 }
 
-private enum class ProfileFilter {
-    All,
-    Remote,
-    Local,
-}
-
-private enum class SubscriptionFilter(val label: String) {
-    All("全部状态"),
-    HasInfo("有订阅信息"),
-    NoInfo("无订阅信息"),
-    ExpiringSoon("7 天内到期"),
-    Expired("已过期"),
-}
-
-private enum class ProfileSortMode(val label: String) {
-    Default("最近更新"),
-    NameAsc("名称升序"),
-    NameDesc("名称降序"),
-    UpdatedAsc("最早更新"),
-    ExpireAsc("到期近"),
-    ExpireDesc("到期远"),
-    UsageDesc("流量高"),
-    UsageAsc("流量低"),
-}
-
-private fun ProfileSortMode.comparator(): Comparator<ProfileItem> {
-    val collator = Collator.getInstance(Locale.getDefault())
-    val nameComparator = Comparator<ProfileItem> { left, right ->
-        collator.compare(left.name, right.name)
-    }
-    return when (this) {
-        ProfileSortMode.Default -> compareByDescending { it.updatedAt }
-        ProfileSortMode.NameAsc -> nameComparator
-        ProfileSortMode.NameDesc -> nameComparator.reversed()
-        ProfileSortMode.UpdatedAsc -> compareBy { it.updatedAt }
-        ProfileSortMode.ExpireAsc -> expiryComparator(descending = false)
-        ProfileSortMode.ExpireDesc -> expiryComparator(descending = true)
-        ProfileSortMode.UsageDesc -> compareByDescending { it.subscription.percent }
-        ProfileSortMode.UsageAsc -> compareBy { it.subscription.percent }
-    }
-}
-
-private fun expiryComparator(descending: Boolean): Comparator<ProfileItem> {
-    return Comparator { left, right ->
-        val leftExpire = left.subscription.expireDate()
-        val rightExpire = right.subscription.expireDate()
-        when {
-            leftExpire == null && rightExpire == null -> 0
-            leftExpire == null -> 1
-            rightExpire == null -> -1
-            descending -> rightExpire.compareTo(leftExpire)
-            else -> leftExpire.compareTo(rightExpire)
-        }
-    }
-}
-
-private fun SubscriptionFilter.matches(profile: ProfileItem): Boolean {
-    return when (this) {
-        SubscriptionFilter.All -> true
-        SubscriptionFilter.HasInfo -> profile.subscription.hasData
-        SubscriptionFilter.NoInfo -> !profile.subscription.hasData
-        SubscriptionFilter.ExpiringSoon -> profile.subscription.expireDate()?.isExpiringSoon() == true
-        SubscriptionFilter.Expired -> profile.subscription.expireDate()?.before(todayStart()) == true
-    }
-}
-
-private fun SubscriptionInfoItem.statusFilter(): SubscriptionFilter {
-    val expireDate = expireDate()
-    return when {
-        expireDate?.before(todayStart()) == true -> SubscriptionFilter.Expired
-        expireDate?.isExpiringSoon() == true -> SubscriptionFilter.ExpiringSoon
-        hasData -> SubscriptionFilter.HasInfo
-        else -> SubscriptionFilter.NoInfo
-    }
-}
-
-private fun SubscriptionInfoItem.expireDate(): Date? {
-    if (expire.isBlank() || expire == "长期有效") return null
-    return runCatching { subscriptionDateFormat.parse(expire) }.getOrNull()
-}
-
-private fun Date.isExpiringSoon(): Boolean {
-    val today = todayStart()
-    if (before(today)) return false
-    val calendar = Calendar.getInstance()
-    calendar.time = today
-    calendar.add(Calendar.DAY_OF_YEAR, 7)
-    return !after(calendar.time)
-}
-
-private fun todayStart(): Date {
-    val calendar = Calendar.getInstance()
-    calendar.set(Calendar.HOUR_OF_DAY, 0)
-    calendar.set(Calendar.MINUTE, 0)
-    calendar.set(Calendar.SECOND, 0)
-    calendar.set(Calendar.MILLISECOND, 0)
-    return calendar.time
-}
-
-private val subscriptionDateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-
-@Composable
-private fun ProfileFilterChip(
-    selected: Boolean,
-    label: String,
-    onClick: () -> Unit,
-    enabled: Boolean = true,
-) {
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        enabled = enabled,
-        label = { Text(label) },
-    )
-}
-
 @Composable
 private fun ProfileActionsMenu(
     profile: ProfileItem,
@@ -677,8 +442,6 @@ private fun ProfileActionsMenu(
     onExportProfileContent: () -> Unit,
     onRefreshWithProxy: () -> Unit,
     onRefreshDirect: () -> Unit,
-    onFilterType: () -> Unit,
-    onFilterStatus: () -> Unit,
     onDelete: () -> Unit,
     expandedOverride: Boolean? = null,
     onExpandedChange: ((Boolean) -> Unit)? = null,
@@ -779,22 +542,6 @@ private fun ProfileActionsMenu(
             },
         )
         DropdownMenuItem(
-            text = { Text("筛选同类型") },
-            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-            onClick = {
-                setExpanded(false)
-                onFilterType()
-            },
-        )
-        DropdownMenuItem(
-            text = { Text("筛选同状态") },
-            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-            onClick = {
-                setExpanded(false)
-                onFilterStatus()
-            },
-        )
-        DropdownMenuItem(
             text = { Text("删除") },
             leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null) },
             enabled = canDelete,
@@ -873,30 +620,6 @@ private fun ProfileItem.toSubscriptionInfoText(): String {
             appendLine("到期: ${info.expire.ifBlank { "-" }}")
             if (info.updateInterval.isNotBlank()) {
                 appendLine("更新间隔: ${info.updateInterval}")
-            }
-        }
-    }.trimEnd()
-}
-
-private fun List<ProfileItem>.toProfileListText(selectedProfileId: String): String {
-    return buildString {
-        appendLine("Pulse Android 订阅列表")
-        appendLine("数量: ${this@toProfileListText.size}")
-        this@toProfileListText.forEachIndexed { index, profile ->
-            val prefix = if (profile.id == selectedProfileId) "*" else "-"
-            appendLine()
-            appendLine("$prefix ${index + 1}. ${profile.name}")
-            appendLine("类型: ${if (profile.url.isBlank()) "本地配置" else "远程订阅"}")
-            appendLine("更新时间: ${profile.updatedAt}")
-            if (profile.url.isNotBlank()) appendLine("URL: ${profile.url}")
-            if (profile.subscription.hasData) {
-                val info = profile.subscription
-                appendLine("已用: ${info.used.ifBlank { "-" }}")
-                appendLine("可用: ${info.available.ifBlank { "-" }}")
-                appendLine("总量: ${info.total.ifBlank { "-" }}")
-                appendLine("到期: ${info.expire.ifBlank { "-" }}")
-            } else {
-                appendLine("订阅信息: 未提供")
             }
         }
     }.trimEnd()

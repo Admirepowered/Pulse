@@ -1,7 +1,12 @@
 package com.admirepowered.pulse.ui.screens
 
+import android.graphics.Bitmap
+import android.graphics.Canvas as AndroidCanvas
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.Drawable
 import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -44,6 +49,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -69,12 +76,10 @@ fun AccessControlScreen(
     val clipboardManager = LocalClipboardManager.current
     val context = LocalContext.current
     var query by remember { mutableStateOf("") }
-    var appKindFilter by remember { mutableStateOf(AppKindFilter.All) }
-    var selectionFilter by remember { mutableStateOf(AppSelectionFilter.All) }
-    var sortMode by remember { mutableStateOf(AppAccessSortMode.Default) }
+    var appKindFilter by remember { mutableStateOf(AppKindFilter.User) }
     val selectedCount = apps.count { it.selected }
-    val selectedApps = remember(apps, sortMode) {
-        apps.filter { it.selected }.sortedWith(sortMode.comparator())
+    val selectedApps = remember(apps) {
+        apps.filter { it.selected }
     }
     val modeDescription = when (mode) {
         AccessControlMode.Off -> "当前不限制应用，勾选列表会保留，开启后立即生效。"
@@ -95,18 +100,7 @@ fun AccessControlScreen(
     val kindMatchedApps = remember(queryMatchedApps, appKindFilter) {
         queryMatchedApps.filter { app -> appKindFilter.matches(app) }
     }
-    val selectionFilterCounts = remember(kindMatchedApps) {
-        AppSelectionFilter.entries.associateWith { item -> item.count(kindMatchedApps) }
-    }
-    val filteredApps = remember(kindMatchedApps, selectionFilter, sortMode) {
-        kindMatchedApps.filter { app ->
-            when (selectionFilter) {
-                AppSelectionFilter.All -> true
-                AppSelectionFilter.Selected -> app.selected
-                AppSelectionFilter.Unselected -> !app.selected
-            }
-        }.sortedWith(sortMode.comparator())
-    }
+    val filteredApps = kindMatchedApps
     val filteredPackageNames = remember(filteredApps) {
         filteredApps.map { it.packageName }.toSet()
     }
@@ -116,11 +110,6 @@ fun AccessControlScreen(
     val selectedListText = remember(mode, selectedApps) {
         selectedApps.toAccessControlText("Pulse 访问控制 - 已选应用", mode)
     }
-    val hasActiveFilters = query.isNotBlank() ||
-        appKindFilter != AppKindFilter.All ||
-        selectionFilter != AppSelectionFilter.All ||
-        sortMode != AppAccessSortMode.Default
-
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(20.dp),
@@ -207,45 +196,6 @@ fun AccessControlScreen(
                         selected = appKindFilter == item,
                         onClick = { appKindFilter = item },
                         label = { Text(item.label(appKindFilterCounts[item] ?: 0)) },
-                    )
-                }
-            }
-        }
-        item {
-            Row(
-                modifier = Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                AppSelectionFilter.entries.forEach { item ->
-                    FilterChip(
-                        selected = selectionFilter == item,
-                        onClick = { selectionFilter = item },
-                        label = { Text(item.label(selectionFilterCounts[item] ?: 0)) },
-                    )
-                }
-                FilterChip(
-                    selected = false,
-                    onClick = {
-                        query = ""
-                        appKindFilter = AppKindFilter.All
-                        selectionFilter = AppSelectionFilter.All
-                        sortMode = AppAccessSortMode.Default
-                    },
-                    enabled = hasActiveFilters,
-                    label = { Text("重置筛选") },
-                )
-            }
-        }
-        item {
-            Row(
-                modifier = Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                AppAccessSortMode.entries.forEach { item ->
-                    FilterChip(
-                        selected = sortMode == item,
-                        onClick = { sortMode = item },
-                        label = { Text(item.label) },
                     )
                 }
             }
@@ -378,6 +328,9 @@ fun AccessControlScreen(
                     onClick = { onToggleApp(app.packageName) },
                     onLongClick = { appMenuExpanded = true },
                 ),
+                leading = {
+                    AppIcon(packageName = app.packageName, label = app.label)
+                },
                 trailing = {
                     Box {
                         Checkbox(
@@ -449,47 +402,12 @@ private fun AccessModeChip(
 }
 
 private enum class AppKindFilter {
-    All,
     User,
     System,
 }
 
-private enum class AppSelectionFilter {
-    All,
-    Selected,
-    Unselected,
-}
-
-private enum class AppAccessSortMode(val label: String) {
-    Default("默认排序"),
-    LabelAsc("名称升序"),
-    LabelDesc("名称降序"),
-    PackageAsc("包名升序"),
-    PackageDesc("包名降序"),
-    SelectedFirst("已选优先"),
-    UnselectedFirst("未选优先"),
-}
-
-private fun AppAccessSortMode.comparator(): Comparator<AppAccessItem> {
-    val labelAsc = compareBy<AppAccessItem> { it.label.lowercase() }
-        .thenBy { it.packageName.lowercase() }
-    val packageAsc = compareBy<AppAccessItem> { it.packageName.lowercase() }
-    return when (this) {
-        AppAccessSortMode.Default -> Comparator { _, _ -> 0 }
-        AppAccessSortMode.LabelAsc -> labelAsc
-        AppAccessSortMode.LabelDesc -> labelAsc.reversed()
-        AppAccessSortMode.PackageAsc -> packageAsc
-        AppAccessSortMode.PackageDesc -> packageAsc.reversed()
-        AppAccessSortMode.SelectedFirst -> compareByDescending<AppAccessItem> { it.selected }
-            .then(labelAsc)
-        AppAccessSortMode.UnselectedFirst -> compareBy<AppAccessItem> { it.selected }
-            .then(labelAsc)
-    }
-}
-
 private fun AppKindFilter.matches(app: AppAccessItem): Boolean {
     return when (this) {
-        AppKindFilter.All -> true
         AppKindFilter.User -> !app.systemApp
         AppKindFilter.System -> app.systemApp
     }
@@ -497,7 +415,6 @@ private fun AppKindFilter.matches(app: AppAccessItem): Boolean {
 
 private fun AppKindFilter.count(apps: List<AppAccessItem>): Int {
     return when (this) {
-        AppKindFilter.All -> apps.size
         AppKindFilter.User -> apps.count { !it.systemApp }
         AppKindFilter.System -> apps.count { it.systemApp }
     }
@@ -505,26 +422,39 @@ private fun AppKindFilter.count(apps: List<AppAccessItem>): Int {
 
 private fun AppKindFilter.label(count: Int): String {
     return when (this) {
-        AppKindFilter.All -> "全部应用 $count"
         AppKindFilter.User -> "用户应用 $count"
         AppKindFilter.System -> "系统应用 $count"
     }
 }
 
-private fun AppSelectionFilter.count(apps: List<AppAccessItem>): Int {
-    return when (this) {
-        AppSelectionFilter.All -> apps.size
-        AppSelectionFilter.Selected -> apps.count { it.selected }
-        AppSelectionFilter.Unselected -> apps.count { !it.selected }
+@Composable
+private fun AppIcon(packageName: String, label: String) {
+    val context = LocalContext.current
+    val image = remember(packageName) {
+        runCatching {
+            context.packageManager.getApplicationIcon(packageName).toImageBitmap()
+        }.getOrNull()
+    }
+    if (image != null) {
+        Image(
+            bitmap = image,
+            contentDescription = "$label 图标",
+            modifier = Modifier.size(40.dp),
+        )
     }
 }
 
-private fun AppSelectionFilter.label(count: Int): String {
-    return when (this) {
-        AppSelectionFilter.All -> "全部 $count"
-        AppSelectionFilter.Selected -> "已选 $count"
-        AppSelectionFilter.Unselected -> "未选 $count"
+private fun Drawable.toImageBitmap(): ImageBitmap {
+    if (this is BitmapDrawable && bitmap != null) {
+        return bitmap.asImageBitmap()
     }
+    val width = intrinsicWidth.takeIf { it > 0 } ?: 48
+    val height = intrinsicHeight.takeIf { it > 0 } ?: 48
+    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    val canvas = AndroidCanvas(bitmap)
+    setBounds(0, 0, canvas.width, canvas.height)
+    draw(canvas)
+    return bitmap.asImageBitmap()
 }
 
 private fun List<AppAccessItem>.toAccessControlText(title: String, mode: AccessControlMode): String {

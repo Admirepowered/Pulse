@@ -1,9 +1,6 @@
 package com.admirepowered.pulse.ui.screens
 
-import android.widget.Toast
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -17,15 +14,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RestartAlt
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -43,9 +36,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.admirepowered.pulse.ui.ProxyMode
@@ -54,7 +44,6 @@ import com.admirepowered.pulse.ui.components.ProxyModeChips
 import com.admirepowered.pulse.ui.components.PulseMetricCard
 import kotlinx.coroutines.delay
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun DashboardScreen(
     state: PulseAppState,
@@ -62,22 +51,13 @@ fun DashboardScreen(
     onModeChange: (ProxyMode) -> Unit,
     onRestartCore: () -> Unit,
     onRefresh: () -> Unit,
-    onShare: (String) -> Unit,
-    onExportFile: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val clipboard = LocalClipboardManager.current
-    val context = LocalContext.current
     var downloadSpeedPoints by remember { mutableStateOf<List<Long>>(emptyList()) }
     var uploadSpeedPoints by remember { mutableStateOf<List<Long>>(emptyList()) }
-    var autoRefresh by remember { mutableStateOf(true) }
-    fun copyMetric(title: String, value: String, helper: String) {
-        clipboard.setText(AnnotatedString("$title\t$value\t$helper"))
-        Toast.makeText(context, "$title 已复制", Toast.LENGTH_SHORT).show()
-    }
 
-    LaunchedEffect(state.vpnRunning, autoRefresh) {
-        while (state.vpnRunning && autoRefresh) {
+    LaunchedEffect(state.vpnRunning) {
+        while (state.vpnRunning) {
             onRefresh()
             delay(2_000)
         }
@@ -119,24 +99,6 @@ fun DashboardScreen(
                 ) {
                     Icon(Icons.Filled.Refresh, contentDescription = "刷新运行状态")
                 }
-                IconButton(
-                    onClick = {
-                        clipboard.setText(AnnotatedString(state.toDashboardClipboardText()))
-                        Toast.makeText(context, "运行状态已复制", Toast.LENGTH_SHORT).show()
-                    },
-                ) {
-                    Icon(Icons.Filled.ContentCopy, contentDescription = "复制运行状态")
-                }
-                IconButton(
-                    onClick = { onShare(state.toDashboardClipboardText()) },
-                ) {
-                    Icon(Icons.Filled.Share, contentDescription = "分享运行状态")
-                }
-                IconButton(
-                    onClick = { onExportFile(state.toDashboardClipboardText()) },
-                ) {
-                    Icon(Icons.Filled.Download, contentDescription = "导出运行状态")
-                }
             }
         }
 
@@ -152,28 +114,7 @@ fun DashboardScreen(
         item {
             RuntimeSummaryPanel(
                 state = state,
-                modifier = Modifier.metricCopyAction {
-                    clipboard.setText(AnnotatedString(state.toRuntimeSummaryText()))
-                    Toast.makeText(context, "运行摘要已复制", Toast.LENGTH_SHORT).show()
-                },
             )
-        }
-
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = autoRefresh,
-                    onClick = { autoRefresh = !autoRefresh },
-                    enabled = state.vpnRunning,
-                    label = { Text("自动刷新 2s") },
-                )
-                Text(
-                    if (state.vpnRunning) "已记录 ${maxOf(downloadSpeedPoints.size, uploadSpeedPoints.size)} 个速度点" else "VPN 停止后会清空速度图",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.secondary,
-                    modifier = Modifier.padding(top = 10.dp),
-                )
-            }
         }
 
         item {
@@ -182,17 +123,13 @@ fun DashboardScreen(
                     "下载",
                     state.traffic.downloadTotal,
                     "总计流量",
-                    Modifier
-                        .weight(1f)
-                        .metricCopyAction { copyMetric("下载", state.traffic.downloadTotal, "总计流量") },
+                    Modifier.weight(1f),
                 )
                 PulseMetricCard(
                     "速度",
                     state.traffic.downloadSpeed,
                     "实时下载",
-                    Modifier
-                        .weight(1f)
-                        .metricCopyAction { copyMetric("速度", state.traffic.downloadSpeed, "实时下载") },
+                    Modifier.weight(1f),
                 )
             }
         }
@@ -203,17 +140,13 @@ fun DashboardScreen(
                     "上传",
                     state.traffic.uploadTotal,
                     "总计流量",
-                    Modifier
-                        .weight(1f)
-                        .metricCopyAction { copyMetric("上传", state.traffic.uploadTotal, "总计流量") },
+                    Modifier.weight(1f),
                 )
                 PulseMetricCard(
                     "连接",
                     state.connections.size.toString(),
                     "当前活跃",
-                    Modifier
-                        .weight(1f)
-                        .metricCopyAction { copyMetric("连接", state.connections.size.toString(), "当前活跃") },
+                    Modifier.weight(1f),
                 )
             }
         }
@@ -224,17 +157,13 @@ fun DashboardScreen(
                     "上传速度",
                     state.traffic.uploadSpeed,
                     "实时上传",
-                    Modifier
-                        .weight(1f)
-                        .metricCopyAction { copyMetric("上传速度", state.traffic.uploadSpeed, "实时上传") },
+                    Modifier.weight(1f),
                 )
                 PulseMetricCard(
                     "内存",
                     state.traffic.memory,
                     "核心占用",
-                    Modifier
-                        .weight(1f)
-                        .metricCopyAction { copyMetric("内存", state.traffic.memory, "核心占用") },
+                    Modifier.weight(1f),
                 )
             }
         }
@@ -457,52 +386,4 @@ private fun dashboardCoreStatus(state: PulseAppState): String {
         else -> ""
     }
     return "${state.coreStatus}$version"
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-private fun Modifier.metricCopyAction(onLongClick: () -> Unit): Modifier {
-    return combinedClickable(
-        onClick = {},
-        onLongClick = onLongClick,
-    )
-}
-
-private fun PulseAppState.toDashboardClipboardText(): String {
-    return listOf(
-        "Pulse Android 运行状态",
-        "VPN: ${if (vpnRunning) "运行中" else "已停止"}",
-        "代理模式: ${proxyMode.label}",
-        toRuntimeSummaryText(),
-        "核心: ${dashboardCoreStatus(this)}",
-        "下载速度: ${traffic.downloadSpeed}",
-        "上传速度: ${traffic.uploadSpeed}",
-        "下载累计: ${traffic.downloadTotal}",
-        "上传累计: ${traffic.uploadTotal}",
-        "活动连接: ${connections.size}",
-        "内存: ${traffic.memory}",
-    ).joinToString("\n")
-}
-
-private fun PulseAppState.toRuntimeSummaryText(): String {
-    val profile = profiles.firstOrNull { it.id == selectedProfileId }
-    val selectedGroups = proxyGroups
-        .filter { it.selectedName.isNotBlank() }
-        .joinToString(" / ") { "${it.name}: ${it.selectedName}" }
-        .ifBlank { selectedProxyId.ifBlank { "未选择节点" } }
-    val subscription = profile?.subscription
-    val subscriptionText = when {
-        subscription == null -> "暂无订阅"
-        subscription.hasData -> buildString {
-            append(subscription.used.ifBlank { "0 B" })
-            append(" / ")
-            append(subscription.total.ifBlank { subscription.available.ifBlank { "未知" } })
-            if (subscription.expire.isNotBlank()) append("，到期 ${subscription.expire}")
-        }
-        else -> "暂无订阅流量信息"
-    }
-    return listOf(
-        "当前订阅: ${profile?.name ?: "未选择订阅"}",
-        "订阅流量: $subscriptionText",
-        "当前节点: $selectedGroups",
-    ).joinToString("\n")
 }

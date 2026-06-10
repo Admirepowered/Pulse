@@ -23,11 +23,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
@@ -70,8 +68,6 @@ fun ProxiesScreen(
     onTestProxyDelays: () -> Unit,
     onTestProxyGroupDelays: (String) -> Unit,
     onTestProxyDelay: (String) -> Unit,
-    onShare: (String) -> Unit,
-    onExportFile: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
@@ -170,27 +166,6 @@ fun ProxiesScreen(
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.headlineSmall,
                 )
-                IconButton(
-                    onClick = {
-                        clipboard.setText(AnnotatedString(filteredGroups.toClipboardText()))
-                        Toast.makeText(context, "当前节点已复制", Toast.LENGTH_SHORT).show()
-                    },
-                    enabled = filteredGroups.isNotEmpty(),
-                ) {
-                    Icon(Icons.Filled.ContentCopy, contentDescription = "复制当前节点")
-                }
-                IconButton(
-                    onClick = { onShare(filteredGroups.toClipboardText()) },
-                    enabled = filteredGroups.isNotEmpty(),
-                ) {
-                    Icon(Icons.Filled.Share, contentDescription = "分享当前节点")
-                }
-                IconButton(
-                    onClick = { onExportFile(filteredGroups.toClipboardText()) },
-                    enabled = filteredGroups.isNotEmpty(),
-                ) {
-                    Icon(Icons.Filled.Download, contentDescription = "导出当前节点")
-                }
                 IconButton(
                     onClick = onTestProxyDelays,
                     enabled = !loading && !measuring && measuringProxyId == null && measuringGroupName == null,

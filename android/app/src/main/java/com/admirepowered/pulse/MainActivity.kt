@@ -182,26 +182,6 @@ private fun PulseAndroidApp(
     ) { uri ->
         uri?.let(viewModel::importBackupFromUri)
     }
-    var pendingDashboardExportText by rememberSaveable { mutableStateOf<String?>(null) }
-    val exportDashboardLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("text/plain"),
-    ) { uri ->
-        val text = pendingDashboardExportText
-        pendingDashboardExportText = null
-        if (uri != null && text != null) {
-            viewModel.exportDashboardToUri(text, uri)
-        }
-    }
-    var pendingProxiesExportText by rememberSaveable { mutableStateOf<String?>(null) }
-    val exportProxiesLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("text/plain"),
-    ) { uri ->
-        val text = pendingProxiesExportText
-        pendingProxiesExportText = null
-        if (uri != null && text != null) {
-            viewModel.exportProxiesToUri(text, uri)
-        }
-    }
     var pendingLogsExportText by rememberSaveable { mutableStateOf<String?>(null) }
     val exportLogsLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("text/plain"),
@@ -220,16 +200,6 @@ private fun PulseAndroidApp(
         pendingRulesExportText = null
         if (uri != null && text != null) {
             viewModel.exportRulesToUri(text, uri)
-        }
-    }
-    var pendingProvidersExportText by rememberSaveable { mutableStateOf<String?>(null) }
-    val exportProvidersLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("text/plain"),
-    ) { uri ->
-        val text = pendingProvidersExportText
-        pendingProvidersExportText = null
-        if (uri != null && text != null) {
-            viewModel.exportProvidersToUri(text, uri)
         }
     }
     var pendingConnectionsExportText by rememberSaveable { mutableStateOf<String?>(null) }
@@ -321,22 +291,12 @@ private fun PulseAndroidApp(
                 },
                 onModeChange = viewModel::setProxyMode,
                 onRefreshDashboard = viewModel::refreshDashboard,
-                onShareDashboard = viewModel::shareDashboard,
-                onExportDashboardToFile = { text ->
-                    pendingDashboardExportText = text
-                    exportDashboardLauncher.launch("pulse-status.txt")
-                },
                 onThemeChange = viewModel::setThemeMode,
                 onProfileSelect = viewModel::selectProfile,
                 onProxySelect = viewModel::selectProxy,
                 onTestProxyDelays = viewModel::testProxyDelays,
                 onTestProxyGroupDelays = viewModel::testProxyGroupDelays,
                 onTestProxyDelay = viewModel::testProxyDelay,
-                onShareProxies = viewModel::shareProxies,
-                onExportProxiesToFile = { text ->
-                    pendingProxiesExportText = text
-                    exportProxiesLauncher.launch("pulse-proxies.txt")
-                },
                 onRefreshProfile = viewModel::refreshProfile,
                 onRefreshAllProfiles = viewModel::refreshAllProfiles,
                 onRefreshAllProfilesWithProxy = viewModel::refreshAllProfilesWithProxy,
@@ -399,11 +359,6 @@ private fun PulseAndroidApp(
                 onUpdateProvider = viewModel::updateProvider,
                 onUpdateAllProviders = viewModel::updateAllProviders,
                 onUpdateProviders = viewModel::updateProviders,
-                onShareProviders = viewModel::shareProviders,
-                onExportProvidersToFile = { text ->
-                    pendingProvidersExportText = text
-                    exportProvidersLauncher.launch("pulse-providers.txt")
-                },
                 onRefreshConnections = viewModel::refreshConnectionsQuietly,
                 onCloseConnection = viewModel::closeConnection,
                 onCloseAllConnections = viewModel::closeAllConnections,

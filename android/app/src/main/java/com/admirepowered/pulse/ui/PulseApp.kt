@@ -39,16 +39,12 @@ fun PulseApp(
     onToggleVpn: (Boolean) -> Unit,
     onModeChange: (ProxyMode) -> Unit,
     onRefreshDashboard: () -> Unit,
-    onShareDashboard: (String) -> Unit,
-    onExportDashboardToFile: (String) -> Unit,
     onThemeChange: (ThemeMode) -> Unit,
     onProfileSelect: (String) -> Unit,
     onProxySelect: (String) -> Unit,
     onTestProxyDelays: () -> Unit,
     onTestProxyGroupDelays: (String) -> Unit,
     onTestProxyDelay: (String) -> Unit,
-    onShareProxies: (String) -> Unit,
-    onExportProxiesToFile: (String) -> Unit,
     onRefreshProfile: (String) -> Unit,
     onRefreshAllProfiles: () -> Unit,
     onRefreshAllProfilesWithProxy: (Boolean) -> Unit,
@@ -92,8 +88,6 @@ fun PulseApp(
     onUpdateProvider: (String, ProviderKind) -> Unit,
     onUpdateAllProviders: () -> Unit,
     onUpdateProviders: (List<ProviderItem>) -> Unit,
-    onShareProviders: (String) -> Unit,
-    onExportProvidersToFile: (String) -> Unit,
     onRefreshConnections: () -> Unit,
     onCloseConnection: (String) -> Unit,
     onCloseAllConnections: () -> Unit,
@@ -183,8 +177,6 @@ fun PulseApp(
                 onModeChange = onModeChange,
                 onRestartCore = onRestartCore,
                 onRefresh = onRefreshDashboard,
-                onShare = onShareDashboard,
-                onExportFile = onExportDashboardToFile,
                 modifier = modifier,
             )
 
@@ -225,8 +217,6 @@ fun PulseApp(
                 onTestProxyDelays = onTestProxyDelays,
                 onTestProxyGroupDelays = onTestProxyGroupDelays,
                 onTestProxyDelay = onTestProxyDelay,
-                onShare = onShareProxies,
-                onExportFile = onExportProxiesToFile,
                 modifier = modifier,
             )
 
@@ -288,8 +278,6 @@ fun PulseApp(
                 onUpdateProvider = onUpdateProvider,
                 onUpdateAllProviders = onUpdateAllProviders,
                 onUpdateProviders = onUpdateProviders,
-                onShare = onShareProviders,
-                onExportFile = onExportProvidersToFile,
                 modifier = modifier,
             )
 

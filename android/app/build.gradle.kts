@@ -14,6 +14,9 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+        ndk {
+            abiFilters += "arm64-v8a"
+        }
     }
 
     buildTypes {
@@ -43,6 +46,7 @@ android {
 
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        jniLibs.keepDebugSymbols += "**/libpulsecore.so"
     }
 }
 
@@ -62,4 +66,28 @@ dependencies {
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+}
+
+val cleanReleaseArtProfileOutputs by tasks.registering {
+    doLast {
+        delete(
+            layout.buildDirectory.dir("intermediates/dex_metadata_directory/release").get().asFile,
+            layout.buildDirectory.dir("outputs/apk/release/baselineProfiles").get().asFile,
+        )
+    }
+}
+
+tasks.configureEach {
+    if (
+        name == "mergeReleaseArtProfile" ||
+        name == "compileReleaseArtProfile" ||
+        name == "mergeReleaseStartupProfile" ||
+        name == "stripReleaseDebugSymbols"
+    ) {
+        enabled = false
+    }
+}
+
+tasks.matching { it.name == "assembleRelease" }.configureEach {
+    finalizedBy(cleanReleaseArtProfileOutputs)
 }

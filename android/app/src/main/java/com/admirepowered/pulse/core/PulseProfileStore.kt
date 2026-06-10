@@ -5,13 +5,14 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import java.io.File
 import java.net.HttpURLConnection
-import java.net.InetSocketAddress
 import java.net.Proxy
 import java.net.URL
 import java.net.URLDecoder
 import java.security.MessageDigest
 import java.util.Base64
 import java.util.Locale
+import org.json.JSONArray
+import org.json.JSONObject
 
 data class PulseProfileRecord(
     val id: String,
@@ -122,10 +123,11 @@ object PulseProfileStore {
         val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
             ?: throw IllegalArgumentException("无法读取配置文件")
         require(bytes.isNotEmpty()) { "配置文件为空" }
+        val content = normalizeProfileBody(bytes.toString(Charsets.UTF_8))
         val name = localProfileName(context, uri)
-        val id = stableId("file:$name:${digestHex(bytes)}")
+        val id = stableId("file:$name:${digestHex(content.toByteArray(Charsets.UTF_8))}")
         val file = profileFile(context, id)
-        file.writeBytes(bytes)
+        file.writeText(content, Charsets.UTF_8)
         val record = PulseProfileRecord(
             id = id,
             name = name,
@@ -141,6 +143,198 @@ object PulseProfileStore {
         }
         editor.apply()
         return record
+    }
+
+    fun importFromText(
+        context: Context,
+        text: String,
+        name: String = "分享配置",
+        activate: Boolean = true,
+    ): PulseProfileRecord {
+        val content = normalizeProfileBody(text)
+        val cleanName = cleanProfileName(name) ?: "分享配置"
+        val id = stableId("text:$cleanName:${digestHex(content.toByteArray(Charsets.UTF_8))}")
+        val file = profileFile(context, id)
+        file.writeText(content, Charsets.UTF_8)
+        val record = PulseProfileRecord(
+            id = id,
+            name = cleanName,
+            url = "",
+            path = file.absolutePath,
+            updatedAt = System.currentTimeMillis(),
+            subscription = PulseSubscriptionInfo(),
+        )
+        val editor = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString(PROFILE_PREFIX + id, encodeRecord(record))
+        if (activate) {
+            editor.putString(ACTIVE_ID, id)
+        }
+        editor.apply()
+        return record
+    }
+
+    fun updateSource(
+        context: Context,
+        profileId: String,
+        profileUrl: String,
+        useProxy: Boolean = false,
+    ): PulseProfileRecord {
+        val current = find(context, profileId)
+            ?: throw IllegalArgumentException("订阅不存在")
+        val trimmedUrl = profileUrl.trim()
+        require(trimmedUrl.startsWith("http://") || trimmedUrl.startsWith("https://")) {
+            "请输入 http 或 https 订阅地址"
+        }
+        val downloaded = download(context, trimmedUrl, useProxy)
+        val file = File(current.path)
+        file.parentFile?.mkdirs()
+        file.writeText(downloaded.body, Charsets.UTF_8)
+        val next = current.copy(
+            url = trimmedUrl,
+            updatedAt = System.currentTimeMillis(),
+            subscription = downloaded.subscriptionInfo,
+        )
+        save(context, next)
+        return next
+    }
+
+    fun refreshFromUrl(
+        context: Context,
+        profileId: String,
+        useProxy: Boolean = false,
+    ): PulseProfileRecord {
+        val current = find(context, profileId)
+            ?: throw IllegalArgumentException("订阅不存在")
+        require(current.url.isNotBlank()) { "本地配置没有订阅 URL" }
+        return updateSource(context, profileId, current.url, useProxy)
+    }
+
+    fun autoRefreshDueProfiles(context: Context, nowMillis: Long = System.currentTimeMillis()): List<PulseProfileRecord> {
+        return list(context).filter { record ->
+            val intervalHours = record.subscription.updateInterval
+            record.url.isNotBlank() &&
+                intervalHours > 0 &&
+                nowMillis - record.updatedAt >= intervalHours * 60L * 60L * 1000L
+        }
+    }
+
+    fun readContent(context: Context, profileId: String): String {
+        val record = find(context, profileId)
+            ?: throw IllegalArgumentException("订阅不存在")
+        return File(record.path).readText(Charsets.UTF_8)
+    }
+
+    fun saveContent(context: Context, profileId: String, content: String): PulseProfileRecord {
+        val current = find(context, profileId)
+            ?: throw IllegalArgumentException("订阅不存在")
+        require(content.isNotBlank()) { "配置内容不能为空" }
+        val normalizedContent = normalizeProfileBody(content)
+        val file = File(current.path)
+        file.parentFile?.mkdirs()
+        file.writeText(normalizedContent, Charsets.UTF_8)
+        val next = current.copy(updatedAt = System.currentTimeMillis())
+        save(context, next)
+        return next
+    }
+
+    fun rename(context: Context, profileId: String, name: String): PulseProfileRecord {
+        val current = find(context, profileId)
+            ?: throw IllegalArgumentException("订阅不存在")
+        val cleanName = cleanProfileName(name) ?: throw IllegalArgumentException("订阅名称不能为空")
+        val next = current.copy(
+            name = cleanName,
+            updatedAt = System.currentTimeMillis(),
+        )
+        save(context, next)
+        return next
+    }
+
+    fun exportBackup(context: Context): String {
+        ensureDefaultProfile(context)
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val activeId = prefs.getString(ACTIVE_ID, null).orEmpty()
+        val profiles = JSONArray()
+        val records = list(context)
+        records.forEach { record ->
+            profiles.put(
+                JSONObject()
+                    .put("id", record.id)
+                    .put("name", record.name)
+                    .put("url", record.url)
+                    .put("updatedAt", record.updatedAt)
+                    .put("subscription", record.subscription.toJson())
+                    .put("content", runCatching { File(record.path).readText(Charsets.UTF_8) }.getOrDefault("")),
+            )
+        }
+        return JSONObject()
+            .put("format", "pulse-android-profiles")
+            .put("version", 3)
+            .put("exportedAt", System.currentTimeMillis())
+            .put("activeProfileId", activeId)
+            .put("profiles", profiles)
+            .put("settings", PulseSettingsStore.exportBackupJson(context))
+            .put("customRules", PulseCustomRuleStore.exportBackupJson(context, records.map { it.id }))
+            .put("backgrounds", PulseBackgroundStore.exportBackupJson(context, PulseSettingsStore.load(context).backgroundImageUri))
+            .toString(2)
+    }
+
+    fun importBackup(context: Context, backup: String): PulseProfileRecord {
+        val json = JSONObject(backup)
+        require(json.optString("format") == "pulse-android-profiles") { "WebDAV 备份格式不匹配" }
+        val profiles = json.optJSONArray("profiles") ?: JSONArray()
+        require(profiles.length() > 0) { "WebDAV 备份中没有订阅" }
+
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val editor = prefs.edit()
+        prefs.all.keys
+            .filter { it.startsWith(PROFILE_PREFIX) }
+            .forEach(editor::remove)
+
+        val importedIds = mutableListOf<String>()
+        val idMapping = mutableMapOf<String, String>()
+        for (index in 0 until profiles.length()) {
+            val item = profiles.optJSONObject(index) ?: continue
+            val content = item.optString("content")
+            if (content.isBlank()) continue
+            val oldId = item.optString("id")
+            val id = cleanBackupId(item.optString("id"))
+                ?: stableId("${item.optString("url")}:${item.optString("name")}:$index")
+            val file = profileFile(context, id)
+            file.writeText(content, Charsets.UTF_8)
+            val record = PulseProfileRecord(
+                id = id,
+                name = cleanProfileName(item.optString("name")) ?: "同步订阅",
+                url = item.optString("url"),
+                path = file.absolutePath,
+                updatedAt = item.optLong("updatedAt").takeIf { it > 0 } ?: System.currentTimeMillis(),
+                subscription = item.optJSONObject("subscription")?.toSubscriptionInfo() ?: PulseSubscriptionInfo(),
+            )
+            importedIds += id
+            if (oldId.isNotBlank()) {
+                idMapping[oldId] = id
+            }
+            editor.putString(PROFILE_PREFIX + id, encodeRecord(record))
+        }
+        require(importedIds.isNotEmpty()) { "WebDAV 备份中的订阅内容为空" }
+        val activeId = json.optString("activeProfileId").takeIf { it in importedIds } ?: importedIds.first()
+        editor.putString(ACTIVE_ID, activeId).apply()
+        PulseSettingsStore.importBackupJson(context, json.optJSONObject("settings"))
+        val selectedBackground = PulseBackgroundStore.importBackupJson(context, json.optJSONObject("backgrounds"))
+        PulseSettingsStore.setBackgroundImageUri(context, selectedBackground)
+        PulseCustomRuleStore.importBackupJson(context, json.optJSONObject("customRules"), idMapping)
+        return active(context)
+    }
+
+    private fun find(context: Context, profileId: String): PulseProfileRecord? {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        return prefs.getString(PROFILE_PREFIX + profileId, null)?.let(::decodeRecord)
+    }
+
+    private fun save(context: Context, record: PulseProfileRecord) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putString(PROFILE_PREFIX + record.id, encodeRecord(record))
+            .apply()
     }
 
     private fun ensureDefaultProfile(context: Context) {
@@ -185,8 +379,7 @@ object PulseProfileStore {
 
     private fun download(context: Context, profileUrl: String, useProxy: Boolean): DownloadedProfile {
         if (useProxy) {
-            val proxy = Proxy(Proxy.Type.HTTP, InetSocketAddress("127.0.0.1", localProxyPort(context)))
-            runCatching { download(profileUrl, proxy) }
+            runCatching { download(profileUrl, PulseLocalProxy.httpProxy(context)) }
                 .onFailure { PulseLogStore.warn(context, "代理更新订阅失败，已尝试直连: ${it.message}") }
                 .getOrNull()
                 ?.let { return it }
@@ -283,14 +476,6 @@ object PulseProfileStore {
             }
         }
         return null
-    }
-
-    private fun localProxyPort(context: Context): Int {
-        val content = runCatching { active(context).path.let(::File).readText(Charsets.UTF_8) }
-            .getOrDefault("")
-        return mixedPortPattern.find(content)?.groupValues?.getOrNull(1)?.toIntOrNull()
-            ?: portPattern.find(content)?.groupValues?.getOrNull(1)?.toIntOrNull()
-            ?: 7890
     }
 
     private fun stableId(value: String): String {
@@ -408,6 +593,34 @@ object PulseProfileStore {
             .joinToString("\t") { it.replace("\t", " ") }
     }
 
+    private fun PulseSubscriptionInfo.toJson(): JSONObject {
+        return JSONObject()
+            .put("upload", upload)
+            .put("download", download)
+            .put("total", total)
+            .put("expire", expire)
+            .put("updateInterval", updateInterval)
+            .put("rawUserInfo", rawUserInfo)
+            .put("updatedAt", updatedAt)
+    }
+
+    private fun JSONObject.toSubscriptionInfo(): PulseSubscriptionInfo {
+        return PulseSubscriptionInfo(
+            upload = optLong("upload"),
+            download = optLong("download"),
+            total = optLong("total"),
+            expire = optLong("expire"),
+            updateInterval = optInt("updateInterval"),
+            rawUserInfo = optString("rawUserInfo"),
+            updatedAt = optLong("updatedAt"),
+        )
+    }
+
+    private fun cleanBackupId(value: String): String? {
+        val id = value.trim()
+        return id.takeIf { it.matches(Regex("""[A-Za-z0-9_-]{1,64}""")) }
+    }
+
     private fun decodeRecord(value: String): PulseProfileRecord? {
         val parts = value.split("\t")
         if (parts.size != 5 && parts.size < 12) return null
@@ -448,8 +661,6 @@ object PulseProfileStore {
           - MATCH,DIRECT
     """.trimIndent()
 
-    private val mixedPortPattern = Regex("""(?m)^\s*mixed-port\s*:\s*(\d+)\s*$""")
-    private val portPattern = Regex("""(?m)^\s*port\s*:\s*(\d+)\s*$""")
     private val yamlConfigKeys = listOf(
         "mixed-port",
         "port",

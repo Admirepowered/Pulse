@@ -1,14 +1,27 @@
 package com.admirepowered.pulse.core
 
 import com.admirepowered.pulse.ui.ConnectionItem
+import com.admirepowered.pulse.ui.ProviderKind
+import com.admirepowered.pulse.ui.LogItem
+import com.admirepowered.pulse.ui.ProviderItem
 import com.admirepowered.pulse.ui.ProxyGroupItem
 import com.admirepowered.pulse.ui.ProxyItem
 import com.admirepowered.pulse.ui.ProxyMode
+import com.admirepowered.pulse.ui.RuleItem
 import com.admirepowered.pulse.ui.TrafficSnapshot
+import java.net.SocketTimeoutException
 import java.net.HttpURLConnection
 import java.net.URLEncoder
 import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import org.json.JSONObject
+
+data class MihomoConnectionSnapshot(
+    val connections: List<ConnectionItem>,
+    val memory: String,
+)
 
 object PulseMihomoApi {
     private const val BASE_URL = "http://127.0.0.1:9090"
@@ -89,8 +102,26 @@ object PulseMihomoApi {
         PulseCoreBridge.setMode(mihomoMode).getOrThrow()
     }
 
+    fun version(): String {
+        val json = JSONObject(request("GET", "/version"))
+        return json.optString("version")
+            .ifBlank { json.optString("meta") }
+            .ifBlank { "未知版本" }
+    }
+
     fun connections(): List<ConnectionItem> {
+        return connectionSnapshot().connections
+    }
+
+    fun connectionSnapshot(): MihomoConnectionSnapshot {
         val json = JSONObject(request("GET", "/connections"))
+        return MihomoConnectionSnapshot(
+            connections = parseConnections(json),
+            memory = formatBytes(json.optLong("memory")),
+        )
+    }
+
+    private fun parseConnections(json: JSONObject): List<ConnectionItem> {
         val connections = json.optJSONArray("connections") ?: return emptyList()
         return buildList {
             for (index in 0 until connections.length()) {
@@ -100,17 +131,117 @@ object PulseMihomoApi {
                     ?: metadata?.optString("destinationIP")?.takeIf { it.isNotBlank() }
                     ?: connection.optString("id")
                 add(
-                    ConnectionItem(
-                        id = connection.optString("id", "$index"),
-                        host = host,
-                        rule = connection.optString("rule", "-"),
-                        download = formatBytes(connection.optLong("download")),
-                        upload = formatBytes(connection.optLong("upload")),
-                        speed = "-",
+                    run {
+                        val downloadBytes = connection.optLong("download")
+                        val uploadBytes = connection.optLong("upload")
+                        ConnectionItem(
+                            id = connection.optString("id", "$index"),
+                            host = host,
+                            rule = connection.optString("rule", "-"),
+                            download = formatBytes(downloadBytes),
+                            upload = formatBytes(uploadBytes),
+                            destinationIp = metadata?.optString("destinationIP").orEmpty(),
+                            source = sourceAddress(metadata),
+                            network = metadata?.optString("network").orEmpty(),
+                            connectionType = metadata?.optString("type").orEmpty(),
+                            process = metadata?.optString("process").orEmpty()
+                                .ifBlank { metadata?.optString("processPath").orEmpty() },
+                            chains = connection.optJSONArray("chains")?.let { chains ->
+                                buildList {
+                                    for (chainIndex in 0 until chains.length()) {
+                                        chains.optString(chainIndex).takeIf { it.isNotBlank() }?.let(::add)
+                                    }
+                                }.joinToString(" / ")
+                            }.orEmpty(),
+                            rulePayload = connection.optString("rulePayload"),
+                            start = connection.optString("start"),
+                            downloadBytes = downloadBytes,
+                            uploadBytes = uploadBytes,
+                        )
+                    },
+                )
+            }
+        }
+    }
+
+    fun closeConnection(id: String) {
+        val encoded = URLEncoder.encode(id, Charsets.UTF_8.name())
+        request("DELETE", "/connections/$encoded")
+    }
+
+    fun closeAllConnections() {
+        request("DELETE", "/connections")
+    }
+
+    fun rules(): List<RuleItem> {
+        val json = JSONObject(request("GET", "/rules"))
+        val rules = json.optJSONArray("rules") ?: return emptyList()
+        return buildList {
+            for (index in 0 until rules.length()) {
+                val rule = rules.getJSONObject(index)
+                add(
+                    RuleItem(
+                        type = rule.optString("type"),
+                        payload = rule.optString("payload"),
+                        proxy = rule.optString("proxy"),
                     ),
                 )
             }
         }
+    }
+
+    fun providers(): List<ProviderItem> {
+        return proxyProviders() + ruleProviders()
+    }
+
+    private fun proxyProviders(): List<ProviderItem> {
+        val json = JSONObject(request("GET", "/providers/proxies"))
+        val providers = json.optJSONObject("providers") ?: return emptyList()
+        val rows = mutableListOf<ProviderItem>()
+        val names = providers.keys()
+        while (names.hasNext()) {
+            val key = names.next()
+            val provider = providers.getJSONObject(key)
+            rows += ProviderItem(
+                name = provider.optString("name").ifBlank { key },
+                kind = ProviderKind.Proxy,
+                vehicle = provider.optString("vehicleType"),
+                updatedAt = provider.optString("updatedAt"),
+                count = provider.optJSONArray("proxies")?.length() ?: 0,
+            )
+        }
+        return rows
+    }
+
+    private fun ruleProviders(): List<ProviderItem> {
+        val json = runCatching { JSONObject(request("GET", "/providers/rules")) }.getOrNull()
+            ?: return emptyList()
+        val providers = json.optJSONObject("providers") ?: return emptyList()
+        val rows = mutableListOf<ProviderItem>()
+        val names = providers.keys()
+        while (names.hasNext()) {
+            val key = names.next()
+            val provider = providers.getJSONObject(key)
+            rows += ProviderItem(
+                name = provider.optString("name").ifBlank { key },
+                kind = ProviderKind.Rule,
+                vehicle = provider.optString("vehicleType"),
+                updatedAt = provider.optString("updatedAt"),
+                count = provider.optInt("ruleCount").takeIf { it > 0 }
+                    ?: provider.optJSONArray("rules")?.length()
+                    ?: 0,
+            )
+        }
+        return rows
+    }
+
+    fun updateProvider(name: String, kind: ProviderKind = ProviderKind.Proxy) {
+        val encoded = URLEncoder.encode(name, Charsets.UTF_8.name()).replace("+", "%20")
+        val path = when (kind) {
+            ProviderKind.Proxy -> "/providers/proxies/$encoded"
+            ProviderKind.Rule -> "/providers/rules/$encoded"
+        }
+        request("PUT", path)
     }
 
     fun traffic(): TrafficSnapshot {
@@ -126,12 +257,60 @@ object PulseMihomoApi {
         val line = connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readLine() }
         connection.disconnect()
         val json = JSONObject(line.orEmpty())
+        val downloadSpeed = json.optLong("down")
+        val uploadSpeed = json.optLong("up")
         return TrafficSnapshot(
             downloadTotal = formatBytes(json.optLong("downloadTotal")),
             uploadTotal = formatBytes(json.optLong("uploadTotal")),
-            downloadSpeed = "${formatBytes(json.optLong("down"))}/s",
-            uploadSpeed = "${formatBytes(json.optLong("up"))}/s",
+            downloadSpeed = "${formatBytes(downloadSpeed)}/s",
+            uploadSpeed = "${formatBytes(uploadSpeed)}/s",
+            downloadSpeedBytes = downloadSpeed,
+            uploadSpeedBytes = uploadSpeed,
         )
+    }
+
+    fun logs(level: String = "debug", limit: Int = 80): List<LogItem> {
+        val encodedLevel = URLEncoder.encode(level, Charsets.UTF_8.name())
+        val connection = URL("$BASE_URL/logs?level=$encodedLevel").openConnection() as HttpURLConnection
+        connection.connectTimeout = 2_500
+        connection.readTimeout = 1_200
+        connection.requestMethod = "GET"
+        val code = connection.responseCode
+        if (code !in 200..299) {
+            val text = connection.errorStream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+            connection.disconnect()
+            throw IllegalStateException("mihomo API GET /logs 返回 $code: $text")
+        }
+        val formatter = SimpleDateFormat("MM-dd HH:mm:ss", Locale.getDefault())
+        val rows = mutableListOf<LogItem>()
+        try {
+            connection.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
+                while (rows.size < limit) {
+                    val line = try {
+                        reader.readLine()
+                    } catch (_: SocketTimeoutException) {
+                        null
+                    } ?: break
+                    val json = runCatching { JSONObject(line) }.getOrNull() ?: continue
+                    val logLevel = json.optString("type")
+                        .ifBlank { json.optString("level") }
+                        .ifBlank { "INFO" }
+                        .uppercase(Locale.getDefault())
+                    val message = json.optString("payload")
+                        .ifBlank { json.optString("message") }
+                    if (message.isBlank()) continue
+                    rows += LogItem(
+                        time = formatter.format(Date()),
+                        level = "MIHOMO-$logLevel",
+                        message = message,
+                        source = "mihomo",
+                    )
+                }
+            }
+        } finally {
+            connection.disconnect()
+        }
+        return rows.asReversed()
     }
 
     private fun delayFor(proxy: JSONObject?): Int? {
@@ -139,6 +318,15 @@ object PulseMihomoApi {
         if (history.length() == 0) return null
         val delay = history.optJSONObject(history.length() - 1)?.optInt("delay", -1) ?: -1
         return delay.takeIf { it >= 0 }
+    }
+
+    private fun sourceAddress(metadata: JSONObject?): String {
+        metadata ?: return ""
+        val sourceIp = metadata.optString("sourceIP")
+        val sourcePort = metadata.optString("sourcePort")
+        return listOf(sourceIp, sourcePort)
+            .filter { it.isNotBlank() && it != "0" }
+            .joinToString(":")
     }
 
     private fun formatBytes(value: Long): String {

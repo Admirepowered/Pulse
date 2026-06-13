@@ -211,7 +211,7 @@ data class PulseAppState(
     val coreRestarting: Boolean = false,
     val coreMessage: String = "",
     val allowLan: Boolean = false,
-    val coreLogLevel: CoreLogLevel = CoreLogLevel.Info,
+    val coreLogLevel: CoreLogLevel = CoreLogLevel.Silent,
     val accessControlMode: AccessControlMode = AccessControlMode.Off,
     val accessControlApps: List<AppAccessItem> = emptyList(),
     val proxyUpdateProfiles: Boolean = true,

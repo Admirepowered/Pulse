@@ -4,16 +4,25 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val pulseVersionName: String = providers.gradleProperty("pulseVersionName")
+    .orElse("0.1.0")
+    .get()
+val pulseVersionCode: Int = providers.gradleProperty("pulseVersionCode")
+    .map { it.toIntOrNull() ?: 1 }
+    .orElse(1)
+    .get()
+
 android {
     namespace = "com.admirepowered.pulse"
     compileSdk = 35
+    ndkVersion = "23.2.8568313"
 
     defaultConfig {
         applicationId = "com.admirepowered.pulse"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = pulseVersionCode
+        versionName = pulseVersionName
         ndk {
             abiFilters += "arm64-v8a"
         }

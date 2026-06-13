@@ -62,6 +62,7 @@ type runtimeOptions struct {
 
 func main() {
 	options := parseRuntimeOptions(os.Args[1:])
+	initServiceLog()
 	if options.manualRun {
 		config, err := readConfig(options.configFile)
 		if err != nil {
@@ -475,6 +476,14 @@ func writeLog(message string) {
 	}
 	defer file.Close()
 	_, _ = file.WriteString(line)
+}
+
+func initServiceLog() {
+	executable, err := os.Executable()
+	if err != nil {
+		return
+	}
+	truncateServiceLogOnce(filepath.Dir(executable))
 }
 
 func truncateServiceLogOnce(logDir string) {

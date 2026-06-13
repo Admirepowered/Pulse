@@ -25,9 +25,6 @@ func runEmbeddedCore(config serviceConfig, requests <-chan svc.ChangeRequest) er
 	if strings.TrimSpace(config.RuntimeConfig) == "" {
 		return fmt.Errorf("missing runtimeConfig in %s", defaultConfigFile)
 	}
-	stopLogForwarder := startMihomoLogForwarder()
-	defer stopLogForwarder()
-
 	mihomoConstant.SetHomeDir(config.DataDir)
 	mihomoConstant.SetConfig(config.RuntimeConfig)
 	if err := mihomoConfig.Init(mihomoConstant.Path.HomeDir()); err != nil {
@@ -37,6 +34,9 @@ func runEmbeddedCore(config serviceConfig, requests <-chan svc.ChangeRequest) er
 	if err := applyEmbeddedCoreConfig(config); err != nil {
 		return err
 	}
+	stopLogForwarder := startMihomoLogForwarder()
+	defer stopLogForwarder()
+
 	writeLog("embedded core started")
 	waitForEmbeddedCoreStop(config, requests)
 	route.ReCreateServer(&route.Config{})
@@ -61,6 +61,9 @@ func startMihomoLogForwarder() func() {
 	sub := mihomoLog.Subscribe()
 	go func() {
 		for event := range sub {
+			if event.LogLevel < mihomoLog.Level() {
+				continue
+			}
 			writeLog("mihomo " + event.Type() + ": " + event.Payload)
 		}
 	}()

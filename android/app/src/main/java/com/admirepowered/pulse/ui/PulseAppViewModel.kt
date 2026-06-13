@@ -2185,7 +2185,7 @@ class PulseAppViewModel(application: Application) : AndroidViewModel(application
         val accessMode = runCatching { AccessControlMode.valueOf(settings.accessControlMode) }
             .getOrDefault(AccessControlMode.Off)
         val logLevel = CoreLogLevel.entries.firstOrNull { it.value == settings.coreLogLevel }
-            ?: CoreLogLevel.Info
+            ?: CoreLogLevel.Silent
         val proxyMode = ProxyMode.entries.firstOrNull { it.toMihomoMode() == settings.proxyMode }
             ?: ProxyMode.Rule
         _state.update {

@@ -663,7 +663,7 @@ func defaultSettings() Settings {
 		Secret:            randomSecret(),
 		MixedPort:         7890,
 		Mode:              "rule",
-		LogLevel:          "info",
+		LogLevel:          "silent",
 		Language:          "zh",
 		Theme:             "system",
 		TunEnabled:        false,
@@ -2919,7 +2919,8 @@ func (a *App) runMihomoAPILogSubscription(ctx context.Context, settings Settings
 	if base == "" {
 		base = strings.TrimRight(defaultSettings().ApiBase, "/")
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/logs?level=debug", nil)
+	level := normalizeLogLevel(settings.LogLevel)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/logs?level="+url.QueryEscape(level), nil)
 	if err != nil {
 		a.appendLog("warn", "mihomo log subscription request failed: "+err.Error())
 		a.clearMihomoAPILogSubscription(ctx)
@@ -3178,7 +3179,7 @@ func sanitizeFilename(name string) string {
 const defaultProfileYAML = `mixed-port: 7890
 allow-lan: false
 mode: rule
-log-level: info
+log-level: silent
 external-controller: 127.0.0.1:9090
 dns:
   enable: true

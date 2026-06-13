@@ -549,7 +549,7 @@ private val yamlSnippets = listOf(
     YamlSnippet("dns", "dns:\n  enable: true\n  enhanced-mode: fake-ip\n"),
     YamlSnippet("rule-providers", "rule-providers:\n  example:\n    type: http\n    behavior: domain\n    path: ./rules/example.yaml\n    url: https://example.com/rules.yaml\n    interval: 86400\n"),
     YamlSnippet("proxy-providers", "proxy-providers:\n  example:\n    type: http\n    path: ./providers/example.yaml\n    url: https://example.com/provider.yaml\n    interval: 86400\n"),
-    YamlSnippet("mixed-port", "mixed-port: 7890\nallow-lan: false\nmode: rule\nlog-level: info\n"),
+    YamlSnippet("mixed-port", "mixed-port: 7890\nallow-lan: false\nmode: rule\nlog-level: silent\n"),
 )
 
 private val yamlCompletions = listOf(

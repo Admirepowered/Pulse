@@ -650,7 +650,7 @@ object PulseProfileStore {
     private fun defaultConfig() = """
         mixed-port: 7890
         mode: rule
-        log-level: info
+        log-level: silent
         proxies: []
         proxy-groups:
           - name: Proxy

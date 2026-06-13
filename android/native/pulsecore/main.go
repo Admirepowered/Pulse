@@ -216,6 +216,9 @@ func androidConfigBytes(configPath string, tunFD int, allowLan bool) ([]byte, er
 	if _, ok := root["mode"]; !ok {
 		root["mode"] = "rule"
 	}
+	if _, ok := root["log-level"]; !ok {
+		root["log-level"] = "silent"
+	}
 	root["external-controller"] = "127.0.0.1:9090"
 	root["allow-lan"] = allowLan
 	return yaml.Marshal(root)

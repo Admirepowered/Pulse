@@ -15,6 +15,11 @@ import (
 var assets embed.FS
 
 func main() {
+	args := os.Args[1:]
+	startHidden := !hasStartVisibleArg(args)
+	if hasStartHiddenArg(args) {
+		startHidden = true
+	}
 	if err := pulse.SyncStartupServiceFromStoredSettingsIfElevated(); err != nil {
 		println("Service sync:", err.Error())
 	}
@@ -31,7 +36,6 @@ func main() {
 	// Create an instance of the app structure
 	app := pulse.NewApp()
 	pulse.StartTray(app)
-	startHidden := hasStartHiddenArg(os.Args[1:])
 
 	// Create application with options
 	err = wails.Run(&options.App{
@@ -64,6 +68,15 @@ func main() {
 func hasStartHiddenArg(args []string) bool {
 	for _, arg := range args {
 		if arg == "--start-hidden" || arg == "-start-hidden" {
+			return true
+		}
+	}
+	return false
+}
+
+func hasStartVisibleArg(args []string) bool {
+	for _, arg := range args {
+		if arg == "--start-visible" || arg == "-start-visible" {
 			return true
 		}
 	}

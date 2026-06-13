@@ -19,6 +19,15 @@ on:
       - 'android/**'
       - '.github/workflows/build-android.yml'
   workflow_dispatch:
+    inputs:
+      version:
+        description: Fixed Pulse version name, for example P123 or 1.2.0-P123
+        required: false
+        type: string
+      version_code:
+        description: Fixed Android versionCode
+        required: false
+        type: string
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -33,6 +42,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
+          fetch-depth: 0
           submodules: recursive
 
       - name: Setup JDK
@@ -65,13 +75,6 @@ jobs:
           go-version-file: go.mod
           cache: false
 
-      - name: Build Go core
-        shell: bash
-        run: |
-          chmod +x android/native/build-android.sh android/native/collect-binaries.sh
-          android/native/build-android.sh
-          android/native/collect-binaries.sh
-
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -81,20 +84,29 @@ jobs:
         shell: bash
         run: |
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
-          echo "ndk.dir=$ANDROID_NDK_HOME" >> android/local.properties
 
       - name: Build APK
-        working-directory: android
         shell: bash
+        env:
+          PULSE_VERSION: ${{ inputs.version }}
+          PULSE_VERSION_CODE: ${{ inputs.version_code }}
         run: |
-          chmod +x gradlew
-          ./gradlew assembleRelease
+          set -euo pipefail
+          chmod +x android/gradlew android/native/build-android.sh android/native/collect-binaries.sh
+          make_args=()
+          if [ -n "$PULSE_VERSION" ]; then
+            make_args+=("VERSION=$PULSE_VERSION")
+          fi
+          if [ -n "$PULSE_VERSION_CODE" ]; then
+            make_args+=("ANDROID_VERSION_CODE=$PULSE_VERSION_CODE")
+          fi
+          make build-android "${make_args[@]}"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v5
         with:
           name: pulse-android-apk
-          path: android/app/build/outputs/apk/release/app-release.apk
+          path: build/bin/Pulse-*-android-arm64-v8a.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -106,8 +118,7 @@ jobs:
         run: |
           set -euo pipefail
           tag="${GITHUB_REF_NAME}"
-          apk="Pulse-Android-${tag}.apk"
-          cp android/app/build/outputs/apk/release/app-release.apk "$apk"
+          apk="$(find build/bin -maxdepth 1 -name 'Pulse-*-android-arm64-v8a.apk' -type f | head -n 1)"
           if ! gh release view "$tag" >/dev/null 2>&1; then
             gh release create "$tag" --title "$tag" --notes "Pulse Android build"
           fi

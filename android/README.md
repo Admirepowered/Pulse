@@ -150,11 +150,19 @@ export ANDROID_SDK_ROOT=/opt/android-sdk
 export ANDROID_NDK_HOME=/mnt/e/Tools/android-ndk-r23c
 cd /mnt/e/Project/Pulse
 chmod +x android/native/build-android.sh android/native/collect-binaries.sh
-android/native/build-android.sh
-android/native/collect-binaries.sh
-cd android
-./gradlew assembleDebug
-./gradlew assembleRelease
+make build-android
+```
+
+也可以从 PowerShell 直接调用 WSL 构建：
+```powershell
+.\scripts\build-android-wsl.ps1 -Version P123 -VersionCode 123 -DryRun
+.\scripts\build-android-wsl.ps1 -Version P123 -VersionCode 123
+```
+
+固定版本发布构建可以走仓库根目录的 Makefile，Android 和桌面端共用同一个 `VERSION` 变量：
+```bash
+make build-android VERSION=P123 ANDROID_VERSION_CODE=123
+make build VERSION=P123 COUNT=123
 ```
 
 常用验证命令：

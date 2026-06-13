@@ -8,7 +8,7 @@ const val DEFAULT_DELAY_TEST_URL = "https://www.gstatic.com/generate_204"
 
 data class PulseSettings(
     val allowLan: Boolean = false,
-    val coreLogLevel: String = "info",
+    val coreLogLevel: String = "silent",
     val proxyMode: String = "rule",
     val proxyUpdateProfiles: Boolean = true,
     val autoUpdateProfiles: Boolean = true,
@@ -52,7 +52,7 @@ object PulseSettingsStore {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         return PulseSettings(
             allowLan = prefs.getBoolean(ALLOW_LAN, false),
-            coreLogLevel = prefs.getString(CORE_LOG_LEVEL, "info") ?: "info",
+            coreLogLevel = prefs.getString(CORE_LOG_LEVEL, "silent") ?: "silent",
             proxyMode = prefs.getString(PROXY_MODE, "rule") ?: "rule",
             proxyUpdateProfiles = prefs.getBoolean(PROXY_UPDATE_PROFILES, true),
             autoUpdateProfiles = prefs.getBoolean(AUTO_UPDATE_PROFILES, true),
@@ -84,7 +84,7 @@ object PulseSettingsStore {
     fun setCoreLogLevel(context: Context, level: String) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit()
-            .putString(CORE_LOG_LEVEL, level.ifBlank { "info" })
+            .putString(CORE_LOG_LEVEL, level.ifBlank { "silent" })
             .apply()
     }
 
@@ -225,7 +225,7 @@ object PulseSettingsStore {
         json ?: return
         val editor = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
         putBooleanIfPresent(editor, json, ALLOW_LAN)
-        putStringIfPresent(editor, json, CORE_LOG_LEVEL, "info")
+        putStringIfPresent(editor, json, CORE_LOG_LEVEL, "silent")
         putStringIfPresent(editor, json, PROXY_MODE, "rule")
         putBooleanIfPresent(editor, json, PROXY_UPDATE_PROFILES)
         putBooleanIfPresent(editor, json, AUTO_UPDATE_PROFILES)

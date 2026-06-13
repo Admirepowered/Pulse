@@ -1,4 +1,4 @@
-.shell {
+﻿.shell {
     --surface-alpha: .62;
     --surface-soft-alpha: .58;
     --surface-strong-alpha: .70;
@@ -635,6 +635,10 @@ h2 {
     color: #a5abb5;
 }
 
+.shell.darkTheme .nodeEditorForm .toggle {
+    border-color: #343434;
+}
+
 .shell.darkTheme .windowControls {
     border-left-color: #343434;
 }
@@ -849,6 +853,29 @@ textarea {
 }
 
 .proxyPage {
+.proxyActions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.proxyActions .searchBox {
+    flex: 1;
+    margin-bottom: 0;
+}
+
+.proxyActionButtons {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.proxyActionButtons button {
+    padding: 5px 12px;
+    font-size: .82rem;
+    gap: 5px;
+}
     overflow-y: auto;
 }
 
@@ -1904,6 +1931,28 @@ textarea {
     align-items: center;
     justify-content: flex-end;
     gap: 6px;
+}
+
+.nodeEditorForm {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 14px;
+}
+
+.nodeEditorForm .toggle {
+    min-height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border: 1px solid #d9e1ea;
+    border-radius: 6px;
+    padding: 0 10px;
+}
+
+.chainForm {
+    display: grid;
+    gap: 12px;
 }
 
 .modalActions {

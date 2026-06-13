@@ -300,6 +300,30 @@ type ConnectionSnapshot struct {
 	Closed        []ConnectionRow `json:"closed"`
 }
 
+type ProxyNodeConfig struct {
+	Name       string `json:"name"`
+	Type       string `json:"type"`
+	Server     string `json:"server"`
+	Port       int    `json:"port"`
+	Password   string `json:"password,omitempty"`
+	Cipher     string `json:"cipher,omitempty"`
+	UUID       string `json:"uuid,omitempty"`
+	AlterID    int    `json:"alterId,omitempty"`
+	Username   string `json:"username,omitempty"`
+	Network    string `json:"network,omitempty"`
+	WSHost     string `json:"wsHost,omitempty"`
+	WSPath     string `json:"wsPath,omitempty"`
+	SNI        string `json:"sni,omitempty"`
+	SkipVerify bool   `json:"skipVerify,omitempty"`
+	UDP        bool   `json:"udp,omitempty"`
+}
+
+type RelayChainConfig struct {
+	Name  string `json:"name"`
+	Node1 string `json:"node1"`
+	Node2 string `json:"node2"`
+}
+
 const (
 	subscriptionUserAgent = "clash-verge/v2.5.2"
 	defaultDelayTestURL   = "https://www.gstatic.com/generate_204"
@@ -1884,6 +1908,381 @@ func isAPIUnavailableError(err error) bool {
 
 func (a *App) UpdateProvider(name string) error {
 	return a.apiRequest(http.MethodPut, "/providers/proxies/"+url.PathEscape(name), nil, nil)
+}
+
+func (a *App) AddProxyNode(profileID string, node ProxyNodeConfig) error {
+	node.Name = strings.TrimSpace(node.Name)
+	node.Type = strings.TrimSpace(node.Type)
+	node.Server = strings.TrimSpace(node.Server)
+	if node.Name == "" || node.Type == "" || node.Server == "" || node.Port <= 0 {
+		return errors.New("proxy node requires name, type, server, and port")
+	}
+	a.mu.Lock()
+	profile, ok := a.profileByIDLocked(profileID)
+	running := a.coreRunningLocked()
+	activeProfileID := a.store.ActiveProfileID
+	a.mu.Unlock()
+	if !ok {
+		return errors.New("profile not found")
+	}
+	data, err := os.ReadFile(profile.Path)
+	if err != nil {
+		return err
+	}
+	var doc yaml.Node
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		return fmt.Errorf("parse profile YAML: %w", err)
+	}
+	root := yamlRootMapping(&doc)
+	if root == nil {
+		return errors.New("profile YAML root must be a mapping")
+	}
+	proxies := yamlFindOrCreateSequence(root, "proxies")
+	proxyNode := proxyNodeConfigToYAML(node)
+	proxies.Content = append(proxies.Content, proxyNode)
+
+	groups := yamlMappingValue(root, "proxy-groups")
+	if groups != nil && groups.Kind == yaml.SequenceNode {
+		for _, group := range groups.Content {
+			if group.Kind != yaml.MappingNode {
+				continue
+			}
+			gtype := strings.TrimSpace(yamlScalarString(yamlMappingValue(group, "type")))
+			if gtype == "select" {
+				groupProxies := yamlFindOrCreateSequence(group, "proxies")
+				groupProxies.Content = append(groupProxies.Content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: node.Name})
+				break
+			}
+		}
+	}
+	if err := writeYAMLNode(profile.Path, &doc); err != nil {
+		return err
+	}
+	a.mu.Lock()
+	for i := range a.store.Profiles {
+		if a.store.Profiles[i].ID == profileID {
+			a.store.Profiles[i].UpdatedAt = time.Now().Unix()
+			break
+		}
+	}
+	_ = a.saveStoreLocked()
+	a.mu.Unlock()
+	if running && activeProfileID == profileID {
+		if err := a.reloadActiveRuntimeConfig(); err != nil {
+			a.appendLog("warn", "reload after adding proxy node failed, restarting core: "+err.Error())
+			return a.RestartCore()
+		}
+	}
+	a.appendLog("info", "proxy node added: "+node.Name)
+	return nil
+}
+
+func (a *App) RemoveProxyNode(profileID string, nodeName string) error {
+	nodeName = strings.TrimSpace(nodeName)
+	if nodeName == "" {
+		return errors.New("node name is empty")
+	}
+	a.mu.Lock()
+	profile, ok := a.profileByIDLocked(profileID)
+	running := a.coreRunningLocked()
+	activeProfileID := a.store.ActiveProfileID
+	a.mu.Unlock()
+	if !ok {
+		return errors.New("profile not found")
+	}
+	data, err := os.ReadFile(profile.Path)
+	if err != nil {
+		return err
+	}
+	var doc yaml.Node
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		return fmt.Errorf("parse profile YAML: %w", err)
+	}
+	root := yamlRootMapping(&doc)
+	if root == nil {
+		return errors.New("profile YAML root must be a mapping")
+	}
+	proxies := yamlMappingValue(root, "proxies")
+	if proxies != nil && proxies.Kind == yaml.SequenceNode {
+		proxies.Content = removeYAMLSequenceItemByName(proxies.Content, nodeName)
+	}
+	groups := yamlMappingValue(root, "proxy-groups")
+	if groups != nil && groups.Kind == yaml.SequenceNode {
+		for _, group := range groups.Content {
+			if group.Kind != yaml.MappingNode {
+				continue
+			}
+			groupProxies := yamlMappingValue(group, "proxies")
+			if groupProxies != nil && groupProxies.Kind == yaml.SequenceNode {
+				groupProxies.Content = removeYAMLSequenceItemByName(groupProxies.Content, nodeName)
+			}
+		}
+	}
+	if err := writeYAMLNode(profile.Path, &doc); err != nil {
+		return err
+	}
+	a.mu.Lock()
+	for i := range a.store.Profiles {
+		if a.store.Profiles[i].ID == profileID {
+			a.store.Profiles[i].UpdatedAt = time.Now().Unix()
+			break
+		}
+	}
+	_ = a.saveStoreLocked()
+	a.mu.Unlock()
+	if running && activeProfileID == profileID {
+		if err := a.reloadActiveRuntimeConfig(); err != nil {
+			a.appendLog("warn", "reload after removing proxy node failed, restarting core: "+err.Error())
+			return a.RestartCore()
+		}
+	}
+	a.appendLog("info", "proxy node removed: "+nodeName)
+	return nil
+}
+
+func (a *App) AddRelayGroup(profileID string, config RelayChainConfig) error {
+	config.Name = strings.TrimSpace(config.Name)
+	config.Node1 = strings.TrimSpace(config.Node1)
+	config.Node2 = strings.TrimSpace(config.Node2)
+	if config.Name == "" || config.Node1 == "" || config.Node2 == "" {
+		return errors.New("relay chain requires name, node1, and node2")
+	}
+	if config.Node1 == config.Node2 {
+		return errors.New("node1 and node2 must be different")
+	}
+	a.mu.Lock()
+	profile, ok := a.profileByIDLocked(profileID)
+	running := a.coreRunningLocked()
+	activeProfileID := a.store.ActiveProfileID
+	a.mu.Unlock()
+	if !ok {
+		return errors.New("profile not found")
+	}
+	data, err := os.ReadFile(profile.Path)
+	if err != nil {
+		return err
+	}
+	var doc yaml.Node
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		return fmt.Errorf("parse profile YAML: %w", err)
+	}
+	root := yamlRootMapping(&doc)
+	if root == nil {
+		return errors.New("profile YAML root must be a mapping")
+	}
+	proxies := yamlMappingValue(root, "proxies")
+	if proxies == nil || proxies.Kind != yaml.SequenceNode {
+		return errors.New("no proxies list found in profile")
+	}
+	var node2Config *yaml.Node
+	for _, item := range proxies.Content {
+		if item.Kind != yaml.MappingNode {
+			continue
+		}
+		name := yamlScalarString(yamlMappingValue(item, "name"))
+		if name == config.Node2 {
+			copy := *item
+			node2Config = &copy
+			break
+		}
+	}
+	if node2Config == nil {
+		return fmt.Errorf("node %q not found in profile proxies", config.Node2)
+	}
+	chainProxyName := config.Name + "-chain"
+	chainProxy := deepCopyYAMLNode(node2Config)
+	setYAMLScalar(chainProxy, "name", chainProxyName)
+	setYAMLScalar(chainProxy, "dialer-proxy", config.Node1)
+	proxies.Content = append(proxies.Content, chainProxy)
+
+	groups := yamlFindOrCreateSequence(root, "proxy-groups")
+	chainGroup := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+	setYAMLScalar(chainGroup, "name", config.Name)
+	setYAMLScalar(chainGroup, "type", "select")
+	groupProxies := &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
+	groupProxies.Content = append(groupProxies.Content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: chainProxyName})
+	chainGroup.Content = append(chainGroup.Content,
+		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "proxies"}, groupProxies,
+	)
+	groups.Content = append(groups.Content, chainGroup)
+
+	if err := writeYAMLNode(profile.Path, &doc); err != nil {
+		return err
+	}
+	a.mu.Lock()
+	for i := range a.store.Profiles {
+		if a.store.Profiles[i].ID == profileID {
+			a.store.Profiles[i].UpdatedAt = time.Now().Unix()
+			break
+		}
+	}
+	_ = a.saveStoreLocked()
+	a.mu.Unlock()
+	if running && activeProfileID == profileID {
+		if err := a.reloadActiveRuntimeConfig(); err != nil {
+			a.appendLog("warn", "reload after adding relay group failed, restarting core: "+err.Error())
+			return a.RestartCore()
+		}
+	}
+	a.appendLog("info", "relay chain group added: "+config.Name)
+	return nil
+}
+
+func (a *App) GetProfileProxyNames(profileID string) ([]string, error) {
+	a.mu.Lock()
+	profile, ok := a.profileByIDLocked(profileID)
+	a.mu.Unlock()
+	if !ok {
+		return nil, errors.New("profile not found")
+	}
+	data, err := os.ReadFile(profile.Path)
+	if err != nil {
+		return nil, err
+	}
+	var doc yaml.Node
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		return nil, fmt.Errorf("parse profile YAML: %w", err)
+	}
+	root := yamlRootMapping(&doc)
+	if root == nil {
+		return nil, nil
+	}
+	proxies := yamlMappingValue(root, "proxies")
+	if proxies == nil || proxies.Kind != yaml.SequenceNode {
+		return nil, nil
+	}
+	names := make([]string, 0, len(proxies.Content))
+	for _, item := range proxies.Content {
+		if item.Kind != yaml.MappingNode {
+			continue
+		}
+		name := strings.TrimSpace(yamlScalarString(yamlMappingValue(item, "name")))
+		if name != "" {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	return names, nil
+}
+
+func yamlFindOrCreateSequence(mapping *yaml.Node, key string) *yaml.Node {
+	node := yamlMappingValue(mapping, key)
+	if node != nil && node.Kind == yaml.SequenceNode {
+		return node
+	}
+	if node != nil {
+		index := yamlKeyIndex(mapping, key)
+		seq := &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
+		mapping.Content[index+1] = seq
+		return seq
+	}
+	seq := &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
+	mapping.Content = append(mapping.Content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: key}, seq)
+	return seq
+}
+
+func proxyNodeConfigToYAML(config ProxyNodeConfig) *yaml.Node {
+	node := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+	setYAMLScalar(node, "name", config.Name)
+	setYAMLScalar(node, "type", config.Type)
+	setYAMLScalar(node, "server", config.Server)
+	setYAMLScalar(node, "port", config.Port)
+	if config.Password != "" {
+		setYAMLScalar(node, "password", config.Password)
+	}
+	if config.Cipher != "" {
+		setYAMLScalar(node, "cipher", config.Cipher)
+	}
+	if config.UUID != "" {
+		setYAMLScalar(node, "uuid", config.UUID)
+	}
+	if config.AlterID > 0 {
+		setYAMLScalar(node, "alterId", config.AlterID)
+	}
+	if config.Username != "" {
+		setYAMLScalar(node, "username", config.Username)
+	}
+	if config.Network != "" && config.Network != "tcp" {
+		setYAMLScalar(node, "network", config.Network)
+	}
+	if config.WSHost != "" || config.WSPath != "" {
+		wsOpts := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+		if config.WSHost != "" {
+			setYAMLScalar(wsOpts, "host", config.WSHost)
+		}
+		if config.WSPath != "" {
+			setYAMLScalar(wsOpts, "path", config.WSPath)
+		}
+		headers := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+		setYAMLScalar(headers, "Host", config.WSHost)
+		setYAMLNode(wsOpts, "headers", headers)
+		setYAMLNode(node, "ws-opts", wsOpts)
+	}
+	if config.SNI != "" {
+		setYAMLScalar(node, "sni", config.SNI)
+	}
+	if config.SkipVerify {
+		setYAMLScalar(node, "skip-cert-verify", true)
+	}
+	if config.UDP {
+		setYAMLScalar(node, "udp", true)
+	}
+	return node
+}
+
+func removeYAMLSequenceItemByName(items []*yaml.Node, name string) []*yaml.Node {
+	filtered := items[:0]
+	for _, item := range items {
+		if item.Kind == yaml.MappingNode {
+			itemName := strings.TrimSpace(yamlScalarString(yamlMappingValue(item, "name")))
+			if itemName == name {
+				continue
+			}
+		}
+		if item.Kind == yaml.ScalarNode && strings.TrimSpace(item.Value) == name {
+			continue
+		}
+		filtered = append(filtered, item)
+	}
+	return filtered
+}
+
+func deepCopyYAMLNode(node *yaml.Node) *yaml.Node {
+	if node == nil {
+		return nil
+	}
+	copy := &yaml.Node{
+		Kind:        node.Kind,
+		Style:       node.Style,
+		Tag:         node.Tag,
+		Value:       node.Value,
+		Anchor:      node.Anchor,
+		Alias:       node.Alias,
+		Content:     make([]*yaml.Node, len(node.Content)),
+		HeadComment: node.HeadComment,
+		LineComment: node.LineComment,
+		FootComment: node.FootComment,
+		Line:        node.Line,
+		Column:      node.Column,
+	}
+	for i, child := range node.Content {
+		copy.Content[i] = deepCopyYAMLNode(child)
+	}
+	return copy
+}
+
+func writeYAMLNode(path string, doc *yaml.Node) error {
+	var buf bytes.Buffer
+	encoder := yaml.NewEncoder(&buf)
+	encoder.SetIndent(2)
+	if err := encoder.Encode(doc); err != nil {
+		_ = encoder.Close()
+		return err
+	}
+	if err := encoder.Close(); err != nil {
+		return err
+	}
+	return os.WriteFile(path, buf.Bytes(), 0o644)
 }
 
 func (a *App) FetchConnections() (ConnectionSnapshot, error) {

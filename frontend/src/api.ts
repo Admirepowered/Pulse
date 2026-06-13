@@ -1,5 +1,7 @@
-export {
+﻿export {
     AddProfileFromURL,
+    AddProxyNode,
+    AddRelayGroup,
     ApplyUpdate,
     CheckForUpdates,
     CloseWindow,
@@ -12,6 +14,7 @@ export {
     FetchRules,
     GetLogs,
     GetSnapshot,
+    GetProfileProxyNames,
     ImportProfile,
     ImportProfileFromFile,
     ListBackgroundImages,
@@ -21,6 +24,7 @@ export {
     OpenURL,
     ReadBackgroundImageDataURL,
     ReadProfileContent,
+    RemoveProxyNode,
     ReadProfileCustomRules,
     ReadProfileRulePolicies,
     RenameProfile,

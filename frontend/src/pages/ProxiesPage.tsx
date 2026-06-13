@@ -1,10 +1,10 @@
-import {Check, LoaderCircle, TimerReset, X} from 'lucide-react';
+﻿import {Check, LoaderCircle, Link, Plus, TimerReset, Trash2, X} from 'lucide-react';
 import {useState} from 'react';
 import {SearchBox, StatusPill} from '../components/common';
 import type {Translator} from '../i18n';
 import type {ProxyGroup} from '../types';
 
-export function ProxiesPage({groups, query, t, testingGroup, groupStatus, onQueryChange, onSelect, onTestGroup, onTestNode}: {
+export function ProxiesPage({groups, query, t, testingGroup, groupStatus, onQueryChange, onSelect, onTestGroup, onTestNode, onAddNode, onCreateChain, onRemoveNode}: {
     groups: ProxyGroup[];
     query: string;
     t: Translator;
@@ -14,12 +14,29 @@ export function ProxiesPage({groups, query, t, testingGroup, groupStatus, onQuer
     onSelect: (group: string, node: string) => void;
     onTestGroup: (group: string) => void;
     onTestNode: (group: string, node: string) => void;
+    onAddNode?: () => void;
+    onCreateChain?: () => void;
+    onRemoveNode?: (group: string, node: string) => void;
 }) {
     const [menu, setMenu] = useState<{ x: number; y: number; group: string; node: string } | null>(null);
 
     return (
         <section className="stack proxyPage" onClick={() => setMenu(null)}>
-            <SearchBox value={query} onChange={onQueryChange} placeholder={t('searchProxy')}/>
+            <div className="proxyActions">
+                <SearchBox value={query} onChange={onQueryChange} placeholder={t('searchProxy')}/>
+                <div className="proxyActionButtons">
+                    {onAddNode && (
+                        <button className="primary small" onClick={onAddNode}>
+                            <Plus size={16}/>{t('addNode')}
+                        </button>
+                    )}
+                    {onCreateChain && (
+                        <button className="primary small" onClick={onCreateChain}>
+                            <Link size={16}/>{t('createChain')}
+                        </button>
+                    )}
+                </div>
+            </div>
             {groups.map((group) => {
                 const status = groupStatus[group.name];
                 return (
@@ -28,7 +45,7 @@ export function ProxiesPage({groups, query, t, testingGroup, groupStatus, onQuer
                             <span className="summaryChevron" aria-hidden="true"/>
                             <div className="proxyGroupTitle">
                                 <h2>{group.name}</h2>
-                                <span>{group.type} · {group.now || t('notSelected')}</span>
+                                <span>{group.type} 路 {group.now || t('notSelected')}</span>
                             </div>
                             <StatusPill ok={Boolean(group.now)} label={`${group.nodes.length} ${t('nodes')}`}/>
                             {status && (
@@ -66,7 +83,7 @@ export function ProxiesPage({groups, query, t, testingGroup, groupStatus, onQuer
                                     }}
                                 >
                                     <span>{node.name}</span>
-                                    <small>{node.type || 'proxy'} · {node.delay >= 0 ? `${node.delay}ms` : t('pending')}</small>
+                                    <small>{node.type || 'proxy'} 路 {node.delay >= 0 ? `${node.delay}ms` : t('pending')}</small>
                                     {node.name === group.now && <Check size={16}/>}
                                 </button>
                             ))}
@@ -82,6 +99,14 @@ export function ProxiesPage({groups, query, t, testingGroup, groupStatus, onQuer
                     }}>
                         <TimerReset size={15}/>{t('testNode')}
                     </button>
+                    {onRemoveNode && (
+                        <button onClick={() => {
+                            onRemoveNode(menu.group, menu.node);
+                            setMenu(null);
+                        }}>
+                            <Trash2 size={15}/>{t('removeNode')}
+                        </button>
+                    )}
                 </div>
             )}
         </section>

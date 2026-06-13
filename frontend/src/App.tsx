@@ -21,6 +21,8 @@ import {
 import './App.css';
 import {
     AddProfileFromURL,
+    AddProxyNode,
+    AddRelayGroup,
     ApplyUpdate,
     CheckForUpdates,
     CloseAllConnections,
@@ -35,6 +37,7 @@ import {
     FetchRules,
     GetLogs,
     GetSnapshot,
+    GetProfileProxyNames,
     ImportProfileFromFile,
     ListBackgroundImages,
     ListNetworkInterfaces,
@@ -46,6 +49,7 @@ import {
     OpenURL,
     ReadBackgroundImageDataURL,
     ReadProfileContent,
+    RemoveProxyNode,
     ReadProfileCustomRules,
     ReadProfileRulePolicies,
     RenameProfile,
@@ -73,8 +77,10 @@ import {CustomRulesEditor} from './components/CustomRulesEditor';
 import {YamlEditor} from './components/YamlEditor';
 import {DashboardPage} from './pages/DashboardPage';
 import {LogsPage} from './pages/LogsPage';
+import {NodeEditorModal} from './pages/NodeEditorModal';
 import {ProfilesPage} from './pages/ProfilesPage';
 import {ProxiesPage} from './pages/ProxiesPage';
+import {RelayChainModal} from './pages/RelayChainModal';
 import {RulesPage} from './pages/RulesPage';
 import {SettingsPage} from './pages/SettingsPage';
 import {getTranslator} from './i18n';
@@ -93,6 +99,8 @@ import {
     type Profile,
     type ProviderRow,
     type ProxyGroup,
+    type ProxyNodeConfig,
+    type RelayChainConfig,
     type RuleRow,
     type RuntimeState,
     type Settings,
@@ -144,6 +152,9 @@ function App() {
     const [providerUpdateStatus, setProviderUpdateStatus] = useState<Record<string, InlineActionState>>({});
     const [profileDropActive, setProfileDropActive] = useState(false);
     const [systemDark, setSystemDark] = useState(false);
+    const [nodeEditorOpen, setNodeEditorOpen] = useState(false);
+    const [chainEditorOpen, setChainEditorOpen] = useState(false);
+    const [proxyNames, setProxyNames] = useState<string[]>([]);
     const settingsSaveSeqRef = useRef(0);
     const settingsSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
     const settingsSnapshotHoldUntilRef = useRef(0);
@@ -269,6 +280,63 @@ function App() {
     const commitSettings = useCallback((settings: Settings) => {
         persistSettings(settings);
     }, [persistSettings]);
+
+    const activeProfileID = useMemo(() => {
+        const name = snapshot.activeProfile;
+        if (!name) return '';
+        const profile = snapshot.profiles.find((p) => p.name === name);
+        return profile ? profile.id : '';
+    }, [snapshot.activeProfile, snapshot.profiles]);
+
+    const handleOpenNodeEditor = useCallback(() => {
+        if (!activeProfileID) {
+            setNotice(t('selectProfileFirst'));
+            return;
+        }
+        setNodeEditorOpen(true);
+    }, [activeProfileID, t]);
+
+    const handleAddNode = useCallback(async (node: ProxyNodeConfig) => {
+        if (!activeProfileID) {
+            setNotice(t('selectProfileFirst'));
+            return;
+        }
+        setNodeEditorOpen(false);
+        await run(() => AddProxyNode(activeProfileID, new Models.ProxyNodeConfig(node)));
+        setNotice(t('nodeAdded'));
+    }, [activeProfileID, run, t]);
+
+    const handleRemoveNode = useCallback(async (group: string, nodeName: string) => {
+        if (!activeProfileID) {
+            setNotice(t('selectProfileFirst'));
+            return;
+        }
+        await run(() => RemoveProxyNode(activeProfileID, nodeName));
+        setNotice(t('nodeRemoved'));
+    }, [activeProfileID, run, t]);
+
+    const handleOpenChainEditor = useCallback(async () => {
+        if (!activeProfileID) {
+            setNotice(t('selectProfileFirst'));
+            return;
+        }
+        setBusy(true);
+        try {
+            const names = await GetProfileProxyNames(activeProfileID) as string[];
+            setProxyNames(names);
+            setChainEditorOpen(true);
+        } catch (error) {
+            setNotice(error instanceof Error ? error.message : String(error));
+        } finally {
+            setBusy(false);
+        }
+    }, [activeProfileID, t]);
+
+    const handleCreateChain = useCallback(async (config: RelayChainConfig) => {
+        setChainEditorOpen(false);
+        await run(() => AddRelayGroup(activeProfileID, new Models.RelayChainConfig(config)));
+        setNotice(t('chainCreated'));
+    }, [activeProfileID, run, t]);
 
     useEffect(() => {
         refreshSnapshot().catch((error) => setNotice(String(error)));
@@ -649,6 +717,9 @@ function App() {
                         onSelect={(group, node) => run(() => SelectProxy(group, node))}
                         onTestGroup={(group) => testProxyGroup(group)}
                         onTestNode={(group, node) => run(() => TestProxyNode(group, node), t('delayTested'))}
+                        onAddNode={handleOpenNodeEditor}
+                        onCreateChain={handleOpenChainEditor}
+                        onRemoveNode={handleRemoveNode}
                     />
                 )}
 
@@ -824,6 +895,24 @@ function App() {
                     </div>
                 </div>
             )}
+
+            {nodeEditorOpen && (
+                <NodeEditorModal
+                    t={t}
+                    onSave={(node) => { handleAddNode(node); }}
+                    onClose={() => setNodeEditorOpen(false)}
+                />
+            )}
+
+            {chainEditorOpen && (
+                <RelayChainModal
+                    t={t}
+                    proxyNames={proxyNames}
+                    onSave={(config) => { handleCreateChain(config); }}
+                    onClose={() => setChainEditorOpen(false)}
+                />
+            )}
+
         </main>
     );
 }

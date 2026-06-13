@@ -1,4 +1,4 @@
-export namespace pulse {
+﻿export namespace pulse {
 
 	export class BackgroundImage {
 	    id: string;
@@ -595,4 +595,97 @@ export namespace pulse {
 
 
 
+
+export class ProxyNodeConfig {
+    name: string;
+    type: string;
+    server: string;
+    port: number;
+    password: string;
+    cipher: string;
+    uuid: string;
+    alterId: number;
+    username: string;
+    network: string;
+    wsHost: string;
+    wsPath: string;
+    sni: string;
+    skipVerify: boolean;
+    udp: boolean;
+
+    static createFrom(source: any = {}) {
+        return new ProxyNodeConfig(source);
+    }
+
+    constructor(source: any = {}) {
+        if ('string' === typeof source) source = JSON.parse(source);
+        this.name = source["name"];
+        this.type = source["type"];
+        this.server = source["server"];
+        this.port = source["port"];
+        this.password = source["password"];
+        this.cipher = source["cipher"];
+        this.uuid = source["uuid"];
+        this.alterId = source["alterId"];
+        this.username = source["username"];
+        this.network = source["network"];
+        this.wsHost = source["wsHost"];
+        this.wsPath = source["wsPath"];
+        this.sni = source["sni"];
+        this.skipVerify = source["skipVerify"];
+        this.udp = source["udp"];
+    }
+
+	convertValues(a: any, classs: any, asMap: boolean = false): any {
+	    if (!a) {
+	        return a;
+	    }
+	    if (a.slice && a.map) {
+	        return (a as any[]).map(elem => this.convertValues(elem, classs));
+	    } else if ("object" === typeof a) {
+	        if (asMap) {
+	            for (const key of Object.keys(a)) {
+	                a[key] = new classs(a[key]);
+	            }
+	            return a;
+	        }
+	        return new classs(a);
+	    }
+	    return a;
+	}
+}
+export class RelayChainConfig {
+    name: string;
+    node1: string;
+    node2: string;
+
+    static createFrom(source: any = {}) {
+        return new RelayChainConfig(source);
+    }
+
+    constructor(source: any = {}) {
+        if ('string' === typeof source) source = JSON.parse(source);
+        this.name = source["name"];
+        this.node1 = source["node1"];
+        this.node2 = source["node2"];
+    }
+
+	convertValues(a: any, classs: any, asMap: boolean = false): any {
+	    if (!a) {
+	        return a;
+	    }
+	    if (a.slice && a.map) {
+	        return (a as any[]).map(elem => this.convertValues(elem, classs));
+	    } else if ("object" === typeof a) {
+	        if (asMap) {
+	            for (const key of Object.keys(a)) {
+	                a[key] = new classs(a[key]);
+	            }
+	            return a;
+	        }
+	        return new classs(a);
+	    }
+	    return a;
+	}
+}
 }

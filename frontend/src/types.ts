@@ -214,6 +214,30 @@ export type ConnectionSnapshot = {
     closed: ConnectionRow[];
 };
 
+export type ProxyNodeConfig = {
+    name: string;
+    type: string;
+    server: string;
+    port: number;
+    password?: string;
+    cipher?: string;
+    uuid?: string;
+    alterId?: number;
+    username?: string;
+    network?: string;
+    wsHost?: string;
+    wsPath?: string;
+    sni?: string;
+    skipVerify?: boolean;
+    udp?: boolean;
+};
+
+export type RelayChainConfig = {
+    name: string;
+    node1: string;
+    node2: string;
+};
+
 export const emptySubscriptionInfo: SubscriptionInfo = {
     upload: 0,
     download: 0,
@@ -232,7 +256,7 @@ export const emptySettings: Settings = {
     mixedPort: 7890,
     allowLan: false,
     mode: 'rule',
-    logLevel: 'info',
+    logLevel: 'silent',
     tunEnabled: false,
     tunInterface: '',
     tunStack: 'mixed',
@@ -331,7 +355,7 @@ export function normalizeSettings(settings?: Partial<Settings>): Settings {
     const next = {
         ...emptySettings,
         ...(settings || {}),
-        logLevel: settings?.logLevel || 'info',
+        logLevel: settings?.logLevel || 'silent',
         language: settings?.language || 'zh',
         webdav: {...emptySettings.webdav, ...(settings?.webdav || {})},
     };
